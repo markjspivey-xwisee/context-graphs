@@ -32,16 +32,22 @@ import {
   addAuthorizedAgent,
   removeAuthorizedAgent,
   createDelegationCredential,
+  fetchPodDirectory,
+  publishPodDirectory,
+  resolveWebFinger,
 } from '@foxxi/context-graphs';
 
 import type {
   IRI,
   ContextDescriptorData,
   OwnerProfileData,
+  PodDirectoryData,
+  PodDirectoryEntry,
   FetchFn,
   WebSocketConstructor,
   Subscription,
   ContextChangeEvent,
+  ManifestEntry,
 } from '@foxxi/context-graphs';
 
 // ── Config ──────────────────────────────────────────────────
@@ -257,16 +263,129 @@ async function handleVerifyAgent(args: ToolArgs): Promise<string> {
   return JSON.stringify(result);
 }
 
+// ── Federation Tool Handlers ────────────────────────────────
+
+// Simple in-memory pod registry for the relay
+const knownPods: Map<string, { url: string; label?: string; owner?: string; via: string }> = new Map();
+
+async function handleDiscoverAll(args: ToolArgs): Promise<string> {
+  const pods = [...knownPods.values()];
+  if (pods.length === 0) {
+    return JSON.stringify({ message: 'No known pods. Use add_pod or discover_directory first.' });
+  }
+
+  const results: Array<{ pod: string; entries: ManifestEntry[]; error?: string }> = [];
+  await Promise.allSettled(pods.map(async (pod) => {
+    try {
+      const filter: Record<string, unknown> = {};
+      if (args.facet_type) filter.facetType = args.facet_type;
+      const entries = await discover(
+        pod.url,
+        Object.keys(filter).length > 0 ? filter as Parameters<typeof discover>[1] : undefined,
+        { fetch: solidFetch },
+      );
+      results.push({ pod: pod.url, entries });
+    } catch (err) {
+      results.push({ pod: pod.url, entries: [], error: (err as Error).message });
+    }
+  }));
+
+  return JSON.stringify({ pods: results.length, results });
+}
+
+async function handleListKnownPods(_args: ToolArgs): Promise<string> {
+  return JSON.stringify([...knownPods.values()]);
+}
+
+async function handleAddPod(args: ToolArgs): Promise<string> {
+  const url = args.pod_url as string;
+  knownPods.set(url, {
+    url,
+    label: args.label as string | undefined,
+    owner: args.owner as string | undefined,
+    via: 'manual',
+  });
+  return JSON.stringify({ added: true, url, total: knownPods.size });
+}
+
+async function handleRemovePod(args: ToolArgs): Promise<string> {
+  const url = args.pod_url as string;
+  const removed = knownPods.delete(url);
+  return JSON.stringify({ removed, url, total: knownPods.size });
+}
+
+async function handleDiscoverDirectory(args: ToolArgs): Promise<string> {
+  const directory = await fetchPodDirectory(args.directory_url as string, { fetch: solidFetch });
+  let added = 0;
+  for (const entry of directory.entries) {
+    if (!knownPods.has(entry.podUrl)) added++;
+    knownPods.set(entry.podUrl, {
+      url: entry.podUrl,
+      label: entry.label,
+      owner: entry.owner,
+      via: 'directory',
+    });
+  }
+  return JSON.stringify({ imported: directory.entries.length, added, total: knownPods.size });
+}
+
+async function handlePublishDirectory(args: ToolArgs): Promise<string> {
+  const podName = (args.pod_name as string) ?? 'default';
+  const podUrl = `${CSS_URL}${podName}/`;
+  const entries: PodDirectoryEntry[] = [...knownPods.values()].map(p => ({
+    podUrl: p.url as IRI,
+    owner: p.owner as IRI | undefined,
+    label: p.label,
+  }));
+  const directory: PodDirectoryData = {
+    id: (args.directory_id as string ?? `urn:directory:${podName}`) as IRI,
+    entries,
+  };
+  const url = await publishPodDirectory(directory, podUrl, { fetch: solidFetch });
+  return JSON.stringify({ published: true, url, entries: entries.length });
+}
+
+async function handleResolveWebfinger(args: ToolArgs): Promise<string> {
+  const result = await resolveWebFinger(args.resource as string, { fetch: solidFetch });
+  if (result.podUrl) {
+    knownPods.set(result.podUrl, {
+      url: result.podUrl,
+      via: 'webfinger',
+    });
+  }
+  return JSON.stringify(result);
+}
+
+async function handleRevokeAgent(args: ToolArgs): Promise<string> {
+  const podName = (args.pod_name as string) ?? 'default';
+  const podUrl = `${CSS_URL}${podName}/`;
+  let profile = await readAgentRegistry(podUrl, { fetch: solidFetch });
+  if (!profile) return JSON.stringify({ error: 'No registry found' });
+  profile = removeAuthorizedAgent(profile, (args.agent_id as string) as IRI);
+  await writeAgentRegistry(profile, podUrl, { fetch: solidFetch });
+  return JSON.stringify({ revoked: true, agent: args.agent_id });
+}
+
 // ── Tool Registry ───────────────────────────────────────────
 
 const TOOLS: Record<string, { description: string; handler: (args: ToolArgs) => Promise<string> }> = {
+  // Core tools
   publish_context: { description: 'Publish a context-annotated knowledge graph', handler: handlePublishContext },
   discover_context: { description: 'Discover descriptors on a pod', handler: handleDiscoverContext },
   get_descriptor: { description: 'Fetch a descriptor\'s Turtle', handler: handleGetDescriptor },
   get_pod_status: { description: 'Check pod status', handler: handleGetPodStatus },
   subscribe_to_pod: { description: 'Subscribe to pod notifications', handler: handleSubscribeToPod },
   register_agent: { description: 'Register an agent on a pod', handler: handleRegisterAgent },
+  revoke_agent: { description: 'Revoke an agent delegation', handler: handleRevokeAgent },
   verify_agent: { description: 'Verify agent delegation', handler: handleVerifyAgent },
+  // Federation tools
+  discover_all: { description: 'Discover across all known pods', handler: handleDiscoverAll },
+  list_known_pods: { description: 'List pods in the federation registry', handler: handleListKnownPods },
+  add_pod: { description: 'Add a pod to the registry', handler: handleAddPod },
+  remove_pod: { description: 'Remove a pod from the registry', handler: handleRemovePod },
+  discover_directory: { description: 'Import pods from a directory graph', handler: handleDiscoverDirectory },
+  publish_directory: { description: 'Publish pod registry as a directory', handler: handlePublishDirectory },
+  resolve_webfinger: { description: 'Resolve WebFinger to find a pod', handler: handleResolveWebfinger },
 };
 
 // ── Express App ─────────────────────────────────────────────
