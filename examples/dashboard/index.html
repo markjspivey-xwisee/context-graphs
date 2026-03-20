@@ -36,7 +36,8 @@
   .pod-owner { font-size:11px; color:var(--dim); margin-bottom:6px; }
   .pod-owner strong { color:var(--text); font-weight:500; }
 
-  .agent-row { display:flex; align-items:center; gap:6px; padding:4px 0; font-size:11px; }
+  .agent-row { display:flex; align-items:center; gap:6px; padding:4px 0; font-size:11px; cursor:pointer; border-radius:4px; padding:4px 6px; margin:0 -6px; }
+  .agent-row:hover { background:rgba(88,166,255,0.06); }
   .agent-dot { width:6px; height:6px; border-radius:50%; background:var(--live); flex-shrink:0; }
   .agent-id { font-family:var(--mono); font-size:10px; color:var(--text); word-break:break-all; }
   .agent-scope { font-size:9px; padding:1px 5px; border-radius:8px; background:rgba(86,211,100,0.1); color:var(--live); font-family:var(--mono); }
@@ -115,7 +116,7 @@
     <div class="panel inspector">
       <div class="panel-hdr">Inspector</div>
       <div class="panel-body" id="inspector">
-        <div class="insp-empty">Click a descriptor or agent to inspect.<br>Activity appears as agents use MCP tools to publish and discover context.</div>
+        <div class="insp-empty">Click a descriptor or agent to inspect its metadata.<br>Activity appears as agents use MCP tools to publish and discover context.</div>
       </div>
     </div>
   </div>
@@ -184,6 +185,9 @@ function handleEvent(ev) {
 }
 
 // ── Render Pods ─────────────────────────────────────────
+// Track which pods are expanded so re-renders don't collapse them
+const openPods = new Set();
+
 function renderPods() {
   const entries = Object.entries(podState);
   if (entries.length === 0) {
@@ -197,23 +201,26 @@ function renderPods() {
     const id = 'pod-' + p.name;
     const descCount = p.descriptors?.length || 0;
     const agentCount = p.agents?.length || 0;
+    const isOpen = openPods.has(id);
 
     html += `<div class="pod-card">`;
     html += `<div class="pod-hdr" onclick="togglePod('${id}')">`;
     html += `<span class="pod-name">/${p.name}/</span>`;
     html += `<span class="pod-count">${descCount} desc · ${agentCount} agents</span>`;
     html += `</div>`;
-    html += `<div class="pod-details" id="${id}">`;
+    html += `<div class="pod-details${isOpen ? ' open' : ''}" id="${id}">`;
 
     // Owner
     if (p.owner) {
       html += `<div class="pod-owner">Owner: <strong>${p.owner.name || ''}</strong> ${shortUrl(p.owner.webId)}</div>`;
     }
 
-    // Agents
+    // Agents (clickable — shows delegation info in inspector)
     if (p.agents?.length) {
       for (const a of p.agents) {
-        html += `<div class="agent-row">`;
+        const agentData = esc(JSON.stringify(a));
+        const podOwner = p.owner?.webId || 'unknown';
+        html += `<div class="agent-row" onclick="inspectAgent(${agentData}, '${esc(podOwner)}', '${esc(url)}')">`;
         html += `<span class="agent-dot"></span>`;
         html += `<span class="agent-id">${a.label || shortId(a.id)}</span>`;
         html += `<span class="agent-scope">${a.scope}</span>`;
@@ -247,7 +254,14 @@ function renderPods() {
 
 function togglePod(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.toggle('open');
+  if (el) {
+    el.classList.toggle('open');
+    if (el.classList.contains('open')) {
+      openPods.add(id);
+    } else {
+      openPods.delete(id);
+    }
+  }
 }
 
 // ── Activity Feed ───────────────────────────────────────
@@ -274,6 +288,33 @@ async function inspect(url) {
   } catch (err) {
     inspector.innerHTML = `<div class="insp-empty">Failed to fetch: ${err.message}</div>`;
   }
+}
+
+function inspectAgent(agent, ownerWebId, podUrl) {
+  const lines = [
+    `Agent Delegation`,
+    `════════════════════════════════════════`,
+    ``,
+    `Agent ID:      ${agent.id}`,
+    `Label:         ${agent.label || '(none)'}`,
+    `Scope:         ${agent.scope}`,
+    ``,
+    `Delegated By:  ${ownerWebId}`,
+    `Pod:           ${podUrl}`,
+    `Valid From:    ${agent.validFrom || '(not set)'}`,
+    `Valid Until:   ${agent.validUntil || '(no expiry)'}`,
+    `Software Agent: ${agent.isSoftwareAgent !== false ? 'Yes' : 'No'}`,
+    `Revoked:       ${agent.revoked ? 'Yes' : 'No'}`,
+    ``,
+    `════════════════════════════════════════`,
+    ``,
+    `Delegation chain:`,
+    `  ${ownerWebId}`,
+    `    └─ delegates to → ${agent.id}`,
+    `       scope: ${agent.scope}`,
+    `       credential: ${podUrl}credentials/${encodeURIComponent(agent.id)}.jsonld`,
+  ];
+  inspector.innerHTML = `<div class="insp-content"><pre>${esc(lines.join('\n'))}</pre></div>`;
 }
 
 // ── Helpers ─────────────────────────────────────────────
