@@ -128,6 +128,7 @@ const feed = document.getElementById('feed');
 const inspector = document.getElementById('inspector');
 const podList = document.getElementById('podList');
 let podState = {};
+window._agentData = {};
 
 // ── SSE Connection ─────────────────────────────────────
 const es = new EventSource('/events');
@@ -217,17 +218,21 @@ function renderPods() {
 
     // Agents (clickable — shows delegation info in inspector)
     if (p.agents?.length) {
-      for (const a of p.agents) {
-        const agentData = esc(JSON.stringify(a));
-        const podOwner = p.owner?.webId || 'unknown';
-        html += `<div class="agent-row" onclick="inspectAgent(${agentData}, '${esc(podOwner)}', '${esc(url)}')">`;
+      for (let ai = 0; ai < p.agents.length; ai++) {
+        const a = p.agents[ai];
+        const dataKey = `${p.name}-agent-${ai}`;
+        // Store agent data in a global map to avoid JSON-in-HTML escaping issues
+        window._agentData = window._agentData || {};
+        html += `<div class="agent-row" data-agent-key="${dataKey}" onclick="inspectAgentByKey('${dataKey}')">`;
         html += `<span class="agent-dot"></span>`;
-        html += `<span class="agent-id">${a.label || shortId(a.id)}</span>`;
+        html += `<span class="agent-id">${esc(a.label || shortId(a.id))}</span>`;
         html += `<span class="agent-scope">${a.scope}</span>`;
         html += `</div>`;
         if (a.label) {
-          html += `<div style="margin-left:14px"><span class="agent-label">${shortId(a.id)}</span></div>`;
+          html += `<div style="margin-left:14px"><span class="agent-label">${esc(shortId(a.id))}</span></div>`;
         }
+        // Store for later lookup
+        _agentData[dataKey] = { agent: a, ownerWebId: p.owner?.webId || 'unknown', podUrl: url };
       }
     }
 
@@ -288,6 +293,12 @@ async function inspect(url) {
   } catch (err) {
     inspector.innerHTML = `<div class="insp-empty">Failed to fetch: ${err.message}</div>`;
   }
+}
+
+function inspectAgentByKey(key) {
+  const data = window._agentData[key];
+  if (!data) return;
+  inspectAgent(data.agent, data.ownerWebId, data.podUrl);
 }
 
 function inspectAgent(agent, ownerWebId, podUrl) {
