@@ -817,6 +817,17 @@ async function toolPgslIngest(args: {
     `  Levels: ${Object.entries(stats.levels).map(([k, v]) => `L${k}=${v}`).join(', ')}`,
   ];
 
+  // Always write PGSL stats to the pod so the dashboard can observe
+  try {
+    await ensureCSS();
+    const statsJson = JSON.stringify({ ...stats, lastIngested: resolved, lastTopUri: topUri, updatedAt: new Date().toISOString() });
+    await solidFetch(`${HOME_POD}pgsl-stats.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: statsJson,
+    });
+  } catch { /* best effort */ }
+
   if (args.publish_to_pod) {
     await ensureCSS();
     const desc = liftToDescriptor(

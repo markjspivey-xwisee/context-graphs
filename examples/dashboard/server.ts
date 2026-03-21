@@ -350,7 +350,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     const resourcePath = decodeURIComponent(url.slice('/api/resource/'.length));
     try {
       const resp = await fetch(`${CSS_URL}${resourcePath}`, {
-        headers: { 'Accept': 'text/turtle, application/ld+json' },
+        headers: { 'Accept': 'application/json, text/turtle, application/ld+json' },
       });
       const body = await resp.text();
       const ct = resp.headers.get('content-type') ?? 'text/plain';

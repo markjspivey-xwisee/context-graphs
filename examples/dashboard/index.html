@@ -491,18 +491,24 @@ async function fetchRdf(url) {
   }
 }
 
-// ── PGSL polling ─────────────────────────────────────
+// ── PGSL polling (reads stats from the pod directly) ─
 async function pollPgsl() {
-  try {
-    const resp = await fetch('/api/relay/pgsl_lattice_status', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    if (data.totalNodes !== undefined) {
-      pgslData = data;
-      document.getElementById('sPgsl').textContent = data.totalNodes;
-      renderPgsl(data);
-    }
-  } catch { /* relay not available */ }
+  // Try each known pod for pgsl-stats.json
+  for (const [url, pod] of Object.entries(podState)) {
+    try {
+      const relPath = url.replace(/^https?:\/\/[^/]+\//, '') + 'pgsl-stats.json';
+      const resp = await fetch('/api/resource/' + relPath);
+      if (!resp.ok) continue;
+      const text = await resp.text();
+      const data = JSON.parse(text);
+      if (data.totalNodes !== undefined) {
+        pgslData = data;
+        document.getElementById('sPgsl').textContent = data.totalNodes;
+        renderPgsl(data);
+        return; // found it
+      }
+    } catch { continue; }
+  }
 }
 
 function renderPgsl(data) {
