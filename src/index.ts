@@ -367,3 +367,37 @@ export type {
   PodFieldState,
   TrustDistribution,
 } from './affordance/index.js';
+
+// ── Crypto / IPFS / Wallets ──────────────────────────────────
+export {
+  sha256,
+  pinToIpfs,
+  createIpfsAnchor,
+  pinPgslFragment,
+  pinDescriptor,
+  createMockWallet,
+  createMockDelegation,
+  signDescriptor,
+  verifyDescriptorSignature,
+  createMockAgentToken,
+  createSiweMessage,
+  formatSiweMessage,
+  verifySiweSignature,
+  createAgentKitWallet,
+} from './crypto/index.js';
+
+export type {
+  CID,
+  IpfsPinResult,
+  IpfsAnchor,
+  IpfsConfig,
+  Wallet,
+  WalletDelegation,
+  SignedDescriptor,
+  AgentIdentityToken,
+  SiweMessage,
+  SiweVerification,
+  X402PaymentRequired,
+  X402PaymentOption,
+  X402PaymentReceipt,
+} from './crypto/index.js';
