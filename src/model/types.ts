@@ -40,7 +40,8 @@ export type ContextTypeName =
   | 'AccessControl'
   | 'Semiotic'
   | 'Trust'
-  | 'Federation';
+  | 'Federation'
+  | 'Causal';
 
 // ── Modal Status (Semiotic Facet §5.5) ───────────────────────
 
@@ -210,6 +211,124 @@ export interface FederationFacetData {
   readonly distribution?: Distribution;
 }
 
+// ── Causal Role (Pearl's Ladder of Causation) ───────────────
+
+export type CausalRole =
+  | 'Observation'       // Rung 1: P(Y|X) — seeing
+  | 'Intervention'      // Rung 2: P(Y|do(X)) — doing
+  | 'Counterfactual';   // Rung 3: P(Y_x|X',Y') — imagining
+
+// ── Structural Causal Model Types ───────────────────────────
+
+/**
+ * A variable in a Structural Causal Model (SCM).
+ * Represents an endogenous or exogenous variable in Pearl's framework.
+ */
+export interface CausalVariable {
+  /** Variable name (unique within the SCM). */
+  readonly name: string;
+  /** Optional IRI identifying this variable in an ontology. */
+  readonly iri?: IRI;
+  /** Whether this is an exogenous (external) variable. */
+  readonly exogenous?: boolean;
+  /** Variables that this variable directly causes. */
+  readonly causes?: readonly string[];
+  /** Structural equation description (human-readable or formal). */
+  readonly mechanism?: string;
+}
+
+/**
+ * An edge in a causal DAG.
+ */
+export interface CausalEdge {
+  /** The cause variable name. */
+  readonly from: string;
+  /** The effect variable name. */
+  readonly to: string;
+  /** Optional label for the causal mechanism. */
+  readonly mechanism?: string;
+  /** Estimated causal strength (0.0–1.0). */
+  readonly strength?: number;
+}
+
+/**
+ * A Structural Causal Model (SCM) — Pearl's formal causal framework.
+ * Contains the DAG structure (V, U, F) where:
+ *   V = endogenous variables
+ *   U = exogenous variables
+ *   F = structural equations (mechanisms)
+ */
+export interface StructuralCausalModel {
+  /** IRI identifying this SCM. */
+  readonly id: IRI;
+  /** Human-readable label. */
+  readonly label?: string;
+  /** All variables (endogenous + exogenous) in the model. */
+  readonly variables: readonly CausalVariable[];
+  /** Directed edges representing causal mechanisms. */
+  readonly edges: readonly CausalEdge[];
+}
+
+/**
+ * An intervention — Pearl's do-operator.
+ * Represents do(X = x): setting variable X to value x,
+ * which surgically removes all incoming edges to X in the SCM.
+ */
+export interface CausalIntervention {
+  /** The variable being intervened on. */
+  readonly variable: string;
+  /** The value the variable is set to (or a description). */
+  readonly value: string;
+}
+
+/**
+ * A counterfactual query — Pearl's rung 3.
+ * "Given that we observed X' and Y', what would Y have been
+ *  had X been x?" — P(Y_x | X', Y')
+ */
+export interface CounterfactualQuery {
+  /** The target variable we want the counterfactual value of. */
+  readonly target: string;
+  /** The hypothetical intervention. */
+  readonly intervention: CausalIntervention;
+  /** Observed evidence (variable name → observed value). */
+  readonly evidence: Record<string, string>;
+}
+
+/**
+ * Causal Facet (§5.8 — Pearl's Causality Integration)
+ *
+ * Attaches causal semantics to a context descriptor:
+ *   - Links to a Structural Causal Model (SCM)
+ *   - Declares the causal role (observation, intervention, counterfactual)
+ *   - Records interventions (do-operator applications)
+ *   - Records counterfactual queries
+ *   - Links to the parent observational descriptor
+ *
+ * Profiles: Pearl's SCM framework, do-calculus
+ */
+export interface CausalFacetData {
+  readonly type: 'Causal';
+  /** The Structural Causal Model this descriptor references. */
+  readonly causalModel?: IRI;
+  /** Inline SCM definition (alternative to referencing by IRI). */
+  readonly causalModelData?: StructuralCausalModel;
+  /** Pearl's Ladder rung: what type of causal claim is this? */
+  readonly causalRole: CausalRole;
+  /** Interventions applied (for Intervention and Counterfactual roles). */
+  readonly interventions?: readonly CausalIntervention[];
+  /** Counterfactual query (for Counterfactual role). */
+  readonly counterfactualQuery?: CounterfactualQuery;
+  /** The observational descriptor this derives from (for rung 2 & 3). */
+  readonly parentObservation?: IRI;
+  /** The interventional descriptor this counterfactual derives from (rung 3 only). */
+  readonly parentIntervention?: IRI;
+  /** Estimated causal effect size (for interventions). */
+  readonly effectSize?: number;
+  /** Confidence in the causal claim (distinct from epistemic confidence). */
+  readonly causalConfidence?: number;
+}
+
 // ── Discriminated Union of all Facets ────────────────────────
 
 export type ContextFacetData =
@@ -219,7 +338,8 @@ export type ContextFacetData =
   | AccessControlFacetData
   | SemioticFacetData
   | TrustFacetData
-  | FederationFacetData;
+  | FederationFacetData
+  | CausalFacetData;
 
 // ── Context Descriptor (§3.1) ────────────────────────────────
 

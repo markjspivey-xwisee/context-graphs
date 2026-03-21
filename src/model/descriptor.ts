@@ -18,6 +18,10 @@ import type {
   SemioticFacetData,
   TrustFacetData,
   FederationFacetData,
+  CausalFacetData,
+  CausalIntervention,
+  CounterfactualQuery,
+  StructuralCausalModel,
   AgentRole,
 } from './types.js';
 
@@ -275,6 +279,70 @@ export class ContextDescriptor {
     return this.federation({
       origin,
       endpointURL,
+    });
+  }
+
+  // ── Causal Facet (§5.8 — Pearl's Causality) ──────────────
+
+  causal(opts: Omit<CausalFacetData, 'type'>): this {
+    if (opts.causalConfidence !== undefined) {
+      if (opts.causalConfidence < 0 || opts.causalConfidence > 1) {
+        throw new RangeError(
+          `causalConfidence must be in [0.0, 1.0], got ${opts.causalConfidence}`
+        );
+      }
+    }
+    this._facets.push({ type: 'Causal', ...opts });
+    return this;
+  }
+
+  /**
+   * Convenience: mark as observational (Pearl's rung 1).
+   * P(Y|X) — statistical association from observation.
+   */
+  observation(scmOrIri?: StructuralCausalModel | IRI): this {
+    return this.causal({
+      causalRole: 'Observation',
+      causalModel: typeof scmOrIri === 'string' ? scmOrIri : undefined,
+      causalModelData: typeof scmOrIri === 'object' ? scmOrIri : undefined,
+    });
+  }
+
+  /**
+   * Convenience: mark as interventional (Pearl's rung 2).
+   * P(Y|do(X)) — causal effect via do-operator.
+   */
+  intervention(
+    interventions: CausalIntervention[],
+    parentObservation: IRI,
+    scmOrIri?: StructuralCausalModel | IRI,
+  ): this {
+    return this.causal({
+      causalRole: 'Intervention',
+      interventions,
+      parentObservation,
+      causalModel: typeof scmOrIri === 'string' ? scmOrIri : undefined,
+      causalModelData: typeof scmOrIri === 'object' ? scmOrIri : undefined,
+    });
+  }
+
+  /**
+   * Convenience: mark as counterfactual (Pearl's rung 3).
+   * P(Y_x | X', Y') — what would have been.
+   */
+  counterfactual(
+    query: CounterfactualQuery,
+    parentObservation: IRI,
+    parentIntervention?: IRI,
+    scmOrIri?: StructuralCausalModel | IRI,
+  ): this {
+    return this.causal({
+      causalRole: 'Counterfactual',
+      counterfactualQuery: query,
+      parentObservation,
+      parentIntervention,
+      causalModel: typeof scmOrIri === 'string' ? scmOrIri : undefined,
+      causalModelData: typeof scmOrIri === 'object' ? scmOrIri : undefined,
     });
   }
 

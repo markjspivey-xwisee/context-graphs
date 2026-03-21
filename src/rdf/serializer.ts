@@ -17,6 +17,7 @@ import type {
   SemioticFacetData,
   TrustFacetData,
   FederationFacetData,
+  CausalFacetData,
   ComposedDescriptorData,
 } from '../model/types.js';
 
@@ -190,6 +191,85 @@ function serializeFederationFacet(f: FederationFacetData): string {
   return bnode(props);
 }
 
+function serializeCausalFacet(f: CausalFacetData): string {
+  const props: string[] = ['a cg:CausalFacet'];
+  props.push(`cg:causalRole cg:${f.causalRole}`);
+
+  if (f.causalModel) props.push(`cg:causalModel ${iri(f.causalModel)}`);
+  if (f.parentObservation) props.push(`cg:parentObservation ${iri(f.parentObservation)}`);
+  if (f.parentIntervention) props.push(`cg:parentIntervention ${iri(f.parentIntervention)}`);
+  if (f.effectSize !== undefined) props.push(`cg:effectSize ${literal(f.effectSize)}`);
+  if (f.causalConfidence !== undefined) props.push(`cg:causalConfidence ${literal(f.causalConfidence)}`);
+
+  // Serialize interventions
+  if (f.interventions && f.interventions.length > 0) {
+    for (const iv of f.interventions) {
+      const ivProps: string[] = [
+        'a cg:Intervention',
+        `cg:intervenes "${iv.variable}"`,
+        `cg:interventionValue "${iv.value}"`,
+      ];
+      props.push(`cg:intervenes ${bnode(ivProps)}`);
+    }
+  }
+
+  // Serialize counterfactual query
+  if (f.counterfactualQuery) {
+    const cfProps: string[] = [
+      `cg:counterfactualTarget "${f.counterfactualQuery.target}"`,
+    ];
+    const iv = f.counterfactualQuery.intervention;
+    cfProps.push(`cg:intervenes ${bnode([
+      'a cg:Intervention',
+      `cg:intervenes "${iv.variable}"`,
+      `cg:interventionValue "${iv.value}"`,
+    ])}`);
+    for (const [varName, value] of Object.entries(f.counterfactualQuery.evidence)) {
+      cfProps.push(`cg:counterfactualEvidence ${bnode([
+        `cg:causalVariable "${varName}"`,
+        `cg:interventionValue "${value}"`,
+      ])}`);
+    }
+    props.push(`cg:counterfactualQuery ${bnode(cfProps)}`);
+  }
+
+  // Serialize inline SCM
+  if (f.causalModelData) {
+    const scm = f.causalModelData;
+    const scmProps: string[] = [
+      'a cg:StructuralCausalModel',
+    ];
+    if (scm.label) scmProps.push(`rdfs:label "${scm.label}"`);
+    for (const v of scm.variables) {
+      const vProps: string[] = [
+        'a cg:CausalVariable',
+        `rdfs:label "${v.name}"`,
+      ];
+      if (v.exogenous) vProps.push(`cg:exogenous ${literal(true)}`);
+      if (v.mechanism) vProps.push(`cg:mechanism "${v.mechanism}"`);
+      if (v.causes) {
+        for (const c of v.causes) {
+          vProps.push(`cg:causes "${c}"`);
+        }
+      }
+      scmProps.push(`cg:causalVariable ${bnode(vProps)}`);
+    }
+    for (const e of scm.edges) {
+      const eProps: string[] = [
+        'a cg:CausalEdge',
+        `cg:causes "${e.from}" ;`,
+        `cg:effectOf "${e.to}"`,
+      ];
+      if (e.mechanism) eProps.push(`cg:mechanism "${e.mechanism}"`);
+      if (e.strength !== undefined) eProps.push(`cg:causalConfidence ${literal(e.strength)}`);
+      scmProps.push(`cg:causalEdge ${bnode(eProps)}`);
+    }
+    props.push(`cg:causalModel ${bnode(scmProps)}`);
+  }
+
+  return bnode(props);
+}
+
 function serializeFacet(f: ContextFacetData): string {
   switch (f.type) {
     case 'Temporal':      return serializeTemporalFacet(f);
@@ -199,6 +279,7 @@ function serializeFacet(f: ContextFacetData): string {
     case 'Semiotic':      return serializeSemioticFacet(f);
     case 'Trust':         return serializeTrustFacet(f);
     case 'Federation':    return serializeFederationFacet(f);
+    case 'Causal':        return serializeCausalFacet(f);
     default:
       throw new Error(`Unknown facet type: ${(f as ContextFacetData).type}`);
   }

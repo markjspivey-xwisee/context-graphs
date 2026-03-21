@@ -18,6 +18,7 @@ import type {
   SemioticFacetData,
   TrustFacetData,
   FederationFacetData,
+  CausalFacetData,
   ComposedDescriptorData,
   ModalStatus,
 } from '../model/types.js';
@@ -210,6 +211,39 @@ function serializeFederationFacet(f: FederationFacetData): Record<string, unknow
   return result;
 }
 
+function serializeCausalFacet(f: CausalFacetData): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    '@type': 'cg:CausalFacet',
+    'cg:causalRole': `cg:${f.causalRole}`,
+  };
+  if (f.causalModel) result['cg:causalModel'] = { '@id': f.causalModel };
+  if (f.parentObservation) result['cg:parentObservation'] = { '@id': f.parentObservation };
+  if (f.parentIntervention) result['cg:parentIntervention'] = { '@id': f.parentIntervention };
+  if (f.effectSize !== undefined) result['cg:effectSize'] = f.effectSize;
+  if (f.causalConfidence !== undefined) result['cg:causalConfidence'] = f.causalConfidence;
+  if (f.interventions) {
+    result['cg:intervenes'] = f.interventions.map(iv => ({
+      '@type': 'cg:Intervention',
+      'cg:intervenes': iv.variable,
+      'cg:interventionValue': iv.value,
+    }));
+  }
+  if (f.counterfactualQuery) {
+    result['cg:counterfactualQuery'] = {
+      'cg:counterfactualTarget': f.counterfactualQuery.target,
+      'cg:intervenes': {
+        '@type': 'cg:Intervention',
+        'cg:intervenes': f.counterfactualQuery.intervention.variable,
+        'cg:interventionValue': f.counterfactualQuery.intervention.value,
+      },
+      'cg:counterfactualEvidence': Object.entries(f.counterfactualQuery.evidence).map(
+        ([k, v]) => ({ 'cg:causalVariable': k, 'cg:interventionValue': v })
+      ),
+    };
+  }
+  return result;
+}
+
 function serializeFacet(f: ContextFacetData): Record<string, unknown> {
   switch (f.type) {
     case 'Temporal':      return serializeTemporalFacet(f);
@@ -219,6 +253,9 @@ function serializeFacet(f: ContextFacetData): Record<string, unknown> {
     case 'Semiotic':      return serializeSemioticFacet(f);
     case 'Trust':         return serializeTrustFacet(f);
     case 'Federation':    return serializeFederationFacet(f);
+    case 'Causal':        return serializeCausalFacet(f);
+    default:
+      throw new Error(`Unknown facet type: ${(f as ContextFacetData).type}`);
   }
 }
 

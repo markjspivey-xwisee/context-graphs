@@ -44,6 +44,25 @@ export {
   verifyDelegation,
 } from './model/index.js';
 
+// ── Causality (Pearl's SCM Framework) ───────────────────────
+export {
+  buildSCM,
+  hasCycle,
+  topologicalSort,
+  ancestors,
+  descendants,
+  parents,
+  children,
+  doIntervention,
+  isDSeparated,
+  causalPaths,
+  evaluateCounterfactual,
+  satisfiesBackdoorCriterion,
+  findBackdoorSet,
+  satisfiesFrontDoorCriterion,
+  scmSummary,
+} from './model/causality.js';
+
 export type {
   IRI,
   ContextDescriptorData,
@@ -76,9 +95,18 @@ export type {
   DelegationVerification,
   PodDirectoryEntry,
   PodDirectoryData,
+  CausalFacetData,
+  CausalRole,
+  CausalVariable,
+  CausalEdge,
+  StructuralCausalModel,
+  CausalIntervention,
+  CounterfactualQuery,
   ValidationResult,
   ValidationViolation,
 } from './model/index.js';
+
+export type { CounterfactualResult } from './model/causality.js';
 
 // ── RDF Serialization ────────────────────────────────────────
 export {

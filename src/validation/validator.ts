@@ -17,6 +17,7 @@ import type {
   SemioticFacetData,
   TrustFacetData,
   AccessControlFacetData,
+  CausalFacetData,
   ValidationResult,
   ValidationViolation,
   ComposedDescriptorData,
@@ -175,6 +176,86 @@ function validateAccessControlFacet(
   return v;
 }
 
+const VALID_CAUSAL_ROLES = new Set([
+  'Observation', 'Intervention', 'Counterfactual',
+]);
+
+function validateCausalFacet(
+  f: CausalFacetData,
+  path: string
+): ValidationViolation[] {
+  const v: ValidationViolation[] = [];
+
+  if (!f.causalRole) {
+    v.push(violation(`${path}/causalRole`, 'Causal facet MUST specify a causalRole'));
+  } else if (!VALID_CAUSAL_ROLES.has(f.causalRole)) {
+    v.push(violation(
+      `${path}/causalRole`,
+      `Invalid causal role "${f.causalRole}". Must be one of: ${[...VALID_CAUSAL_ROLES].join(', ')}`
+    ));
+  }
+
+  // Interventions required for Intervention and Counterfactual roles
+  if (f.causalRole === 'Intervention') {
+    if (!f.interventions || f.interventions.length === 0) {
+      v.push(violation(
+        `${path}/interventions`,
+        'Intervention role requires at least one intervention (do-operator application)'
+      ));
+    }
+    if (!f.parentObservation) {
+      v.push(violation(
+        `${path}/parentObservation`,
+        'Intervention must reference the parent observational descriptor'
+      ));
+    }
+  }
+
+  if (f.causalRole === 'Counterfactual') {
+    if (!f.counterfactualQuery) {
+      v.push(violation(
+        `${path}/counterfactualQuery`,
+        'Counterfactual role requires a counterfactual query'
+      ));
+    }
+    if (!f.parentObservation) {
+      v.push(violation(
+        `${path}/parentObservation`,
+        'Counterfactual must reference the parent observational descriptor'
+      ));
+    }
+  }
+
+  if (f.causalConfidence !== undefined) {
+    if (f.causalConfidence < 0 || f.causalConfidence > 1) {
+      v.push(violation(
+        `${path}/causalConfidence`,
+        `causalConfidence must be in [0.0, 1.0], got ${f.causalConfidence}`
+      ));
+    }
+  }
+
+  // Validate inline SCM if provided
+  if (f.causalModelData) {
+    const scm = f.causalModelData;
+    if (!scm.variables || scm.variables.length === 0) {
+      v.push(violation(`${path}/causalModelData/variables`, 'SCM must have at least one variable'));
+    }
+    const varNames = new Set(scm.variables.map(vv => vv.name));
+    for (let i = 0; i < scm.edges.length; i++) {
+      const e = scm.edges[i]!;
+      if (!varNames.has(e.from)) {
+        v.push(violation(`${path}/causalModelData/edges[${i}]/from`, `Edge references unknown variable "${e.from}"`));
+      }
+      if (!varNames.has(e.to)) {
+        v.push(violation(`${path}/causalModelData/edges[${i}]/to`, `Edge references unknown variable "${e.to}"`));
+      }
+    }
+  }
+
+  return v;
+}
+
 function validateFacet(
   f: ContextFacetData,
   index: number
@@ -187,6 +268,7 @@ function validateFacet(
     case 'Semiotic':      return validateSemioticFacet(f, path);
     case 'Trust':         return validateTrustFacet(f, path);
     case 'AccessControl': return validateAccessControlFacet(f, path);
+    case 'Causal':        return validateCausalFacet(f, path);
     default:
       return [];
   }

@@ -77,6 +77,10 @@ export const CGClass = {
   PodDirectory:        `${CG}PodDirectory`,
   DataProduct:         `${CG}DataProduct`,
   Affordance:          `${CG}Affordance`,
+  CausalFacet:         `${CG}CausalFacet`,
+  StructuralCausalModel: `${CG}StructuralCausalModel`,
+  CausalVariable:      `${CG}CausalVariable`,
+  CausalEdge:          `${CG}CausalEdge`,
 } as const;
 
 /** All CG-namespaced property IRIs */
@@ -126,6 +130,21 @@ export const CGProp = {
   dataProduct:          `${CG}dataProduct`,
   outputPort:           `${CG}outputPort`,
   inputPort:            `${CG}inputPort`,
+  // Causal (Pearl's SCM framework)
+  causalModel:          `${CG}causalModel`,
+  causalRole:           `${CG}causalRole`,
+  causalVariable:       `${CG}causalVariable`,
+  causalEdge:           `${CG}causalEdge`,
+  causes:               `${CG}causes`,
+  mechanism:            `${CG}mechanism`,
+  intervenes:           `${CG}intervenes`,
+  interventionValue:    `${CG}interventionValue`,
+  parentObservation:    `${CG}parentObservation`,
+  parentIntervention:   `${CG}parentIntervention`,
+  effectSize:           `${CG}effectSize`,
+  causalConfidence:     `${CG}causalConfidence`,
+  counterfactualTarget: `${CG}counterfactualTarget`,
+  counterfactualEvidence: `${CG}counterfactualEvidence`,
 } as const;
 
 /** Named individuals: Context Types */
@@ -137,6 +156,7 @@ export const CGContextType = {
   Semiotic:       `${CG}Semiotic`,
   Trust:          `${CG}Trust`,
   Federation:     `${CG}Federation`,
+  Causal:         `${CG}Causal`,
 } as const;
 
 /** Named individuals: Composition Operators */
