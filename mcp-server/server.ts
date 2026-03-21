@@ -61,6 +61,19 @@ import {
   fetchPodDirectory,
   publishPodDirectory,
   resolveWebFinger,
+  // PGSL
+  createPGSL,
+  mintAtom,
+  ingest,
+  pgslResolve,
+  queryNeighbors,
+  latticeStats,
+  pgslToTurtle,
+  embedInPGSL,
+  liftToDescriptor,
+  latticeMeet,
+  isSubFragment,
+  pullbackSquare,
 } from '@foxxi/context-graphs';
 
 import type {
@@ -74,6 +87,8 @@ import type {
   Subscription,
   ContextChangeEvent,
   ManifestEntry,
+  PGSLInstance,
+  NodeProvenance,
 } from '@foxxi/context-graphs';
 
 import { PodRegistry, type KnownPod } from './pod-registry.js';
@@ -107,6 +122,13 @@ let cssReady = false;
 let registryInitialized = false;
 let notificationLog: ContextChangeEvent[] = [];
 let lastPublishedDescriptor: ContextDescriptorData | null = null;
+
+// PGSL state — the lattice persists across tool calls
+const pgslProvenance: NodeProvenance = {
+  wasAttributedTo: MY_OWNER_WEBID,
+  generatedAtTime: new Date().toISOString(),
+};
+const pgslInstance: PGSLInstance = createPGSL(pgslProvenance);
 
 // Initialize pod registry from config
 podRegistry.add({ url: HOME_POD, isHome: true, discoveredVia: 'config' });
@@ -775,10 +797,107 @@ async function toolResolveWebfinger(args: { resource: string }): Promise<string>
   ].filter(Boolean).join('\n');
 }
 
+// ── PGSL Tool Implementations ───────────────────────────────
+
+async function toolPgslIngest(args: {
+  content: string;
+  publish_to_pod?: boolean;
+}): Promise<string> {
+  const topUri = embedInPGSL(pgslInstance, args.content);
+  const stats = latticeStats(pgslInstance);
+  const resolved = pgslResolve(pgslInstance, topUri);
+
+  const lines = [
+    `Ingested into PGSL lattice`,
+    `  Top fragment: ${topUri}`,
+    `  Resolved: "${resolved}"`,
+    `  Atoms: ${stats.atoms}`,
+    `  Fragments: ${stats.fragments}`,
+    `  Max level: ${stats.maxLevel}`,
+    `  Levels: ${Object.entries(stats.levels).map(([k, v]) => `L${k}=${v}`).join(', ')}`,
+  ];
+
+  if (args.publish_to_pod) {
+    await ensureCSS();
+    const desc = liftToDescriptor(
+      pgslInstance,
+      topUri,
+      `urn:cg:${POD_NAME}:pgsl:${Date.now()}` as IRI,
+      [{
+        type: 'Temporal',
+        validFrom: new Date().toISOString(),
+      }, {
+        type: 'Provenance',
+        wasAttributedTo: MY_OWNER_WEBID,
+        generatedAtTime: new Date().toISOString(),
+        wasGeneratedBy: { agent: MY_AGENT_ID, endedAt: new Date().toISOString() },
+      }],
+    );
+    const turtle = pgslToTurtle(pgslInstance);
+    const result = await publish(desc, turtle, HOME_POD, { fetch: solidFetch });
+    lines.push(`  Published to: ${result.descriptorUrl}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function toolPgslResolve(args: { uri: string }): Promise<string> {
+  const resolved = pgslResolve(pgslInstance, args.uri as IRI);
+  const node = pgslInstance.nodes.get(args.uri as IRI);
+  if (!node) return `Not found: ${args.uri}`;
+
+  const lines = [`Resolved: "${resolved}"`];
+  if (node.kind === 'Atom') {
+    lines.push(`  Type: Atom (level 0)`);
+    lines.push(`  Value: ${node.value}`);
+  } else {
+    lines.push(`  Type: Fragment (level ${node.level})`);
+    lines.push(`  Items: ${node.items.length}`);
+    if (node.left) lines.push(`  Left: ${node.left}`);
+    if (node.right) lines.push(`  Right: ${node.right}`);
+    const pb = pullbackSquare(pgslInstance, args.uri as IRI);
+    if (pb) lines.push(`  Overlap: ${pb.overlap}`);
+  }
+  lines.push(`  Agent: ${node.provenance.wasAttributedTo}`);
+  lines.push(`  Created: ${node.provenance.generatedAtTime}`);
+  return lines.join('\n');
+}
+
+async function toolPgslLatticeStatus(_args: Record<string, never>): Promise<string> {
+  const stats = latticeStats(pgslInstance);
+  const lines = [
+    `PGSL Lattice Status`,
+    `  Total nodes: ${stats.totalNodes}`,
+    `  Atoms: ${stats.atoms}`,
+    `  Fragments: ${stats.fragments}`,
+    `  Max level: ${stats.maxLevel}`,
+    `  By level:`,
+    ...Object.entries(stats.levels).map(([k, v]) => `    L${k}: ${v} nodes`),
+  ];
+  return lines.join('\n');
+}
+
+async function toolPgslMeet(args: { uri_a: string; uri_b: string }): Promise<string> {
+  const meet = latticeMeet(pgslInstance, args.uri_a as IRI, args.uri_b as IRI);
+  if (!meet) return `No shared sub-fragment between ${args.uri_a} and ${args.uri_b}`;
+  const resolved = pgslResolve(pgslInstance, meet);
+  return [
+    `Lattice meet (greatest lower bound):`,
+    `  Fragment: ${meet}`,
+    `  Content: "${resolved}"`,
+    `  A: ${args.uri_a}`,
+    `  B: ${args.uri_b}`,
+  ].join('\n');
+}
+
+async function toolPgslToTurtle(_args: Record<string, never>): Promise<string> {
+  return pgslToTurtle(pgslInstance);
+}
+
 // ── MCP Server ──────────────────────────────────────────────
 
 const mcpServer = new Server(
-  { name: '@foxxi/context-graphs-mcp', version: '0.3.0' },
+  { name: '@foxxi/context-graphs-mcp', version: '0.4.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
@@ -972,6 +1091,52 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['resource'],
       },
     },
+    // ── PGSL tools ──
+    {
+      name: 'pgsl_ingest',
+      description: 'Ingest content into the PGSL lattice. Tokenizes the content, builds the overlapping-pair lattice bottom-up, and returns the top fragment URI. Optionally publishes the lattice as a context descriptor to the pod.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          content: { type: 'string', description: 'Text content to ingest into the lattice' },
+          publish_to_pod: { type: 'boolean', description: 'Also publish as a context descriptor to the pod (default: false)' },
+        },
+        required: ['content'],
+      },
+    },
+    {
+      name: 'pgsl_resolve',
+      description: 'Resolve a PGSL URI to its content. For atoms: returns the value. For fragments: returns the full reconstructed text. Also shows node metadata (level, constituents, pullback, provenance).',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          uri: { type: 'string', description: 'PGSL URI to resolve (urn:pgsl:atom:... or urn:pgsl:fragment:...)' },
+        },
+        required: ['uri'],
+      },
+    },
+    {
+      name: 'pgsl_lattice_status',
+      description: 'Show the current state of the PGSL lattice — atom count, fragment count, levels, total nodes.',
+      inputSchema: { type: 'object' as const, properties: {} },
+    },
+    {
+      name: 'pgsl_meet',
+      description: 'Compute the lattice meet (greatest lower bound) of two fragments — the largest shared sub-sequence. This is the categorical intersection in the presheaf topos.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          uri_a: { type: 'string', description: 'First PGSL fragment URI' },
+          uri_b: { type: 'string', description: 'Second PGSL fragment URI' },
+        },
+        required: ['uri_a', 'uri_b'],
+      },
+    },
+    {
+      name: 'pgsl_to_turtle',
+      description: 'Serialize the entire PGSL lattice as RDF Turtle. Includes atoms, fragments, pullback structures, and provenance — all as typed RDF resources with the pgsl: vocabulary.',
+      inputSchema: { type: 'object' as const, properties: {} },
+    },
   ],
 }));
 
@@ -1032,6 +1197,22 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case 'resolve_webfinger':
         result = await toolResolveWebfinger(args as Parameters<typeof toolResolveWebfinger>[0]);
+        break;
+      // PGSL
+      case 'pgsl_ingest':
+        result = await toolPgslIngest(args as Parameters<typeof toolPgslIngest>[0]);
+        break;
+      case 'pgsl_resolve':
+        result = await toolPgslResolve(args as Parameters<typeof toolPgslResolve>[0]);
+        break;
+      case 'pgsl_lattice_status':
+        result = await toolPgslLatticeStatus(args as Record<string, never>);
+        break;
+      case 'pgsl_meet':
+        result = await toolPgslMeet(args as Parameters<typeof toolPgslMeet>[0]);
+        break;
+      case 'pgsl_to_turtle':
+        result = await toolPgslToTurtle(args as Record<string, never>);
         break;
       default:
         result = `Unknown tool: ${name}`;
