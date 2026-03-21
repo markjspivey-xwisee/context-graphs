@@ -18,14 +18,8 @@ import type {
   ContextFacetData,
   ContextTypeName,
   ComposedDescriptorData,
-  TemporalFacetData,
-  ProvenanceFacetData,
-  SemioticFacetData,
-  TrustFacetData,
-  FederationFacetData,
-  AgentFacetData,
-  AccessControlFacetData,
 } from './types.js';
+import { getFacetEntry, executeMerge } from './registry.js';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -47,114 +41,6 @@ function allDescribedGraphs(descriptors: readonly ContextDescriptorData[]): IRI[
     for (const g of d.describes) set.add(g);
   }
   return [...set];
-}
-
-// ── Facet-type-specific merge logic ──────────────────────────
-
-/**
- * Temporal merge (§5.1):
- *   union → convex hull (min from, max until)
- *   intersection → overlap interval
- */
-function mergeTemporalUnion(facets: TemporalFacetData[]): TemporalFacetData | null {
-  const froms = facets.map(f => f.validFrom).filter((v): v is string => v !== undefined);
-  const untils = facets.map(f => f.validUntil).filter((v): v is string => v !== undefined);
-
-  return {
-    type: 'Temporal',
-    validFrom: froms.length > 0 ? froms.sort()[0] : undefined,
-    validUntil: untils.length > 0 ? untils.sort().reverse()[0] : undefined,
-    temporalResolution: facets[0]?.temporalResolution,
-  };
-}
-
-function mergeTemporalIntersection(facets: TemporalFacetData[]): TemporalFacetData | null {
-  const froms = facets.map(f => f.validFrom).filter((v): v is string => v !== undefined);
-  const untils = facets.map(f => f.validUntil).filter((v): v is string => v !== undefined);
-
-  const latestFrom = froms.length > 0 ? froms.sort().reverse()[0] : undefined;
-  const earliestUntil = untils.length > 0 ? untils.sort()[0] : undefined;
-
-  // No overlap → no temporal facet in result
-  if (latestFrom && earliestUntil && latestFrom > earliestUntil) {
-    return null;
-  }
-
-  return {
-    type: 'Temporal',
-    validFrom: latestFrom,
-    validUntil: earliestUntil,
-  };
-}
-
-/**
- * Provenance merge (§5.2):
- *   union → concatenate chains, union derivedFrom sets
- */
-function mergeProvenanceUnion(facets: ProvenanceFacetData[]): ProvenanceFacetData {
-  const derivedFrom = new Set<IRI>();
-  for (const f of facets) {
-    if (f.wasDerivedFrom) {
-      for (const d of f.wasDerivedFrom) derivedFrom.add(d);
-    }
-  }
-  // Take the most recent generation time
-  const times = facets
-    .map(f => f.generatedAtTime)
-    .filter((v): v is string => v !== undefined)
-    .sort()
-    .reverse();
-
-  return {
-    type: 'Provenance',
-    wasGeneratedBy: facets[0]?.wasGeneratedBy,   // preserve first activity
-    wasDerivedFrom: [...derivedFrom],
-    generatedAtTime: times[0],
-    provenanceChain: facets,                      // full chain
-  };
-}
-
-/**
- * Agent merge: union agents into set
- */
-function mergeAgentUnion(facets: AgentFacetData[]): AgentFacetData[] {
-  // Agents don't collapse — return all as distinct facets
-  return facets;
-}
-
-/**
- * Access Control merge (§5.4): union authorization sets
- */
-function mergeAccessControlUnion(facets: AccessControlFacetData[]): AccessControlFacetData {
-  const auths = facets.flatMap(f => f.authorizations);
-  return {
-    type: 'AccessControl',
-    authorizations: auths,
-    consentBasis: facets[0]?.consentBasis,
-  };
-}
-
-/**
- * Semiotic merge (§5.5): do NOT merge — preserve as distinct facets
- */
-function mergeSemioticUnion(facets: SemioticFacetData[]): SemioticFacetData[] {
-  return facets;
-}
-
-/**
- * Trust merge intersection (§5.6): common trust anchors only
- */
-function mergeTrustIntersection(facets: TrustFacetData[]): TrustFacetData[] {
-  // For intersection: retain only credentials that appear in all sources
-  // In the two-operand case, just return both — consumers decide
-  return facets;
-}
-
-/**
- * Federation merge (§5.7): always preserve as-is
- */
-function mergeFederationUnion(facets: FederationFacetData[]): FederationFacetData[] {
-  return facets;
 }
 
 // ── Composition Operators ────────────────────────────────────
@@ -191,33 +77,12 @@ export function union(
     const f1 = g1.get(type) ?? [];
     const f2 = g2.get(type) ?? [];
     const all = [...f1, ...f2];
-
-    switch (type) {
-      case 'Temporal': {
-        const merged = mergeTemporalUnion(all as TemporalFacetData[]);
-        if (merged) resultFacets.push(merged);
-        break;
-      }
-      case 'Provenance':
-        resultFacets.push(mergeProvenanceUnion(all as ProvenanceFacetData[]));
-        break;
-      case 'Agent':
-        resultFacets.push(...mergeAgentUnion(all as AgentFacetData[]));
-        break;
-      case 'AccessControl':
-        resultFacets.push(mergeAccessControlUnion(all as AccessControlFacetData[]));
-        break;
-      case 'Semiotic':
-        resultFacets.push(...mergeSemioticUnion(all as SemioticFacetData[]));
-        break;
-      case 'Trust':
-        resultFacets.push(...all);
-        break;
-      case 'Federation':
-        resultFacets.push(...mergeFederationUnion(all as FederationFacetData[]));
-        break;
-      default:
-        resultFacets.push(...all);
+    const entry = getFacetEntry(type);
+    if (entry) {
+      resultFacets.push(...executeMerge(entry.unionStrategy, all, entry.unionMerge));
+    } else {
+      // Unknown facet type — preserve all (open extension)
+      resultFacets.push(...all);
     }
   }
 
@@ -250,19 +115,11 @@ export function intersection(
     const f1 = g1.get(type)!;
     const f2 = g2.get(type)!;
     const all = [...f1, ...f2];
-
-    switch (type) {
-      case 'Temporal': {
-        const merged = mergeTemporalIntersection(all as TemporalFacetData[]);
-        if (merged) resultFacets.push(merged);
-        break;
-      }
-      case 'Trust':
-        resultFacets.push(...mergeTrustIntersection(all as TrustFacetData[]));
-        break;
-      default:
-        // Default intersection: take all from both (consumers decide)
-        resultFacets.push(...all);
+    const entry = getFacetEntry(type);
+    if (entry) {
+      resultFacets.push(...executeMerge(entry.intersectionStrategy, all, entry.intersectionMerge));
+    } else {
+      resultFacets.push(...all);
     }
   }
 

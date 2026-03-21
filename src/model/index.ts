@@ -18,3 +18,10 @@ export {
   delegationCredentialToJsonLd,
   verifyDelegation,
 } from './delegation.js';
+export {
+  registerFacetType,
+  getFacetEntry,
+  getRegisteredTypes,
+  executeMerge,
+} from './registry.js';
+export type { MergeStrategy, FacetRegistryEntry } from './registry.js';

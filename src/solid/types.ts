@@ -95,6 +95,10 @@ export interface ManifestEntry {
   readonly validFrom?: string;
   /** Temporal validity end (if declared). */
   readonly validUntil?: string;
+  /** Modal status from the Semiotic facet (if present). */
+  readonly modalStatus?: ModalStatus;
+  /** Trust level from the Trust facet (if present). */
+  readonly trustLevel?: TrustLevel;
 }
 
 // ── Subscribe ───────────────────────────────────────────────

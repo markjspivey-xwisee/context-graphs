@@ -13,7 +13,7 @@
  * Uses only fetch and WebSocket — zero additional dependencies.
  */
 
-import type { ContextDescriptorData, ContextTypeName, OwnerProfileData, AgentDelegationCredential, DelegationVerification, IRI } from '../model/types.js';
+import type { ContextDescriptorData, ContextTypeName, OwnerProfileData, AgentDelegationCredential, DelegationVerification, IRI, SemioticFacetData, TrustFacetData, ModalStatus, TrustLevel } from '../model/types.js';
 import { toTurtle } from '../rdf/serializer.js';
 import { turtlePrefixes } from '../rdf/namespaces.js';
 import { ownerProfileToTurtle, parseOwnerProfile, delegationCredentialToJsonLd, verifyDelegation } from '../model/delegation.js';
@@ -176,6 +176,18 @@ function manifestEntryTurtle(
     lines.push(`    cg:validUntil "${descriptor.validUntil}"^^xsd:dateTime ;`);
   }
 
+  // Extract modalStatus from Semiotic facet if present
+  const semioticFacet = descriptor.facets.find((f): f is SemioticFacetData => f.type === 'Semiotic');
+  if (semioticFacet?.modalStatus) {
+    lines.push(`    cg:modalStatus cg:${semioticFacet.modalStatus} ;`);
+  }
+
+  // Extract trustLevel from Trust facet if present
+  const trustFacet = descriptor.facets.find((f): f is TrustFacetData => f.type === 'Trust');
+  if (trustFacet?.trustLevel) {
+    lines.push(`    cg:trustLevel cg:${trustFacet.trustLevel} ;`);
+  }
+
   // Replace trailing ; with .
   const last = lines.length - 1;
   lines[last] = lines[last]!.replace(/ ;$/, ' .');
@@ -202,6 +214,8 @@ export function parseManifest(turtle: string): ManifestEntry[] {
     facetTypes: ContextTypeName[];
     validFrom?: string;
     validUntil?: string;
+    modalStatus?: ModalStatus;
+    trustLevel?: TrustLevel;
   } | null = null;
 
   for (const rawLine of turtle.split('\n')) {
@@ -242,6 +256,16 @@ export function parseManifest(turtle: string): ManifestEntry[] {
       current.validUntil = untilMatch[1]!;
     }
 
+    const modalMatch = line.match(/cg:modalStatus\s+cg:(\w+)/);
+    if (modalMatch) {
+      current.modalStatus = modalMatch[1]! as ModalStatus;
+    }
+
+    const trustMatch = line.match(/cg:trustLevel\s+cg:(\w+)/);
+    if (trustMatch) {
+      current.trustLevel = trustMatch[1]! as TrustLevel;
+    }
+
     if (line.endsWith('.')) {
       if (current) {
         entries.push({ ...current });
@@ -272,12 +296,16 @@ function matchesFilter(entry: ManifestEntry, filter: DiscoverFilter): boolean {
     if (entry.validFrom > filter.validUntil) return false;
   }
 
-  if (filter.trustLevel && !entry.facetTypes.includes('Trust')) {
-    return false;
+  if (filter.trustLevel) {
+    if (!entry.facetTypes.includes('Trust') || entry.trustLevel !== filter.trustLevel) {
+      return false;
+    }
   }
 
-  if (filter.modalStatus && !entry.facetTypes.includes('Semiotic')) {
-    return false;
+  if (filter.modalStatus) {
+    if (!entry.facetTypes.includes('Semiotic') || entry.modalStatus !== filter.modalStatus) {
+      return false;
+    }
   }
 
   return true;

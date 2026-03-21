@@ -56,12 +56,14 @@ const SAMPLE_MANIFEST = `@prefix cg: <https://markjspivey-xwisee.github.io/conte
     cg:describes <urn:graph:g1> ;
     cg:hasFacetType cg:Temporal ;
     cg:hasFacetType cg:Trust ;
+    cg:trustLevel cg:SelfAsserted ;
     cg:validFrom "2026-01-01T00:00:00Z"^^xsd:dateTime ;
     cg:validUntil "2026-06-30T23:59:59Z"^^xsd:dateTime .
 
 <https://alice.pod/context-graphs/desc-2.ttl> a cg:ManifestEntry ;
     cg:describes <urn:graph:g2> ;
     cg:hasFacetType cg:Semiotic ;
+    cg:modalStatus cg:Asserted ;
     cg:validFrom "2026-07-01T00:00:00Z"^^xsd:dateTime ;
     cg:validUntil "2026-12-31T23:59:59Z"^^xsd:dateTime .
 `;

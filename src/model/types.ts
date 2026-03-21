@@ -437,6 +437,51 @@ export interface ContextDescriptorData {
   readonly validUntil?: string;           // xsd:dateTime
 }
 
+// ── Peircean Sign Primitive (§2 Semiotic Foundation) ────────
+
+/**
+ * The Peircean triadic sign — the foundational primitive.
+ *
+ * Every Context Descriptor IS a sign:
+ *   - representamen: the named graph(s) — the form of the sign
+ *   - object: what the graph refers to — the real-world referent
+ *   - interpretant: the facets — the conditions under which the sign means something
+ *
+ * Composition of descriptors is composition of signs.
+ * The semiotic facet is not one facet among many — it's the meta-facet
+ * that declares the modality of the entire sign relation.
+ */
+export interface Sign<T extends ContextFacetData = ContextFacetData> {
+  /** The representamen — the form/vehicle of the sign (Named Graph IRIs). */
+  readonly representamen: readonly IRI[];
+  /** The object — what the sign refers to (optional explicit referent). */
+  readonly object?: IRI;
+  /** The interpretant — how to interpret the sign (facets as interpretive conditions). */
+  readonly interpretant: readonly T[];
+  /** The sign's identity. */
+  readonly id: IRI;
+}
+
+/** View a ContextDescriptor as a Peircean Sign. */
+export function asSign(descriptor: ContextDescriptorData): Sign {
+  return {
+    id: descriptor.id,
+    representamen: descriptor.describes,
+    interpretant: descriptor.facets,
+  };
+}
+
+/** View a Sign as a ContextDescriptor. */
+export function fromSign(sign: Sign, opts?: { version?: number; supersedes?: IRI[] }): ContextDescriptorData {
+  return {
+    id: sign.id,
+    describes: sign.representamen,
+    facets: sign.interpretant,
+    version: opts?.version,
+    supersedes: opts?.supersedes,
+  };
+}
+
 // ── Composed Descriptor (§3.4) ───────────────────────────────
 
 export interface ComposedDescriptorData extends ContextDescriptorData {

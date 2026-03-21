@@ -42,6 +42,12 @@ export {
   parseOwnerProfile,
   delegationCredentialToJsonLd,
   verifyDelegation,
+  registerFacetType,
+  getFacetEntry,
+  getRegisteredTypes,
+  executeMerge,
+  asSign,
+  fromSign,
 } from './model/index.js';
 
 // ── Causality (Pearl's SCM Framework) ───────────────────────
@@ -108,6 +114,9 @@ export type {
   BindingStrength,
   ValidationResult,
   ValidationViolation,
+  Sign,
+  MergeStrategy,
+  FacetRegistryEntry,
 } from './model/index.js';
 
 export type { CounterfactualResult } from './model/causality.js';
