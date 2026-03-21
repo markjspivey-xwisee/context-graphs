@@ -362,6 +362,62 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
+  // API: proxy relay tool calls
+  if (url.startsWith('/api/relay/') && method === 'POST' && RELAY_URL) {
+    const toolName = url.slice('/api/relay/'.length);
+    try {
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      const args = body ? JSON.parse(body) : {};
+      const resp = await fetch(`${RELAY_URL}/tool/${toolName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      });
+      const result = await resp.text();
+      res.writeHead(resp.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(result);
+    } catch (err) {
+      json(res, { error: (err as Error).message }, 502);
+    }
+    return;
+  }
+
+  // API: fetch descriptor turtle and parse facets for detail view
+  if (url.startsWith('/api/descriptor/') && method === 'GET') {
+    const descPath = decodeURIComponent(url.slice('/api/descriptor/'.length));
+    try {
+      const resp = await fetch(`${CSS_URL}${descPath}`, {
+        headers: { 'Accept': 'text/turtle' },
+      });
+      const turtle = await resp.text();
+      // Also fetch the companion graph
+      const graphPath = descPath.replace(/\.ttl$/, '-graph.trig');
+      const graphResp = await fetch(`${CSS_URL}${graphPath}`, {
+        headers: { 'Accept': 'application/trig' },
+      }).catch(() => null);
+      const graphContent = graphResp?.ok ? await graphResp.text() : null;
+      json(res, { turtle, graphContent, descriptorUrl: `${CSS_URL}${descPath}` });
+    } catch (err) {
+      json(res, { error: (err as Error).message }, 502);
+    }
+    return;
+  }
+
+  // API: relay info (tools, health)
+  if (url === '/api/relay' && method === 'GET' && RELAY_URL) {
+    try {
+      const [health, tools] = await Promise.all([
+        fetch(`${RELAY_URL}/health`).then(r => r.json()).catch(() => null),
+        fetch(`${RELAY_URL}/tools`).then(r => r.json()).catch(() => []),
+      ]);
+      json(res, { relay: RELAY_URL, health, tools });
+    } catch (err) {
+      json(res, { error: (err as Error).message }, 502);
+    }
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not found');
 });
