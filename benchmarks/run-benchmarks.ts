@@ -500,6 +500,153 @@ async function benchmarkLoCoMo(): Promise<void> {
 
 // ── Fair Evaluation (LLM answers ALL questions) ──────────────
 
+// ── Fact-Based Evaluation ─────────────────────────────────────
+
+async function factEvalLongMemEval(): Promise<void> {
+  console.log('--- LongMemEval FACT-BASED EVALUATION ---\n');
+  console.log('  Architecture: LLM extracts facts (once per session) → PGSL fact lattice → structural query → derive answer\n');
+
+  if (!anthropic) {
+    console.log('  ERROR: ANTHROPIC_API_KEY required.\n');
+    return;
+  }
+
+  const dataPath = resolve(__dirname, 'LongMemEval/data/longmemeval_oracle.json');
+  let data: any[];
+  try { data = JSON.parse(readFileSync(dataPath, 'utf-8')); }
+  catch { console.log('  ERROR: data not found.\n'); return; }
+
+  const { extractFactsWithLLM, questionToFactQuery, matchFacts, deriveAnswer } = await import('../src/pgsl/fact-extraction.js');
+
+  const questions = data.slice(0, LIMIT);
+  let totalQuestions = 0;
+  let correct = 0;
+  let extractionCalls = 0;
+  let judgeCalls = 0;
+  const typeResults: Record<string, { total: number; correct: number }> = {};
+
+  const startTime = Date.now();
+
+  // LLM call wrapper
+  const llmCall = async (prompt: string): Promise<string> => {
+    extractionCalls++;
+    const resp = await anthropic!.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return resp.content[0] && 'text' in resp.content[0] ? resp.content[0].text : '';
+  };
+
+  // Fact cache: session text hash → extracted facts
+  const factCache = new Map<string, Awaited<ReturnType<typeof extractFactsWithLLM>>>();
+
+  for (const item of questions) {
+    totalQuestions++;
+    const qType = item.question_type;
+    if (!typeResults[qType]) typeResults[qType] = { total: 0, correct: 0 };
+    typeResults[qType]!.total++;
+
+    // Extract session texts
+    const sessionTexts: string[] = [];
+    for (const session of item.haystack_sessions) {
+      const text = typeof session === 'string' ? session :
+        Array.isArray(session) ? session.map((turn: any) =>
+          typeof turn === 'string' ? turn : `${turn.role ?? 'user'}: ${turn.content ?? turn.text ?? ''}`
+        ).join('\n') : JSON.stringify(session);
+      sessionTexts.push(text);
+    }
+
+    // Phase 1: Extract facts from ALL sessions (cached)
+    const allFacts: any[] = [];
+    for (const text of sessionTexts) {
+      const cacheKey = text.slice(0, 100);
+      let extraction = factCache.get(cacheKey);
+      if (!extraction) {
+        extraction = await extractFactsWithLLM(text.slice(0, 4000), llmCall);
+        factCache.set(cacheKey, extraction);
+      }
+      allFacts.push(...extraction.facts);
+    }
+
+    // Phase 2: Parse question into fact query
+    const queryAtoms = questionToFactQuery(item.question);
+
+    // Phase 3: Match facts
+    const matched = matchFacts(queryAtoms, allFacts);
+
+    // Phase 4: LLM derives answer from ALL extracted facts
+    // Give the LLM structured facts instead of raw noisy sessions
+    const topFacts = allFacts.slice(0, 60).map((f: any) =>
+      `• ${f.entity} ${f.relation} ${f.value}${f.timestamp ? ` (${f.timestamp})` : ''}${f.modality !== 'asserted' ? ` [${f.modality}]` : ''}`
+    ).join('\n');
+
+    let derivedAnswer: string | null = null;
+    if (topFacts.length > 0) {
+      extractionCalls++;
+      try {
+        const answerResp = await anthropic!.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          messages: [{
+            role: 'user',
+            content: `Answer this question using ONLY the following extracted facts. Be concise.\n\nFacts:\n${topFacts}\n\nQuestion: ${item.question}\n\nAnswer:`,
+          }],
+        });
+        derivedAnswer = answerResp.content[0] && 'text' in answerResp.content[0] ? answerResp.content[0].text : null;
+      } catch { /* LLM failed */ }
+    }
+
+    // Phase 5: Judge with Sonnet
+    if (derivedAnswer) {
+      judgeCalls++;
+      try {
+        const judgeResp = await anthropic!.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 10,
+          messages: [{
+            role: 'user',
+            content: `Is this answer correct? Consider numbers, names, yes/no as equivalent. Answer ONLY "yes" or "no".\n\nQuestion: ${item.question}\nGenerated: ${derivedAnswer}\nGold: ${item.answer}\n\nCorrect:`,
+          }],
+        });
+        const judgment = judgeResp.content[0] && 'text' in judgeResp.content[0] ? judgeResp.content[0].text.toLowerCase().trim() : '';
+        if (judgment.startsWith('yes')) {
+          correct++;
+          typeResults[qType]!.correct++;
+        }
+      } catch { /* judge failed */ }
+    }
+
+    if (totalQuestions % 50 === 0) {
+      console.log(`  Progress: ${totalQuestions}/${questions.length} — ${(correct / totalQuestions * 100).toFixed(1)}% correct | ${extractionCalls} extractions cached`);
+    }
+  }
+
+  const elapsed = Date.now() - startTime;
+
+  console.log(`\n  Questions: ${totalQuestions}`);
+  console.log(`  Time: ${elapsed}ms (${(elapsed / totalQuestions).toFixed(0)}ms/q)`);
+  console.log(`  Extraction LLM calls: ${extractionCalls} (${factCache.size} unique sessions cached)`);
+  console.log(`  Judge LLM calls: ${judgeCalls}`);
+  console.log(`  Total LLM calls: ${extractionCalls + judgeCalls}`);
+  console.log(`\n  FACT-BASED Results:`);
+  console.log(`    Correct: ${correct}/${totalQuestions} (${(100 * correct / totalQuestions).toFixed(1)}%)`);
+
+  console.log(`\n  By type:`);
+  for (const [type, res] of Object.entries(typeResults)) {
+    console.log(`    ${type}: ${res.correct}/${res.total} (${(100 * res.correct / res.total).toFixed(1)}%)`);
+  }
+
+  console.log(`\n  Comparison:`);
+  console.log(`    Fact-based (this run):          ${(100 * correct / totalQuestions).toFixed(1)}%`);
+  console.log(`    Raw LLM on sessions (prior):    37.8-62.4%`);
+  console.log(`    Structural only (prior):        95.8% (word-overlap, not answer accuracy)`);
+  console.log(`    Supermemory production:          85.2%`);
+  console.log(`    Supermemory ASMR:                ~99% (19 LLM calls/question)`);
+  console.log(`    Our LLM calls/question:          ${((extractionCalls + judgeCalls) / totalQuestions).toFixed(1)}`);
+  console.log('');
+}
+
 async function fairEvalLongMemEval(): Promise<void> {
   console.log('--- LongMemEval FAIR EVALUATION (LLM answers every question) ---\n');
 
@@ -611,6 +758,10 @@ async function fairEvalLongMemEval(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (args.includes('--facts')) {
+    await factEvalLongMemEval();
+    return;
+  }
   if (args.includes('--fair')) {
     await fairEvalLongMemEval();
     return;

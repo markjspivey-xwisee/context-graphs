@@ -102,6 +102,18 @@ export {
   parseTemporalQuestion,
   advancedTemporalRetrieve,
 } from './advanced-temporal.js';
+export {
+  extractFactsWithLLM,
+  structuralFactExtraction,
+  embedFactsInPGSL,
+  questionToFactQuery,
+  matchFacts,
+  deriveAnswer,
+} from './fact-extraction.js';
+export type {
+  Fact,
+  FactExtractionResult,
+} from './fact-extraction.js';
 export type {
   TemporalQuestionParsed,
   AdvancedTemporalResult,
