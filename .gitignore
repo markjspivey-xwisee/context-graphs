@@ -15,3 +15,5 @@ examples/*/solid-data/
 # OS
 .DS_Store
 Thumbs.db
+benchmarks/LongMemEval/
+benchmarks/locomo/
