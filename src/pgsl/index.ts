@@ -72,3 +72,16 @@ export type {
   Relation,
   RelationExtractionResult,
 } from './relation-extraction.js';
+export {
+  expandTerm,
+  expandEntitiesWithOntology,
+  ontologicalSimilarity,
+} from './ontological-inference.js';
+export {
+  classifyQuestion,
+  routedRetrieve,
+} from './question-router.js';
+export type {
+  QuestionType,
+  RoutedRetrievalResult,
+} from './question-router.js';
