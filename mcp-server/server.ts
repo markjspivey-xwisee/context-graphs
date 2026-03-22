@@ -61,6 +61,7 @@ import {
   fetchPodDirectory,
   publishPodDirectory,
   resolveWebFinger,
+  sha256,
   // IPFS
   pinToIpfs,
   pinDescriptor,
@@ -391,22 +392,55 @@ async function toolPublishContext(args: {
   ];
 
   // Pin to IPFS if configured
+  const turtle = toTurtle(descriptor);
+  let ipfsCid: string | undefined;
+  let ipfsUrl: string | undefined;
+  let ipfsProvider: string = 'local';
+
   if (IPFS_PROVIDER !== 'local') {
     try {
-      const turtle = toTurtle(descriptor);
       const pinResult = await pinToIpfs(turtle, `descriptor-${descriptor.id}`, IPFS_CONFIG, solidFetch);
-      lines.push(`  IPFS: ${pinResult.cid}`);
-      lines.push(`  IPFS URL: ${pinResult.url}`);
-      lines.push(`  IPFS Provider: ${pinResult.provider}`);
+      ipfsCid = pinResult.cid;
+      ipfsUrl = pinResult.url;
+      ipfsProvider = pinResult.provider;
+      lines.push(`  IPFS: ${ipfsCid}`);
+      lines.push(`  IPFS URL: ${ipfsUrl}`);
+      lines.push(`  IPFS Provider: ${ipfsProvider}`);
     } catch (err) {
       lines.push(`  IPFS: failed — ${(err as Error).message}`);
     }
   } else {
-    const cid = cryptoComputeCid(toTurtle(descriptor));
-    lines.push(`  CID (local): ${cid}`);
+    ipfsCid = cryptoComputeCid(turtle);
+    ipfsProvider = 'local';
+    lines.push(`  CID (local): ${ipfsCid}`);
   }
 
-  lines.push('', 'Turtle:', toTurtle(descriptor));
+  // Write anchor receipt to pod (zero-copy: only metadata, not content)
+  const anchor = {
+    descriptorUrl: result.descriptorUrl,
+    graphUrl: result.graphUrl,
+    descriptorId: descriptor.id,
+    publishedAt: new Date().toISOString(),
+    publishedBy: MY_AGENT_ID,
+    onBehalfOf: MY_OWNER_WEBID,
+    ipfs: ipfsCid ? { cid: ipfsCid, url: ipfsUrl, provider: ipfsProvider } : undefined,
+    contentHash: sha256(turtle),
+    facetTypes: descriptor.facets.map(f => f.type),
+    confidence: (descriptor.facets.find(f => f.type === 'Semiotic') as any)?.epistemicConfidence,
+    modalStatus: (descriptor.facets.find(f => f.type === 'Semiotic') as any)?.modalStatus,
+  };
+
+  try {
+    const slug = result.descriptorUrl.split('/').pop()?.replace('.ttl', '');
+    await solidFetch(`${pod}anchors/${slug}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(anchor, null, 2),
+    });
+    lines.push(`  Anchor: ${pod}anchors/${slug}.json`);
+  } catch { /* best effort */ }
+
+  lines.push('', 'Turtle:', turtle);
   return lines.filter(Boolean).join('\n');
 }
 
