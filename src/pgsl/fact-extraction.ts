@@ -55,28 +55,32 @@ export async function extractFactsWithLLM(
   text: string,
   llmCall: (prompt: string) => Promise<string>,
 ): Promise<FactExtractionResult> {
-  const prompt = `Extract ALL factual statements from this conversation as structured facts. Return ONLY a JSON array.
+  const prompt = `You are a fact extraction engine. Extract EVERY factual statement from this text as a JSON array.
 
-Each fact should have:
-- entity: the main subject (person, thing, place)
-- relation: what's being said about it (has, is, did, prefers, bought, went_to, etc.)
-- value: the object/value
-- timestamp: any date/time mentioned (ISO format or relative like "March 15" or "last week")
-- modality: "asserted" (stated as true), "negated" (stated as not true), "hypothetical" (might/could), "preference" (likes/prefers)
+RULES:
+- Extract EVERYTHING mentioned: dates, numbers, prices, names, places, preferences, actions, problems, purchases, events, opinions, plans, habits, routines, relationships, possessions
+- Include implicit facts (e.g., "I took it to the dealership" implies entity=user, relation=visited, value=dealership)
+- Include preferences and opinions as facts with modality="preference"
+- Include negated statements with modality="negated"
+- Be EXHAUSTIVE — extract 20+ facts from a typical conversation
 
-Extract EVERYTHING — dates, numbers, preferences, actions, states, plans, problems, purchases, events.
-Be especially thorough with: numbers, dates, prices, durations, names, locations, preferences.
+Format: [{"entity":"...", "relation":"...", "value":"...", "timestamp":"...", "modality":"asserted|negated|hypothetical|preference"}]
 
 Text:
 ${text.slice(0, 4000)}
 
-Return ONLY valid JSON array of facts:`;
+JSON array:`;
 
   try {
     const response = await llmCall(prompt);
 
-    // Parse JSON from response
-    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    // Parse JSON from response — try multiple extraction strategies
+    let jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      // Try extracting from markdown code block
+      const codeBlock = response.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlock) jsonMatch = [codeBlock[1]!];
+    }
     if (!jsonMatch) return structuralFactExtraction(text);
 
     const parsed = JSON.parse(jsonMatch[0]) as any[];

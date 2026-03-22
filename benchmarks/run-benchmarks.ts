@@ -40,7 +40,7 @@ async function llmAnswer(question: string, sessionTexts: string[]): Promise<stri
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -531,7 +531,7 @@ async function factEvalLongMemEval(): Promise<void> {
   const llmCall = async (prompt: string): Promise<string> => {
     extractionCalls++;
     const resp = await anthropic!.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -586,11 +586,11 @@ async function factEvalLongMemEval(): Promise<void> {
       extractionCalls++;
       try {
         const answerResp = await anthropic!.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-sonnet-4-20250514',
           max_tokens: 200,
           messages: [{
             role: 'user',
-            content: `Answer this question using ONLY the following extracted facts. Be concise.\n\nFacts:\n${topFacts}\n\nQuestion: ${item.question}\n\nAnswer:`,
+            content: `Answer this question using the following facts. You MUST give a specific answer — never say "I cannot determine" or "not enough information." If the exact answer isn't in the facts, give your best inference from what IS there.\n\nFacts:\n${topFacts}\n\nQuestion: ${item.question}\n\nAnswer (be specific and concise):`,
           }],
         });
         derivedAnswer = answerResp.content[0] && 'text' in answerResp.content[0] ? answerResp.content[0].text : null;
@@ -697,7 +697,7 @@ async function fairEvalLongMemEval(): Promise<void> {
     try {
       // Step 1: Generate answer with Haiku
       const response = await anthropic!.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
         messages: [{
           role: 'user',
