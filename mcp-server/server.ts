@@ -257,8 +257,19 @@ async function ensurePod(): Promise<void> {
 }
 
 async function ensureRegistry(): Promise<void> {
-  if (registryInitialized) return;
   const homePod = podRegistry.getHome()!;
+
+  // Check actual pod state — skip only if we've verified this session AND
+  // we haven't been idle long enough for external changes
+  if (registryInitialized) {
+    // Quick re-check: is the registry still there?
+    const check = await readAgentRegistry(homePod.url, { fetch: solidFetch });
+    if (check && check.authorizedAgents.some(a => a.agentId === MY_AGENT_ID && !a.revoked)) {
+      return; // still valid
+    }
+    log('Registry was deleted or agent removed — re-provisioning');
+    registryInitialized = false;
+  }
 
   let profile = await readAgentRegistry(homePod.url, { fetch: solidFetch });
 
