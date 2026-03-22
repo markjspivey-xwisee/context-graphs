@@ -312,6 +312,8 @@ export {
   embedInPGSL,
   verifyIntersectionCoherence,
   verifyProvenanceNaturality,
+  structuralRetrieve,
+  atomRetrieve,
 } from './pgsl/index.js';
 
 export type {
@@ -326,6 +328,8 @@ export type {
   Direction,
   ConstituentMorphism,
   PullbackSquare,
+  RetrievalResult,
+  RetrievalOptions,
 } from './pgsl/index.js';
 
 // ── Affordance Engine ────────────────────────────────────────

@@ -38,3 +38,11 @@ export {
   verifyIntersectionCoherence,
   verifyProvenanceNaturality,
 } from './geometric.js';
+export {
+  structuralRetrieve,
+  atomRetrieve,
+} from './retrieval.js';
+export type {
+  RetrievalResult,
+  RetrievalOptions,
+} from './retrieval.js';

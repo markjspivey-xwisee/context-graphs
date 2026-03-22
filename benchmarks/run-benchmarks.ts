@@ -13,8 +13,9 @@
  */
 
 import { ContextGraphsSDK } from '../src/sdk.js';
-import { createPGSL, embedInPGSL, latticeStats, resolve as pgslResolve } from '../src/pgsl/index.js';
+import { createPGSL, embedInPGSL, latticeStats, resolve as pgslResolve, atomRetrieve } from '../src/pgsl/index.js';
 import type { NodeProvenance } from '../src/pgsl/types.js';
+import type { IRI } from '../src/model/types.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,19 +107,31 @@ async function benchmarkLongMemEval(): Promise<void> {
       embedInPGSL(pgsl, summary);
     }
 
-    // 2. Ingest the question
+    // 2. Ingest the question + full sessions for PGSL retrieval
     const questionUri = embedInPGSL(pgsl, item.question);
-
-    // 3. Search: find sessions that share structure with the question
-    // Use token overlap as a proxy for retrieval (since we don't have vector search yet)
-    let bestSessionText = '';
-    let bestOverlap = 0;
-
+    const sessionUriMap = new Map<string, string>(); // uri -> text
     for (const text of sessionTexts) {
-      const overlap = tokenOverlap(item.question, text);
-      if (overlap > bestOverlap) {
-        bestOverlap = overlap;
-        bestSessionText = text;
+      const sessionSummary = text.slice(0, 500).replace(/\n/g, ' ');
+      const uri = embedInPGSL(pgsl, sessionSummary);
+      sessionUriMap.set(uri, text);
+    }
+
+    // 3. PGSL structural retrieval: rank sessions by atom overlap
+    const candidateUris = [...sessionUriMap.keys()] as IRI[];
+    const retrieved = atomRetrieve(pgsl, questionUri as IRI, candidateUris, 1);
+
+    let bestSessionText = '';
+    if (retrieved.length > 0) {
+      bestSessionText = sessionUriMap.get(retrieved[0]!.candidateUri) ?? '';
+    } else {
+      // Fallback to token overlap if no PGSL match
+      let bestOverlap = 0;
+      for (const text of sessionTexts) {
+        const overlap = tokenOverlap(item.question, text);
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestSessionText = text;
+        }
       }
     }
 
@@ -221,14 +234,29 @@ async function benchmarkLoCoMo(): Promise<void> {
       if (!categoryResults[cat]) categoryResults[cat] = { total: 0, contains: 0 };
       categoryResults[cat]!.total++;
 
-      // Search: find best matching session by token overlap with question
-      let bestSessionText = '';
-      let bestOverlap = 0;
+      // PGSL structural retrieval
+      const qUri = embedInPGSL(pgsl, qa.question);
+      const sessionUriMap = new Map<string, string>();
       for (const session of sessions) {
-        const overlap = tokenOverlap(qa.question, session);
-        if (overlap > bestOverlap) {
-          bestOverlap = overlap;
-          bestSessionText = session;
+        const summary = session.slice(0, 500).replace(/\n/g, ' ');
+        const sUri = embedInPGSL(pgsl, summary);
+        sessionUriMap.set(sUri, session);
+      }
+      const candidates = [...sessionUriMap.keys()] as IRI[];
+      const retrieved = atomRetrieve(pgsl, qUri as IRI, candidates, 1);
+
+      let bestSessionText = '';
+      if (retrieved.length > 0) {
+        bestSessionText = sessionUriMap.get(retrieved[0]!.candidateUri) ?? '';
+      } else {
+        // Fallback
+        let bestOverlap = 0;
+        for (const session of sessions) {
+          const overlap = tokenOverlap(qa.question, session);
+          if (overlap > bestOverlap) {
+            bestOverlap = overlap;
+            bestSessionText = session;
+          }
         }
       }
 
