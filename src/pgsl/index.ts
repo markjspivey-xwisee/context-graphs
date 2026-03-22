@@ -46,3 +46,20 @@ export type {
   RetrievalResult,
   RetrievalOptions,
 } from './retrieval.js';
+export {
+  extractEntities,
+  embedEntitiesInPGSL,
+  embedDualInPGSL,
+} from './entity-extraction.js';
+export type {
+  EntityExtractionResult,
+} from './entity-extraction.js';
+export {
+  extractTemporalMarkers,
+  isTemporalQuestion,
+  temporalMatch,
+} from './temporal-retrieval.js';
+export type {
+  TemporalMarker,
+  TemporalMatch,
+} from './temporal-retrieval.js';

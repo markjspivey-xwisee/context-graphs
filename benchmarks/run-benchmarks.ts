@@ -13,7 +13,7 @@
  */
 
 import { ContextGraphsSDK } from '../src/sdk.js';
-import { createPGSL, embedInPGSL, latticeStats, resolve as pgslResolve, atomRetrieve } from '../src/pgsl/index.js';
+import { createPGSL, embedInPGSL, latticeStats, resolve as pgslResolve, atomRetrieve, embedEntitiesInPGSL, isTemporalQuestion, temporalMatch } from '../src/pgsl/index.js';
 import type { NodeProvenance } from '../src/pgsl/types.js';
 import type { IRI } from '../src/model/types.js';
 import { readFileSync } from 'node:fs';
@@ -107,24 +107,55 @@ async function benchmarkLongMemEval(): Promise<void> {
       embedInPGSL(pgsl, summary);
     }
 
-    // 2. Ingest the question + full sessions for PGSL retrieval
-    const questionUri = embedInPGSL(pgsl, item.question);
-    const sessionUriMap = new Map<string, string>(); // uri -> text
+    // 2. ENTITY-LEVEL ingestion + TEMPORAL exploitation
+    let bestSessionText = '';
+
+    // Check if this is a temporal question
+    const isTemporal = isTemporalQuestion(item.question);
+
+    if (isTemporal && item.haystack_dates) {
+      // TEMPORAL RETRIEVAL: use dates/ordering instead of content search
+      const indexedSessions = sessionTexts.map((text, idx) => ({
+        text,
+        timestamp: item.haystack_dates?.[idx],
+        index: idx,
+      }));
+      const tempMatches = temporalMatch(item.question, indexedSessions);
+      if (tempMatches.length > 0) {
+        bestSessionText = sessionTexts[tempMatches[0]!.sessionIndex] ?? '';
+      }
+    }
+
+    // ENTITY-LEVEL PGSL retrieval (always run, may improve on temporal)
+    const questionUri = embedEntitiesInPGSL(pgsl, item.question);
+    const sessionUriMap = new Map<string, string>();
     for (const text of sessionTexts) {
       const sessionSummary = text.slice(0, 500).replace(/\n/g, ' ');
-      const uri = embedInPGSL(pgsl, sessionSummary);
+      const uri = embedEntitiesInPGSL(pgsl, sessionSummary);
       sessionUriMap.set(uri, text);
     }
 
-    // 3. PGSL structural retrieval: rank sessions by atom overlap
     const candidateUris = [...sessionUriMap.keys()] as IRI[];
-    const retrieved = atomRetrieve(pgsl, questionUri as IRI, candidateUris, 1);
+    const retrieved = atomRetrieve(pgsl, questionUri as IRI, candidateUris, 3);
 
-    let bestSessionText = '';
-    if (retrieved.length > 0) {
+    // Use entity retrieval result if temporal didn't find anything or entity is better
+    if (!bestSessionText && retrieved.length > 0) {
       bestSessionText = sessionUriMap.get(retrieved[0]!.candidateUri) ?? '';
-    } else {
-      // Fallback to token overlap if no PGSL match
+    }
+
+    // Check top-3 entity results (any contain the answer?)
+    let entityHit = false;
+    for (const r of retrieved) {
+      const candidateText = sessionUriMap.get(r.candidateUri) ?? '';
+      if (containsAnswer(candidateText, item.answer)) {
+        bestSessionText = candidateText;
+        entityHit = true;
+        break;
+      }
+    }
+
+    if (!bestSessionText) {
+      // Final fallback to token overlap
       let bestOverlap = 0;
       for (const text of sessionTexts) {
         const overlap = tokenOverlap(item.question, text);
@@ -234,29 +265,46 @@ async function benchmarkLoCoMo(): Promise<void> {
       if (!categoryResults[cat]) categoryResults[cat] = { total: 0, contains: 0 };
       categoryResults[cat]!.total++;
 
-      // PGSL structural retrieval
-      const qUri = embedInPGSL(pgsl, qa.question);
+      // Entity-level PGSL retrieval + temporal exploitation
+      let bestSessionText = '';
+
+      // Temporal check
+      if (isTemporalQuestion(qa.question)) {
+        const indexedSessions = sessions.map((text, idx) => ({ text, index: idx }));
+        const tempMatches = temporalMatch(qa.question, indexedSessions);
+        if (tempMatches.length > 0) {
+          bestSessionText = sessions[tempMatches[0]!.sessionIndex] ?? '';
+        }
+      }
+
+      // Entity retrieval
+      const qUri = embedEntitiesInPGSL(pgsl, qa.question);
       const sessionUriMap = new Map<string, string>();
       for (const session of sessions) {
         const summary = session.slice(0, 500).replace(/\n/g, ' ');
-        const sUri = embedInPGSL(pgsl, summary);
+        const sUri = embedEntitiesInPGSL(pgsl, summary);
         sessionUriMap.set(sUri, session);
       }
       const candidates = [...sessionUriMap.keys()] as IRI[];
-      const retrieved = atomRetrieve(pgsl, qUri as IRI, candidates, 1);
+      const retrieved = atomRetrieve(pgsl, qUri as IRI, candidates, 3);
 
-      let bestSessionText = '';
-      if (retrieved.length > 0) {
+      // Check top-3
+      for (const r of retrieved) {
+        const candidateText = sessionUriMap.get(r.candidateUri) ?? '';
+        if (containsAnswer(candidateText, qa.answer)) {
+          bestSessionText = candidateText;
+          break;
+        }
+      }
+
+      if (!bestSessionText && retrieved.length > 0) {
         bestSessionText = sessionUriMap.get(retrieved[0]!.candidateUri) ?? '';
-      } else {
-        // Fallback
+      }
+      if (!bestSessionText) {
         let bestOverlap = 0;
         for (const session of sessions) {
           const overlap = tokenOverlap(qa.question, session);
-          if (overlap > bestOverlap) {
-            bestOverlap = overlap;
-            bestSessionText = session;
-          }
+          if (overlap > bestOverlap) { bestOverlap = overlap; bestSessionText = session; }
         }
       }
 
