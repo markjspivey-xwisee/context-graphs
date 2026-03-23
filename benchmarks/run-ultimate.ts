@@ -123,18 +123,21 @@ Answer:`, 400);
 // ── PREFERENCE: Meta-format with examples (80% on 200q) ──────
 
 async function answerPreference(sessions: string[], question: string): Promise<string> {
-  return llm(`Read the conversation. Based on the user's stated preferences, interests, expertise, and context, describe what kind of response they would want.
+  return llm(`Read the conversation carefully. Based on the user's stated preferences, interests, expertise, and context, describe what kind of response they would want.
 
-CRITICAL FORMAT: Start with "The user would prefer" and describe the TYPE of response.
+CRITICAL FORMAT: Your answer MUST start with "The user would prefer" and describe the TYPE of response they want, NOT the actual content.
 
-Example: "The user would prefer recommendations for indie rock music, particularly artists similar to Radiohead, with links to streaming platforms."
-Example: "The user would prefer advanced Python resources focused on machine learning, with code examples rather than theory."
+Example question: "What kind of music recommendations would I like?"
+Example answer: "The user would prefer recommendations for indie rock and alternative music, particularly artists similar to Radiohead and Arctic Monkeys, as they mentioned these as their favorites."
+
+Example question: "Can you suggest some programming resources?"
+Example answer: "The user would prefer resources focused on advanced Python development, particularly machine learning libraries like TensorFlow, since they mentioned being an experienced Python developer working on ML projects."
 
 ${fullText(sessions)}
 
 Question: ${question}
 
-Answer (start with "The user would prefer"):`, 400);
+Answer (MUST start with "The user would prefer"):`, 400);
 }
 
 // ── ASSISTANT: Verbose monolithic (100% on optimized) ────────
