@@ -70,63 +70,67 @@ Correct?`, 10);
   return clean.startsWith('yes');
 }
 
-// TEMPORAL: Agentic decomposition (proven 100% without chunking)
+// TEMPORAL: TwoPass (proven 90% on 20q — best temporal strategy)
+// Step 1: Extract ALL dates/times comprehensively
+// Step 2: Answer from the extracted temporal facts
 async function answerTemporal(sessions: string[], q: string): Promise<string> {
-  const plan = await llm(`Question: "${q}"\nWhat specific pieces of temporal information need to be extracted? JSON: [{"what": "desc", "type": "date|duration|number"}]`, 300);
-  let tasks: any[] = [];
-  try { const m = plan.match(/\[[\s\S]*\]/); if (m) tasks = JSON.parse(m[0]); } catch {}
-  if (!tasks.length) tasks = [{ what: 'relevant dates and temporal info', type: 'date' }];
+  // Pass 1: Extract ALL temporal information from ALL sessions
+  const allDates = await llm(`List EVERY date, time, duration, and temporal reference in these conversations.
+Format each as: "Event/Topic: date/time/duration"
+Include relative references resolved to dates if possible.
+Be EXHAUSTIVE — list everything.
 
-  const exts: string[] = [];
-  for (const t of tasks.slice(0, 4)) {
-    const r = await llm(`Find "${t.what}" in these conversations. Give the EXACT ${t.type}. Be precise.\n\n${ft(sessions)}\n\n${t.what}:`, 200);
-    exts.push(`${t.what}: ${r}`);
-  }
-  return llm(`Using ONLY these extracted facts, answer the question.\nGive ONLY the specific answer — a number, date, time, duration, or name. Nothing else.\n\n${exts.join('\n')}\n\nQ: ${q}\nA:`, 100);
+${ft(sessions)}
+
+All temporal facts:`, 1000);
+
+  // Pass 2: Answer using the extracted temporal facts
+  return llm(`Using ONLY these temporal facts, answer the question.
+Give ONLY the specific answer — a number, date, time, duration, or name.
+For "how many days" questions, give the number of days.
+For "which first" questions, give the name of the event/item.
+
+Temporal facts:
+${allDates}
+
+Question: ${q}
+
+Answer:`, 200);
 }
 
-// MULTI-SESSION: CHUNKED extraction + aggregation + verification
+// MULTI-SESSION: Simple two-pass (no chunking — chunking hurts accuracy)
 async function answerMulti(sessions: string[], q: string): Promise<string> {
-  // Pass 1: Extract from EVERY chunk of EVERY session
-  const allExtractions: string[] = [];
-  for (let si = 0; si < sessions.length; si++) {
-    const chunks = chunkSession(sessions[si]!);
-    const sessionExts: string[] = [];
-    for (let ci = 0; ci < chunks.length; ci++) {
-      const r = await llm(`Extract EVERY piece of information relevant to: "${q}"\nInclude exact numbers, names, items, amounts, dates.\nIf nothing relevant, say "Nothing."\n\nText (Session ${si + 1}, part ${ci + 1}/${chunks.length}):\n${chunks[ci]}\n\nRelevant:`, 400);
-      if (!r.toLowerCase().includes('nothing') && r.trim().length > 5) {
-        sessionExts.push(r.trim());
-      }
-    }
-    if (sessionExts.length > 0) {
-      allExtractions.push(`Session ${si + 1}:\n${sessionExts.join('\n')}`);
-    }
+  // Pass 1: Extract per session (full session, not chunked)
+  const exts: string[] = [];
+  for (let i = 0; i < sessions.length; i++) {
+    const r = await llm(`Extract EVERY piece of information relevant to: "${q}"
+Be EXHAUSTIVE — include every item, number, amount, name, date.
+If nothing relevant, say "Nothing relevant."
+
+Session:
+${sessions[i]}
+
+Relevant items/facts:`, 500);
+    exts.push(`Session ${i + 1}:\n${r}`);
   }
 
-  // Pass 2: Aggregate all extractions
-  const agg = await llm(`Combine ALL findings to answer the question.
+  // Pass 2: Aggregate
+  const agg = await llm(`Combine ALL findings from ALL sessions to answer the question.
 
-${allExtractions.join('\n\n')}
+${exts.join('\n\n')}
 
 Question: ${q}
 
 INSTRUCTIONS:
-1. List EVERY unique item/fact found
-2. Remove exact duplicates
-3. Count, sum, or compare as the question requires
+1. List EVERY unique item found across all sessions
+2. Remove duplicates (same item in multiple sessions)
+3. Count, sum, or compare as needed
 4. End with: FINAL ANSWER: [answer]
 
 Work:`, 600);
 
-  const finalMatch = agg.match(/FINAL ANSWER:\s*(.+)/i);
-  const candidate = finalMatch ? finalMatch[1]!.trim() : agg.split('\n').pop()?.trim() || agg;
-
-  // Pass 3: Quick verification
-  const verify = await llm(`Question: ${q}\nCandidate: ${candidate}\n\nIs this correct based on these sessions? If wrong, give the right answer. If correct, say "correct".\n\n${ft(sessions).slice(0, 6000)}\n\nVerdict:`, 100);
-  const vc = verify.trim().toLowerCase();
-  if (vc.includes('correct') || vc.startsWith('yes')) return candidate;
-  if (verify.trim().length < 80) return verify.trim();
-  return candidate;
+  const m = agg.match(/FINAL ANSWER:\s*(.+)/i);
+  return m ? m[1]!.trim() : agg.split('\n').pop()?.trim() || agg;
 }
 
 // KNOWLEDGE UPDATE: Force latest single value
