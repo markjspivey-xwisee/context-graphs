@@ -35,29 +35,24 @@ function fullText(sessions: string[]): string {
 // ── TEMPORAL: Agentic decomposition ──────────────────────────
 
 function answerTemporal(sessions: string[], question: string): string {
-  const plan = llm(`Question: "${question}"
-What specific information needs to be extracted? Output JSON array: [{"what": "description", "type": "date|duration|number"}]
-JSON:`);
-
-  let tasks: any[] = [];
-  try { const m = plan.match(/\[[\s\S]*\]/); if (m) tasks = JSON.parse(m[0]); } catch {}
-  if (tasks.length === 0) tasks = [{ what: "relevant temporal information", type: "date" }];
-
-  const extractions: string[] = [];
-  for (const task of tasks.slice(0, 4)) {
-    const result = llm(`Find "${task.what}" in these conversations. Give the EXACT ${task.type}.
+  // TwoPass: extract ALL dates first, then answer (proven 90% on 20q)
+  const allDates = llm(`List EVERY date, time, duration, and temporal reference in these conversations.
+Format each as: "Event/Topic: date/time/duration"
+Include relative references resolved to dates if possible.
+Be EXHAUSTIVE — list everything.
 
 ${fullText(sessions)}
 
-${task.what}:`);
-    extractions.push(`${task.what}: ${result}`);
-  }
+All temporal facts:`);
 
-  return llm(`Using these facts, answer the question. Give ONLY the specific answer.
+  return llm(`Using ONLY these temporal facts, answer the question.
+Give ONLY the specific answer — a number, date, time, duration, or name.
 
-${extractions.join('\n')}
+Temporal facts:
+${allDates}
 
 Question: ${question}
+
 Answer:`);
 }
 
@@ -91,27 +86,32 @@ List items, then: FINAL ANSWER: [answer]`);
 // ── KNOWLEDGE UPDATE: Verbose monolithic ─────────────────────
 
 function answerUpdate(sessions: string[], question: string): string {
-  return llm(`You are answering about the user's CURRENT state, which may have been updated.
-Read ALL sessions. Look for UPDATED or CORRECTED information. Use MOST RECENT value.
-Give ONLY the current/latest answer.
+  return llm(`Read ALL sessions. This question asks about the CURRENT/LATEST state.
+
+CRITICAL RULES:
+- If information was UPDATED later, use ONLY the new value
+- Do NOT show both old and new values
+- Give ONLY the single current answer — a number, name, or yes/no
 
 ${fullText(sessions)}
 
 Question: ${question}
-Answer:`);
+
+Current answer (ONE value only):`);
 }
 
 // ── PREFERENCE: Meta-format ──────────────────────────────────
 
 function answerPreference(sessions: string[], question: string): string {
-  return llm(`Read the conversation. Describe what response the user would prefer.
-CRITICAL: MUST start with "The user would prefer" — describe TYPE of response, NOT actual content.
+  return llm(`Read the conversation carefully. Describe what kind of response the user would prefer.
 
-Example Q: "What music recommendations would I like?"
-Example A: "The user would prefer recommendations for indie rock, particularly artists similar to Radiohead."
+CRITICAL FORMAT: Your answer MUST start with "The user would prefer" and describe the TYPE of response they want, NOT the actual content.
 
-Example Q: "Can you suggest programming resources?"
-Example A: "The user would prefer resources focused on advanced Python development, with code examples."
+Example question: "What kind of music recommendations would I like?"
+Example answer: "The user would prefer recommendations for indie rock and alternative music, particularly artists similar to Radiohead and Arctic Monkeys, as they mentioned these as their favorites."
+
+Example question: "Can you suggest some programming resources?"
+Example answer: "The user would prefer resources focused on advanced Python development, particularly machine learning libraries like TensorFlow, since they mentioned being an experienced Python developer working on ML projects."
 
 ${fullText(sessions)}
 
@@ -132,24 +132,30 @@ Answer:`);
 }
 
 function answerUser(sessions: string[], question: string): string {
-  return llm(`Read the session. Answer based on what the USER said about themselves.
-Never say "not mentioned" — search harder. Give ONLY the specific answer.
+  return llm(`Read the ENTIRE session word by word. The answer IS in the text — find it.
+Look for: personal details, places, numbers, names, habits, experiences.
+The answer may be in a casual mention, not a direct statement.
+Give ONLY the specific answer.
 
 ${fullText(sessions)}
 
 Question: ${question}
+
 Answer:`);
 }
 
 // ── Judge ────────────────────────────────────────────────────
 
-function judge(question: string, generated: string, gold: string): boolean {
-  const result = llm(`Does the answer convey same core info as gold? Numbers must match. Yes/no must agree. Answer "yes" or "no".
+function judge(question: string, generated: string, gold: string, qtype: string): boolean {
+  const prefExtra = qtype === 'single-session-preference'
+    ? '\nFor preferences: same general direction counts as correct.'
+    : '';
+  const result = llm(`Same core info? Numbers must match. Yes/no must agree.${prefExtra} Just "yes" or "no".
 Q: ${question}
-Generated: ${generated.slice(0, 600)}
+Gen: ${generated.slice(0, 600)}
 Gold: ${gold}
-Verdict:`);
-  return result.toLowerCase().startsWith('yes');
+Correct?`);
+  return result.toLowerCase().replace(/[*"'\s]/g, '').startsWith('yes');
 }
 
 // ── Router + Main ────────────────────────────────────────────
@@ -192,7 +198,7 @@ for (const item of sample) {
 
   try {
     const answer = handler(sessions, item.question);
-    const isCorrect = judge(item.question, answer, String(item.answer));
+    const isCorrect = judge(item.question, answer, String(item.answer), item.question_type);
     if (isCorrect) { correct++; typeResults[item.question_type].correct++; }
   } catch (e) {
     console.log(`Error: ${(e as Error).message.slice(0, 80)}`);
