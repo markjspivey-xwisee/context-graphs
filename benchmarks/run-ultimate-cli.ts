@@ -77,10 +77,29 @@ ${extractions.join('\n\n')}
 
 Question: ${question}
 
-List items, then: FINAL ANSWER: [answer]`);
+CRITICAL: Count ONLY items EXPLICITLY stated. Do NOT count implied or planned items.
+Do NOT double-count items mentioned in multiple sessions.
+
+List each unique item, then: FINAL ANSWER: [answer]`);
 
   const m = result.match(/FINAL ANSWER:\s*(.+)/i);
-  return m ? m[1]!.trim() : result.split('\n').pop()?.trim() || result;
+  const candidate = m ? m[1]!.trim() : result.split('\n').pop()?.trim() || result;
+
+  // VERIFICATION: For counting questions, verify against raw sessions
+  if (/how many|total number|in total/i.test(question)) {
+    const verify = llm(`Verify this answer by reading the raw sessions carefully.
+
+${fullText(sessions)}
+
+Question: ${question}
+Previous answer: ${candidate}
+
+Is ${candidate} correct? If wrong, give the right answer. Just the answer:`);
+    const clean = verify.trim();
+    if (clean.length < 50 && /\d/.test(clean)) return clean;
+  }
+
+  return candidate;
 }
 
 // ── KNOWLEDGE UPDATE: Verbose monolithic ─────────────────────
