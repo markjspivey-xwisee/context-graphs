@@ -45,7 +45,7 @@ ${fullText(sessions)}
 
 All temporal facts:`);
 
-  const answer = llm(`Using ONLY these temporal facts, answer the question.
+  return llm(`Using ONLY these temporal facts, answer the question.
 Give ONLY the specific answer — a number, date, time, duration, or name.
 
 Temporal facts:
@@ -54,22 +54,6 @@ ${allDates}
 Question: ${question}
 
 Answer:`);
-
-  // Verify temporal answer against raw sessions
-  const verify = llm(`Verify this temporal answer by checking the raw conversations.
-
-${fullText(sessions)}
-
-Question: ${question}
-Proposed answer: ${answer.slice(0, 200)}
-
-Is this correct? If wrong, give the right answer. Just the answer:`);
-
-  const clean = verify.trim();
-  if (clean.length < 100 && !clean.toLowerCase().includes('not') && !clean.toLowerCase().includes('cannot')) {
-    return clean;
-  }
-  return answer;
 }
 
 // ── MULTI-SESSION: Two-pass ──────────────────────────────────
@@ -105,23 +89,7 @@ Do NOT double-count items mentioned in multiple sessions.
 List each unique item, then: FINAL ANSWER: [answer]`);
 
   const m = result.match(/FINAL ANSWER:\s*(.+)/i);
-  const candidate = m ? m[1]!.trim() : result.split('\n').pop()?.trim() || result;
-
-  // VERIFICATION: For counting questions, verify against raw sessions
-  if (/how many|total number|in total/i.test(question)) {
-    const verify = llm(`Verify this answer by reading the raw sessions carefully.
-
-${fullText(sessions)}
-
-Question: ${question}
-Previous answer: ${candidate}
-
-Is ${candidate} correct? If wrong, give the right answer. Just the answer:`);
-    const clean = verify.trim();
-    if (clean.length < 50 && /\d/.test(clean)) return clean;
-  }
-
-  return candidate;
+  return m ? m[1]!.trim() : result.split('\n').pop()?.trim() || result;
 }
 
 // ── KNOWLEDGE UPDATE: Verbose monolithic ─────────────────────
