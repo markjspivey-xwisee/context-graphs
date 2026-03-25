@@ -1,15 +1,12 @@
-Does the generated answer convey the same core information as the gold answer?
-
-Rules:
-- Numbers must be equal (3 = 3, not 3 ≠ 4)
+Does the generated answer convey the same core information as the gold?
+- Numbers must match
 - Yes/no must agree
-- Key entities/facts must match
-- For preference descriptions: if both describe preferences in the same general area (e.g., both mention the user wants brand-specific tech recommendations, or both mention relaxing activities), answer "yes" even if specific details differ
+- Key facts must match
+- For preferences: same general theme = correct
 
-Answer with just "yes" or "no".
+Just "yes" or "no".
 
-Question: Where do I currently keep my old sneakers?
-Generated: In a shoe rack in the closet.
-Gold: in a shoe rack in my closet
-
+Q: What time do I usually go to the gym?
+Gen: 7:00 pm on Mondays, Wednesdays, and Fridays.
+Gold: 6:00 pm
 Correct?
