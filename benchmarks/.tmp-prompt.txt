@@ -7,7 +7,7 @@ Does the generated answer convey the same core information as the gold?
 
 Just "yes" or "no".
 
-Q: I'm going back to our previous conversation about DIY home decor projects using recycled materials. Can you remind me what sealant you recommended for the newspaper flower vase?
-Gen: Mod Podge
-Gold: Mod Podge or another sealant
+Q: What degree did I graduate with?
+Gen: Business Administration
+Gold: Business Administration
 Correct?
