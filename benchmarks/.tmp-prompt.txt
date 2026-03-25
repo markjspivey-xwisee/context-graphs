@@ -6,7 +6,9 @@ Does the generated answer convey the same core information as the gold?
 
 Just "yes" or "no".
 
-Q: I was looking back at our previous conversation about Caribbean dishes and I was wondering, what was the name of that Jamaican dish you recommended I try with snapper that has fruit in it?
-Gen: Escovitch Fish.
-Gold: Grilled Snapper with Mango Salsa
+Q: Which three events happened in the order from first to last: the day I helped my friend prepare the nursery, the day I helped my cousin pick out stuff for her baby shower, and the day I ordered a customized phone case for my friend's birthday?
+Gen: 1. Helped my friend prepare the nursery (Session 1)
+2. Helped my cousin pick out stuff for her baby shower (Session 2)
+3. Ordered a customized phone case for my friend's birthday (Session 3)
+Gold: First, I helped my friend prepare the nursery, then I helped my cousin pick out stuff for her baby shower, and lastly, I ordered a customized phone case for my friend's birthday.
 Correct?
