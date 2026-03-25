@@ -7,7 +7,7 @@ Does the generated answer convey the same core information as the gold?
 
 Just "yes" or "no".
 
-Q: How many days passed between the day I started playing along to my favorite songs on my old keyboard and the day I discovered a bluegrass band?
-Gen: 6 days
-Gold: 6 days. 7 days (including the last day) is also acceptable.
+Q: How much will I save by taking the bus from the airport to my hotel instead of a taxi?
+Gen: $40 to $50
+Gold: The information provided is not enough. You did not mention how much will the bus take.
 Correct?
