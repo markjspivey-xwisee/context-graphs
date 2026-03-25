@@ -111,8 +111,8 @@ function answerStructurally(sessions: string[], question: string, dates?: string
   }).join('\n\n');
   const dateContext = questionDate ? `\nThe current date (when this question is being asked): ${questionDate}\n` : '';
 
-  // STEP 1: Check abstention
-  if (shouldAbstain(question, sessions)) {
+  // STEP 1: Abstention — DISABLED, too many false positives (Q426)
+  if (false && shouldAbstain(question, sessions)) {
     // Double-check with LLM before abstaining
     const check = llm(`Does this question reference something that IS discussed in the sessions? Answer just "yes" or "no".
 
@@ -174,9 +174,8 @@ Dates (one per line, format: event | date):`);
     }
   }
 
-  // STEP 3: For counting across MULTIPLE sessions, use structural counting
-  // Only do this for multi-session aggregation (3+ sessions), not single-session lookups
-  if (qtype === 'counting' && sessions.length >= 2) {
+  // STEP 3: Counting — DISABLED, Opus handles this better natively
+  if (false) {
     const items: string[] = [];
     for (let i = 0; i < sessions.length; i++) {
       const extraction = llm(`List every item relevant to: "${question}"
