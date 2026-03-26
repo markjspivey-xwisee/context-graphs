@@ -35,7 +35,18 @@ export type Value = string | number | boolean;
  * The PGSL is granularity-agnostic — it works on any sequence of values.
  * The granularity determines how content is split into that sequence.
  */
-export type TokenGranularity = 'character' | 'word' | 'sentence';
+/**
+ * Tokenization granularity — controls what constitutes an atom.
+ *
+ *   'character' — each character is an atom (finest granularity)
+ *   'word'      — each whitespace-separated token is an atom (default)
+ *   'sentence'  — each sentence is an atom (coarsest)
+ *   'structured' — recursive: nested structures (tuples, lists, trees)
+ *                  are ingested as nested lattice fragments. Inner structures
+ *                  become atoms at the outer level. Preserves nesting.
+ *                  ((0,0),(0,0)) ≠ (0,0,0,0) because nesting depth differs.
+ */
+export type TokenGranularity = 'character' | 'word' | 'sentence' | 'structured';
 
 /** Level ℓ ∈ ℕ — the granularity of a fragment (number of base atoms). */
 export type Level = number;

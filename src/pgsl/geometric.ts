@@ -24,7 +24,7 @@
 import type { IRI } from '../model/types.js';
 import type { ContextDescriptorData, ContextFacetData } from '../model/types.js';
 import type { PGSLInstance, Fragment, NodeProvenance } from './types.js';
-import { ingest } from './lattice.js';
+import { ingest, mintAtom } from './lattice.js';
 import { latticeMeet } from './category.js';
 
 // ── Direct Image: f_* (PGSL → Context Graphs) ──────────────
@@ -87,8 +87,34 @@ export function embedInPGSL(
     }
   }
 
-  // Tokenize content into a sequence of values at the specified granularity
-  const tokens = tokenize(content, granularity ?? 'word');
+  const gran = granularity ?? 'word';
+
+  // Structured mode: recursively ingest nested structures
+  if (gran === 'structured') {
+    const tokens = tokenize(content, 'structured');
+    if (tokens.length === 0) {
+      throw new Error('Cannot embed empty content');
+    }
+
+    // Check if any token is itself a nested structure
+    const itemUris: IRI[] = tokens.map(token => {
+      const isNested = (token.startsWith('(') && token.endsWith(')')) ||
+                       (token.startsWith('[') && token.endsWith(']')) ||
+                       (token.startsWith('{') && token.endsWith('}'));
+      if (isNested) {
+        // Recursively ingest the inner structure — it becomes a fragment
+        return embedInPGSL(pgsl, token, descriptor, 'structured');
+      }
+      // Leaf value — mint as atom
+      return mintAtom(pgsl, token, provenance);
+    });
+
+    // Now ingest the outer structure using the inner URIs
+    return ingest(pgsl, itemUris, provenance);
+  }
+
+  // Non-structured modes: flat tokenization
+  const tokens = tokenize(content, gran);
 
   if (tokens.length === 0) {
     throw new Error('Cannot embed empty content');
@@ -108,9 +134,62 @@ function tokenize(content: string, granularity: import('./types.js').TokenGranul
     case 'sentence':
       return content.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
     case 'word':
+      return content.split(/\s+/).filter(t => t.length > 0);
+    case 'structured':
+      return tokenizeStructured(content);
     default:
       return content.split(/\s+/).filter(t => t.length > 0);
   }
+}
+
+/**
+ * Structured tokenization: parse nested structures recursively.
+ *
+ * Input: "((0,0),(0,0))"
+ * Output: ["(0,0)", "(0,0)"] — inner structures become tokens
+ *
+ * Input: "(0,0,0)"
+ * Output: ["0", "0", "0"] — flat elements become tokens
+ *
+ * The key: inner structures are returned as STRINGS that will
+ * themselves be ingested recursively by embedInPGSL when
+ * granularity='structured'. This creates nested lattice fragments.
+ */
+function tokenizeStructured(content: string): string[] {
+  const trimmed = content.trim();
+
+  // Strip outer parens/brackets if present
+  let inner = trimmed;
+  if ((trimmed.startsWith('(') && trimmed.endsWith(')')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+    inner = trimmed.slice(1, -1).trim();
+  }
+
+  // Split by top-level commas (respecting nesting depth)
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (const ch of inner) {
+    if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+      current += ch;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      depth--;
+      current += ch;
+    } else if (ch === ',' && depth === 0) {
+      const part = current.trim();
+      if (part.length > 0) parts.push(part);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  const lastPart = current.trim();
+  if (lastPart.length > 0) parts.push(lastPart);
+
+  return parts;
 }
 
 // ── Coherence: f* preserves finite limits ───────────────────
