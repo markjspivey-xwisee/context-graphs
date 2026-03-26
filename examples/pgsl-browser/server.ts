@@ -6,6 +6,7 @@ import {
   createPGSL,
   embedInPGSL,
   pgslResolve,
+  mintAtom,
   latticeStats,
   latticeMeet,
   queryNeighbors,
@@ -69,11 +70,14 @@ async function loadFromPod() {
           console.log(`  Ingested ${Math.min(lines.length, 10)} facts from: ${entry.describes.join(', ')}`);
         }
 
-        // Ingest the graph IRIs and facet types as atoms
+        // Ingest graph IRIs as individual atoms (not sequences)
         for (const g of entry.describes) {
-          embedInPGSL(pgsl, g);
+          mintAtom(pgsl, g);
         }
-        embedInPGSL(pgsl, entry.facetTypes.join(' '));
+        // Ingest facet types as individual atoms (they're labels, not a sentence)
+        for (const ft of entry.facetTypes) {
+          mintAtom(pgsl, ft);
+        }
       } catch (err) {
         console.log(`  Error: ${(err as Error).message}`);
       }
