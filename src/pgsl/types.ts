@@ -25,6 +25,18 @@ import type { IRI } from '../model/types.js';
 /** A primitive value — element of the ground set V. */
 export type Value = string | number | boolean;
 
+/**
+ * Tokenization granularity — controls what constitutes an atom.
+ *
+ *   'character' — each character is an atom (finest granularity)
+ *   'word'      — each whitespace-separated token is an atom (default)
+ *   'sentence'  — each sentence is an atom (coarsest)
+ *
+ * The PGSL is granularity-agnostic — it works on any sequence of values.
+ * The granularity determines how content is split into that sequence.
+ */
+export type TokenGranularity = 'character' | 'word' | 'sentence';
+
 /** Level ℓ ∈ ℕ — the granularity of a fragment (number of base atoms). */
 export type Level = number;
 
@@ -66,6 +78,8 @@ export interface Atom {
   readonly level: 0;
   /** Provenance: who minted this atom and when. */
   readonly provenance: NodeProvenance;
+  /** IPFS CID (computed from content, optionally pinned). */
+  readonly cid?: string;
 }
 
 /**
@@ -91,6 +105,8 @@ export interface Fragment {
   readonly height: Height;
   /** The ordered sequence of item URIs this fragment contains. */
   readonly items: readonly IRI[];
+  /** IPFS CID (computed from content, optionally pinned). */
+  readonly cid?: string;
   /**
    * The two constituents (for level ≥ 2).
    * The overlapping pair: left and right fragments of level (k-1)

@@ -73,6 +73,7 @@ export function embedInPGSL(
   pgsl: PGSLInstance,
   content: string,
   descriptor?: ContextDescriptorData,
+  granularity?: import('./types.js').TokenGranularity,
 ): IRI {
   // Extract provenance from descriptor if available
   let provenance: NodeProvenance = pgsl.defaultProvenance;
@@ -86,8 +87,8 @@ export function embedInPGSL(
     }
   }
 
-  // Tokenize content into a sequence of values
-  const tokens = tokenize(content);
+  // Tokenize content into a sequence of values at the specified granularity
+  const tokens = tokenize(content, granularity ?? 'word');
 
   if (tokens.length === 0) {
     throw new Error('Cannot embed empty content');
@@ -100,8 +101,16 @@ export function embedInPGSL(
  * Tokenize content into a sequence of values for PGSL ingestion.
  * Default: split on whitespace. Override for domain-specific tokenization.
  */
-function tokenize(content: string): string[] {
-  return content.split(/\s+/).filter(t => t.length > 0);
+function tokenize(content: string, granularity: import('./types.js').TokenGranularity = 'word'): string[] {
+  switch (granularity) {
+    case 'character':
+      return content.split('').filter(c => c.length > 0);
+    case 'sentence':
+      return content.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+    case 'word':
+    default:
+      return content.split(/\s+/).filter(t => t.length > 0);
+  }
 }
 
 // ── Coherence: f* preserves finite limits ───────────────────

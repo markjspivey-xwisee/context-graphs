@@ -420,3 +420,36 @@ export function latticeStats(pgsl: PGSLInstance): {
     levels,
   };
 }
+
+// ── Per-Node IPFS CID Computation ────────────────────────────
+
+/**
+ * Compute IPFS CIDs for all nodes in the lattice.
+ * Each node gets a content-addressed CID based on its resolved content.
+ *
+ * This makes every node at every level individually dereferenceable on IPFS.
+ * The atom "knowledge" has CID X. The fragment "knowledge graphs" has CID Y.
+ * Both are globally unique and verifiable.
+ *
+ * @param computeCidFn - The CID computation function (from crypto/ipfs.ts)
+ * @returns Map of URI → CID for all nodes
+ */
+export function computeLatticeCids(
+  pgsl: PGSLInstance,
+  computeCidFn: (content: string) => string,
+): Map<IRI, string> {
+  const cids = new Map<IRI, string>();
+
+  for (const [uri, node] of pgsl.nodes) {
+    const content = resolve(pgsl, uri);
+    const cid = computeCidFn(content);
+    cids.set(uri, cid);
+
+    // Also set the cid on the node if mutable
+    if ('cid' in node && node.cid === undefined) {
+      (node as any).cid = cid;
+    }
+  }
+
+  return cids;
+}

@@ -6,6 +6,7 @@ export {
   resolve,
   queryNeighbors,
   latticeStats,
+  computeLatticeCids,
 } from './lattice.js';
 export {
   fiber,
@@ -136,3 +137,4 @@ export type {
   TemporalQuestionParsed,
   AdvancedTemporalResult,
 } from './advanced-temporal.js';
+export type { TokenGranularity } from './types.js';
