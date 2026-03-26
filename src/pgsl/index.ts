@@ -114,6 +114,24 @@ export type {
   Fact,
   FactExtractionResult,
 } from './fact-extraction.js';
+// Structural computation (date math, counting, aggregation)
+export {
+  parseDate,
+  daysBetween,
+  dateDifference,
+  orderChronologically,
+  countUnique,
+  sumValues,
+  averageValues,
+  extractNumbers,
+  getLatestFact,
+  findFirstAfter,
+  whichCameFirst,
+  shouldAbstain,
+} from './computation.js';
+export type {
+  TemporalFact,
+} from './computation.js';
 export type {
   TemporalQuestionParsed,
   AdvancedTemporalResult,

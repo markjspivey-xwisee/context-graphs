@@ -335,6 +335,7 @@ export type {
 // ── Affordance Engine ────────────────────────────────────────
 export {
   computeAffordances,
+  computeCognitiveStrategy,
   createAgentState,
   assimilateDescriptor,
   addDesire,
@@ -374,6 +375,7 @@ export type {
   BeliefEntry,
   Desire,
   CommittedAffordance,
+  CognitiveStrategy,
   ReconsiderationTrigger,
   FreeEnergyEvaluation,
   FreeEnergyResponse,

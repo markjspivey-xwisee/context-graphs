@@ -44,7 +44,8 @@ export type {
 } from './types.js';
 
 // Core computation (Gibson + Norman)
-export { computeAffordances } from './compute.js';
+export { computeAffordances, computeCognitiveStrategy } from './compute.js';
+export type { CognitiveStrategy } from './compute.js';
 
 // Engine (OODA + BDI + Active Inference + Stigmergy)
 export {

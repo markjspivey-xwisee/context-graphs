@@ -13,6 +13,9 @@
  */
 
 import type { ContextDescriptorData, ContextFacetData } from '../model/types.js';
+import { classifyQuestion, type QuestionType } from '../pgsl/question-router.js';
+import { extractEntities, type EntityExtractionResult } from '../pgsl/entity-extraction.js';
+import { shouldAbstain } from '../pgsl/computation.js';
 import type {
   AffordanceAction,
   AffordanceReason,
@@ -484,5 +487,87 @@ function buildSALevel(
         : 'indefinite',
       projectionConfidence: available.reduce((sum, a) => sum + a.confidence, 0) / Math.max(available.length, 1),
     },
+  };
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Query Comprehension Strategy (bridges question → affordance)
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * A cognitive strategy for answering a question.
+ * Selected by the affordance engine based on question analysis.
+ */
+export interface CognitiveStrategy {
+  readonly questionType: QuestionType;
+  readonly strategy: 'direct' | 'temporal-twopass' | 'multi-session-aggregate' | 'knowledge-update-latest' | 'preference-meta' | 'abstain';
+  readonly requiresComputation: boolean;
+  readonly computationType?: 'date-arithmetic' | 'counting' | 'aggregation' | 'comparison' | 'ordering';
+  readonly entities: EntityExtractionResult;
+  readonly shouldAbstain: boolean;
+  readonly confidence: number;
+}
+
+/**
+ * Analyze a question and determine the optimal cognitive strategy.
+ * This is the affordance computation for comprehension —
+ * it determines WHAT OPERATIONS the system should perform.
+ *
+ * Maps our primitives to benchmark insights:
+ *   - classifyQuestion → affordance routing
+ *   - extractEntities → PGSL entity atoms
+ *   - shouldAbstain → affordance engine's anti-affordance
+ *   - date/count detection → structural computation routing
+ */
+export function computeCognitiveStrategy(
+  question: string,
+  sessionEntities?: Set<string>,
+): CognitiveStrategy {
+  const questionType = classifyQuestion(question);
+  const entities = extractEntities(question);
+  const qLower = question.toLowerCase();
+
+  // Check if we should abstain (question entities don't appear in sessions)
+  const abstainResult = sessionEntities
+    ? shouldAbstain([...entities.contentWords], sessionEntities)
+    : { abstain: false, matchRatio: 1, matchedEntities: [] as string[], missingEntities: [] as string[] };
+
+  // Detect if computation is needed
+  const needsDateArithmetic = /how many days|how long|when did|which.*first|order.*earliest|how old/i.test(qLower);
+  const needsCounting = /how many|total number|count|how much.*total/i.test(qLower);
+  const needsAggregation = /total|combined|altogether|sum|average|gpa/i.test(qLower);
+  const needsComparison = /more than|less than|higher|lower|which.*first|same as|prefer/i.test(qLower);
+  const needsOrdering = /order|sequence|first.*last|earliest.*latest|chronological/i.test(qLower);
+
+  const requiresComputation = needsDateArithmetic || needsCounting || needsAggregation || needsComparison || needsOrdering;
+  const computationType = needsDateArithmetic ? 'date-arithmetic' as const
+    : needsCounting ? 'counting' as const
+    : needsAggregation ? 'aggregation' as const
+    : needsComparison ? 'comparison' as const
+    : needsOrdering ? 'ordering' as const
+    : undefined;
+
+  // Select strategy based on question type
+  let strategy: CognitiveStrategy['strategy'];
+  if (abstainResult.abstain) {
+    strategy = 'abstain';
+  } else if (questionType === 'temporal') {
+    strategy = 'temporal-twopass';
+  } else if (questionType === 'multi-hop' || needsCounting) {
+    strategy = 'multi-session-aggregate';
+  } else if (questionType === 'preference') {
+    strategy = 'preference-meta';
+  } else {
+    strategy = 'direct';
+  }
+
+  return {
+    questionType,
+    strategy,
+    requiresComputation,
+    computationType,
+    entities,
+    shouldAbstain: abstainResult.abstain,
+    confidence: abstainResult.matchRatio,
   };
 }
