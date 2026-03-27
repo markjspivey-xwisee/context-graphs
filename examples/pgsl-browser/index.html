@@ -320,21 +320,14 @@ async function addExistingToChain(side, encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   const newResolved = allNodes.find(n => n.uri === uri)?.resolved ?? '';
 
-  if (focusChain.length > 0) {
-    // Capture adjacent BEFORE modifying chain
-    const adjacentUri = side === 'left' ? focusChain[0] : focusChain[focusChain.length - 1];
-    const adjacentResolved = allNodes.find(n => n.uri === adjacentUri)?.resolved ?? '';
-
-    const pairContent = side === 'left'
-      ? newResolved + ' ' + adjacentResolved
-      : adjacentResolved + ' ' + newResolved;
-    if (pairContent.trim()) {
-      await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent.trim()}) });
-    }
-  }
-
   if (side === 'left') focusChain.unshift(uri);
   else focusChain.push(uri);
+
+  // Ingest the FULL chain so overlapping pair construction builds all levels
+  const chainResolved = focusChain.map(u => allNodes.find(n => n.uri === u)?.resolved ?? '').join(' ').trim();
+  if (chainResolved && focusChain.length >= 2) {
+    await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: chainResolved}) });
+  }
 
   await refreshAll();
   await renderFocus();
@@ -364,12 +357,10 @@ async function addNewToChain(side, value) {
       focusChain.push(atomNode.uri);
     }
 
-    // Ingest the NEW PAIR atomically
-    const pairContent = side === 'left'
-      ? value + ' ' + adjacentResolved
-      : adjacentResolved + ' ' + value;
-    if (pairContent.trim()) {
-      await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent.trim()}) });
+    // Ingest the FULL chain as a sequence so overlapping pair construction builds all levels
+    const chainResolved = focusChain.map(u => allNodes.find(n => n.uri === u)?.resolved ?? '').join(' ').trim();
+    if (chainResolved) {
+      await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: chainResolved}) });
     }
   } else if (atomNode) {
     if (side === 'left') focusChain.unshift(atomNode.uri);
