@@ -55,6 +55,18 @@
   .collapse-btn.left { border-color: #3a5a3a; color: #7eee7e; }
   .collapse-btn.right { border-color: #5a3a5a; color: #ee7eee; }
 
+  .add-input-wrap { position: relative; display: inline-block; }
+  .add-input { width: 100px; padding: 5px 8px; font-size: 12px; font-family: inherit; background: #111; border: 1px solid #333; color: #e0e0e0; border-radius: 4px; outline: none; }
+  .add-input:focus { border-color: #4a8aee; }
+  .add-input.left { border-color: #3a5a3a; }
+  .add-input.left:focus { border-color: #7eee7e; }
+  .add-input.right { border-color: #5a3a5a; }
+  .add-input.right:focus { border-color: #ee7eee; }
+  .add-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #1a1a22; border: 1px solid #333; border-top: none; border-radius: 0 0 4px 4px; max-height: 150px; overflow-y: auto; z-index: 100; }
+  .add-dropdown-item { padding: 4px 8px; font-size: 11px; cursor: pointer; color: #aaa; }
+  .add-dropdown-item:hover { background: #2a2a4e; color: #fff; }
+  .add-dropdown-item .level-hint { color: #555; font-size: 9px; }
+
   /* Options (left/right neighbors) */
   .options-panel { display: flex; gap: 2px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
   .option-chip { font-size: 10px; padding: 2px 6px; border-radius: 10px; cursor: pointer; background: #1a1a2e; color: #888; border: 1px solid #2a2a4e; }
@@ -269,6 +281,99 @@ async function expandRight(encodedUri) {
   renderNodeList(allNodes);
 }
 
+// Add to chain: type to search/create atoms, add to either end
+function showAddInput(side) {
+  const id = 'addInput' + side;
+  const existing = document.getElementById(id);
+  if (existing) { existing.focus(); return; }
+  // Input is rendered in renderFocus — just focus it
+  const input = document.querySelector('.add-input.' + side);
+  if (input) input.focus();
+}
+
+function onAddInputChange(side, value) {
+  const dropdownId = 'addDropdown' + side;
+  const dropdown = document.getElementById(dropdownId);
+  if (!dropdown) return;
+
+  if (!value || value.length === 0) {
+    dropdown.innerHTML = '';
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  const query = value.toLowerCase();
+  const matches = allNodes.filter(n => {
+    const r = n.resolved.toLowerCase();
+    return r.includes(query) && n.level === 0; // only atoms
+  }).slice(0, 8);
+
+  if (matches.length === 0 && value.trim().length > 0) {
+    // Offer to create new atom
+    dropdown.innerHTML = `<div class="add-dropdown-item" onclick="addNewToChain('${side}', '${value.trim().replace(/'/g, "\\'")}')">Create "${value.trim()}" <span class="level-hint">(new atom)</span></div>`;
+    dropdown.style.display = '';
+  } else {
+    dropdown.innerHTML = matches.map(n =>
+      `<div class="add-dropdown-item" onclick="addExistingToChain('${side}', '${encodeURIComponent(n.uri)}')">${n.resolved} <span class="level-hint">L${n.level}</span></div>`
+    ).join('');
+    dropdown.style.display = matches.length > 0 ? '' : 'none';
+  }
+}
+
+async function addExistingToChain(side, encodedUri) {
+  const uri = decodeURIComponent(encodedUri);
+  if (side === 'left') {
+    focusChain.unshift(uri);
+  } else {
+    focusChain.push(uri);
+  }
+  await renderFocus();
+  renderNodeList(allNodes);
+}
+
+async function addNewToChain(side, value) {
+  // Create atom via ingest
+  const resp = await fetch('/api/ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: value }),
+  });
+  const data = await resp.json();
+  await refreshAll();
+
+  // Find the atom URI (for single words, it's the atom directly)
+  const atomNode = allNodes.find(n => n.resolved === value && n.level === 0);
+  if (atomNode) {
+    if (side === 'left') {
+      focusChain.unshift(atomNode.uri);
+    } else {
+      focusChain.push(atomNode.uri);
+    }
+  }
+  await renderFocus();
+  renderNodeList(allNodes);
+}
+
+function onAddKeydown(side, event) {
+  if (event.key === 'Enter') {
+    const value = event.target.value.trim();
+    if (value) {
+      // Check if there's an exact atom match
+      const match = allNodes.find(n => n.resolved.toLowerCase() === value.toLowerCase() && n.level === 0);
+      if (match) {
+        addExistingToChain(side, encodeURIComponent(match.uri));
+      } else {
+        addNewToChain(side, value);
+      }
+      event.target.value = '';
+    }
+  } else if (event.key === 'Escape') {
+    event.target.value = '';
+    const dropdown = document.getElementById('addDropdown' + side);
+    if (dropdown) dropdown.style.display = 'none';
+  }
+}
+
 function collapseLeft() {
   if (focusChain.length > 1) {
     focusChain.shift();
@@ -311,7 +416,11 @@ async function renderFocus() {
   let html = '<div class="focus-label">Focus Chain (' + focusChain.length + ' nodes)</div>';
   html += '<div class="chain">';
 
-  // LEFT: collapse button + source options
+  // LEFT: add input + collapse button + source options
+  html += `<div class="add-input-wrap">
+    <input class="add-input left" placeholder="+ source" oninput="onAddInputChange('left', this.value)" onkeydown="onAddKeydown('left', event)" />
+    <div class="add-dropdown" id="addDropdownleft" style="display:none"></div>
+  </div>`;
   if (focusChain.length > 1) {
     html += `<button class="collapse-btn left" onclick="collapseLeft()" title="Remove leftmost from chain">&times;</button>`;
   }
@@ -353,6 +462,11 @@ async function renderFocus() {
   if (focusChain.length > 1) {
     html += `<button class="collapse-btn right" onclick="collapseRight()" title="Remove rightmost from chain">&times;</button>`;
   }
+  // RIGHT: add input
+  html += `<div class="add-input-wrap">
+    <input class="add-input right" placeholder="+ target" oninput="onAddInputChange('right', this.value)" onkeydown="onAddKeydown('right', event)" />
+    <div class="add-dropdown" id="addDropdownright" style="display:none"></div>
+  </div>`;
 
   html += '</div>';
 
