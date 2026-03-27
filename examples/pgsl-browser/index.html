@@ -253,7 +253,7 @@ async function setFocus(encodedUri) {
     focusChain = [uri];
   }
 
-  const focusResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0]})});
+  const focusResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
   focusData = await focusResp.json();
   renderFocus();
   renderAnnotations();
@@ -444,11 +444,11 @@ async function renderFocus() {
   }
 
   // Get left neighbors for leftmost node in chain
-  const leftResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0]})});
+  const leftResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
   const leftData = await leftResp.json();
 
   // Get right neighbors for rightmost node in chain
-  const rightResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[focusChain.length - 1]})});
+  const rightResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[focusChain.length - 1], chainContext: focusChain})});
   const rightData = await rightResp.json();
 
   // Filter: exclude neighbors whose URI is already in the chain

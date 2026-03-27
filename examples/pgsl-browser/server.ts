@@ -165,12 +165,41 @@ app.get('/api/atoms', (_req, res) => {
 });
 
 // Get focus chain — given a focus node, find what's to its left and right across all fragments
+// If chainContext is provided, excludes neighbors from inside nested chain elements
 app.post('/api/focus', (req, res) => {
   const focusUri = req.body.uri as IRI;
+  const chainContext: string[] = req.body.chainContext ?? [];
   const focusNode = pgsl.nodes.get(focusUri);
   if (!focusNode) { res.status(404).json({ error: 'Not found' }); return; }
 
   const resolved = pgslResolve(pgsl, focusUri);
+
+  // Build set of fragment URIs to EXCLUDE from neighbor search
+  // These are sub-fragments of nested chain elements
+  const excludedFragments = new Set<string>();
+  for (const chainUri of chainContext) {
+    const chainNode = pgsl.nodes.get(chainUri as IRI);
+    if (chainNode && chainNode.kind === 'Fragment' && chainNode.level > 0) {
+      // This is a nested fragment in the chain — exclude all its sub-fragments
+      const addSubFragments = (uri: IRI) => {
+        const node = pgsl.nodes.get(uri);
+        if (!node || node.kind !== 'Fragment') return;
+        excludedFragments.add(uri);
+        if (node.items) {
+          for (const item of node.items) {
+            // Add the item itself and recurse
+            const itemNode = pgsl.nodes.get(item);
+            if (itemNode && itemNode.kind === 'Fragment') {
+              addSubFragments(item);
+            }
+          }
+        }
+        if (node.left) addSubFragments(node.left);
+        if (node.right) addSubFragments(node.right);
+      };
+      addSubFragments(chainUri as IRI);
+    }
+  }
 
   // Build a set of ALL URIs that "contain" or "are" this focus node
   // An atom is contained in its L1 wrapper, which is in L2 pairs, etc.
@@ -202,7 +231,7 @@ app.post('/api/focus', (req, res) => {
       const i = fragNode.items.indexOf(fUri as IRI);
       if (i >= 0) { idx = i; break; }
     }
-    if (idx >= 0) {
+    if (idx >= 0 && !excludedFragments.has(fragUri)) {
       containingFragments.push({
         uri: fragUri,
         resolved: pgslResolve(pgsl, fragUri as IRI),
