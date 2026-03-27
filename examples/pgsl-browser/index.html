@@ -264,7 +264,7 @@ async function setFocus(encodedUri) {
 async function expandLeft(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   focusChain.unshift(uri);
-  // READ-ONLY: navigate, don't create
+  // These are existing structural connections — no need to ingest
   await renderFocus();
   renderNodeList(allNodes);
 }
@@ -272,7 +272,7 @@ async function expandLeft(encodedUri) {
 async function expandRight(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   focusChain.push(uri);
-  // READ-ONLY: navigate, don't create
+  // These are existing structural connections — no need to ingest
   await renderFocus();
   renderNodeList(allNodes);
 }
@@ -319,11 +319,17 @@ function onAddInputChange(side, value) {
 async function addExistingToChain(side, encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   if (side === 'left') {
+    // Ingest the NEW PAIR: [new, current_leftmost]
+    const pairContent = allNodes.find(n => n.uri === uri)?.resolved + ' ' + allNodes.find(n => n.uri === focusChain[0])?.resolved;
+    if (pairContent) await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent}) });
     focusChain.unshift(uri);
   } else {
+    // Ingest the NEW PAIR: [current_rightmost, new]
+    const pairContent = allNodes.find(n => n.uri === focusChain[focusChain.length - 1])?.resolved + ' ' + allNodes.find(n => n.uri === uri)?.resolved;
+    if (pairContent) await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent}) });
     focusChain.push(uri);
   }
-  // READ-ONLY: navigate existing structure, don't create new fragments
+  await refreshAll();
   await renderFocus();
   renderNodeList(allNodes);
 }
@@ -346,7 +352,17 @@ async function addNewToChain(side, value) {
       focusChain.push(atomNode.uri);
     }
   }
-  // READ-ONLY: navigate existing structure, don't create new fragments
+  // Ingest the NEW PAIR: [new atom, current_leftmost] or [current_rightmost, new atom]
+  if (atomNode) {
+    if (side === 'left' && focusChain.length > 0) {
+      const pairContent = value + ' ' + (allNodes.find(n => n.uri === focusChain[0])?.resolved ?? '');
+      await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent.trim()}) });
+    } else if (side === 'right' && focusChain.length > 0) {
+      const pairContent = (allNodes.find(n => n.uri === focusChain[focusChain.length - 1])?.resolved ?? '') + ' ' + value;
+      await fetch('/api/ingest', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content: pairContent.trim()}) });
+    }
+  }
+  await refreshAll();
   await renderFocus();
   renderNodeList(allNodes);
 }
