@@ -247,82 +247,124 @@ app.post('/api/focus', (req, res) => {
   const leftNeighbors = new Map<string, { uri: string; resolved: string; count: number; level: number }>();
   const rightNeighbors = new Map<string, { uri: string; resolved: string; count: number; level: number }>();
 
-  // Build chain URIs set (including L1 wrappers) for matching
-  const chainUrisWithWrappers: IRI[][] = chainContext.map(cu => {
-    const result = [cu as IRI];
-    const cn = pgsl.nodes.get(cu as IRI);
-    if (cn && cn.kind === 'Atom') {
+  if (chainContext.length <= 1) {
+    // Single node: use all containing fragments directly
+    for (const frag of containingFragments) {
+      if (frag.position > 0) {
+        const leftUri = frag.items[frag.position - 1]!;
+        const leftResolved = frag.itemsResolved[frag.position - 1]!;
+        const existing = leftNeighbors.get(leftUri);
+        if (existing) { existing.count++; }
+        else {
+          const leftNode = pgsl.nodes.get(leftUri as IRI);
+          leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
+        }
+      }
+      if (frag.position < frag.items.length - 1) {
+        const rightUri = frag.items[frag.position + 1]!;
+        const rightResolved = frag.itemsResolved[frag.position + 1]!;
+        const existing = rightNeighbors.get(rightUri);
+        if (existing) { existing.count++; }
+        else {
+          const rightNode = pgsl.nodes.get(rightUri as IRI);
+          rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+        }
+      }
+    }
+  } else {
+    // Multi-node chain: the chain IS a fragment. Find its URI, then find ITS neighbors.
+    const chainItemUris = chainContext.map(cu => cu as IRI);
+
+    // Find the fragment whose items match the chain sequence (try raw URIs)
+    let chainFragUri: IRI | null = null;
+    for (const [fUri, fNode] of pgsl.nodes) {
+      if (fNode.kind !== 'Fragment' || fNode.items.length !== chainItemUris.length) continue;
+      let match = true;
+      for (let i = 0; i < chainItemUris.length; i++) {
+        if (fNode.items[i] !== chainItemUris[i]) { match = false; break; }
+      }
+      if (match) { chainFragUri = fUri as IRI; break; }
+    }
+
+    if (chainFragUri) {
+      // Found the chain's fragment URI. Now find fragments containing IT.
+      const chainFragUris = new Set<string>([chainFragUri]);
+      // Also find L1 wrapper of the chain fragment
       for (const [fUri, fNode] of pgsl.nodes) {
-        if (fNode.kind === 'Fragment' && fNode.level === 1 && fNode.items.length === 1 && fNode.items[0] === cu) {
-          result.push(fUri as IRI);
+        if (fNode.kind === 'Fragment' && fNode.level === chainContext.length + 1 && fNode.items.length === 1 && fNode.items[0] === chainFragUri) {
+          chainFragUris.add(fUri);
         }
       }
-    }
-    return result;
-  });
 
-  // For multi-node chains: find fragments containing the ENTIRE chain as a sub-sequence
-  // For single-node: use all containing fragments
-  const validFragments = chainContext.length <= 1
-    ? containingFragments
-    : containingFragments.filter(frag => {
-        // Check if this fragment contains all chain items in order starting at some position
-        for (let startPos = 0; startPos <= frag.items.length - chainContext.length; startPos++) {
-          let allMatch = true;
-          for (let ci = 0; ci < chainContext.length; ci++) {
-            const fragItem = frag.items[startPos + ci]!;
-            const chainAlts = chainUrisWithWrappers[ci]!;
-            if (!chainAlts.includes(fragItem as IRI)) {
-              allMatch = false;
-              break;
-            }
+      for (const [fragUri, fragNode] of pgsl.nodes) {
+        if (fragNode.kind !== 'Fragment' || excludedFragments.has(fragUri)) continue;
+        // Check items array
+        let idx = -1;
+        if (fragNode.items) {
+          for (const cfUri of chainFragUris) {
+            const i = fragNode.items.indexOf(cfUri as IRI);
+            if (i >= 0) { idx = i; break; }
           }
-          if (allMatch) return true;
         }
-        return false;
-      });
-
-  const chainUriSet = new Set(chainContext);
-
-  for (const frag of validFragments) {
-    // Find where the chain starts in this fragment
-    let chainStart = -1;
-    for (let startPos = 0; startPos <= frag.items.length - chainContext.length; startPos++) {
-      let allMatch = true;
-      for (let ci = 0; ci < chainContext.length; ci++) {
-        const fragItem = frag.items[startPos + ci]!;
-        const chainAlts = chainUrisWithWrappers[ci] ?? [chainContext[ci] as IRI];
-        if (!chainAlts.includes(fragItem as IRI)) {
-          allMatch = false;
-          break;
+        // Also check left/right constituents
+        let isLeft = false, isRight = false;
+        if (idx < 0) {
+          for (const cfUri of chainFragUris) {
+            if (fragNode.left === cfUri) { isLeft = true; break; }
+            if (fragNode.right === cfUri) { isRight = true; break; }
+          }
+          if (!isLeft && !isRight) continue;
         }
-      }
-      if (allMatch) { chainStart = startPos; break; }
-    }
-    if (chainStart < 0) chainStart = frag.position; // fallback for single-node
 
-    // Left neighbor: what's before the chain start
-    if (chainStart > 0) {
-      const leftUri = frag.items[chainStart - 1]!;
-      const leftResolved = frag.itemsResolved[chainStart - 1]!;
-      const existing = leftNeighbors.get(leftUri);
-      if (existing) { existing.count++; }
-      else {
-        const leftNode = pgsl.nodes.get(leftUri as IRI);
-        leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
-      }
-    }
+        const items = fragNode.items ?? [];
+        const itemsResolved = items.map(i => pgslResolve(pgsl, i as IRI));
 
-    // Right neighbor: what's after the chain end
-    const chainEnd = chainStart + Math.max(chainContext.length, 1);
-    if (chainEnd < frag.items.length) {
-      const rightUri = frag.items[chainEnd]!;
-      const rightResolved = frag.itemsResolved[chainEnd]!;
-      const existing = rightNeighbors.get(rightUri);
-      if (existing) { existing.count++; }
-      else {
-        const rightNode = pgsl.nodes.get(rightUri as IRI);
-        rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+        // If found via left/right constituent, map to neighbor
+        if (isLeft && fragNode.right) {
+          // Chain fragment is the LEFT constituent → right constituent is the right neighbor
+          const rightUri = fragNode.right;
+          const rightResolved = pgslResolve(pgsl, rightUri);
+          const existing = rightNeighbors.get(rightUri);
+          if (existing) { existing.count++; }
+          else {
+            const rightNode = pgsl.nodes.get(rightUri);
+            rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+          }
+          continue;
+        }
+        if (isRight && fragNode.left) {
+          // Chain fragment is the RIGHT constituent → left constituent is the left neighbor
+          const leftUri = fragNode.left;
+          const leftResolved = pgslResolve(pgsl, leftUri);
+          const existing = leftNeighbors.get(leftUri);
+          if (existing) { existing.count++; }
+          else {
+            const leftNode = pgsl.nodes.get(leftUri);
+            leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
+          }
+          continue;
+        }
+
+        if (idx > 0) {
+          const leftUri = items[idx - 1]!;
+          const leftResolved = itemsResolved[idx - 1]!;
+          const existing = leftNeighbors.get(leftUri);
+          if (existing) { existing.count++; }
+          else {
+            const leftNode = pgsl.nodes.get(leftUri as IRI);
+            leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
+          }
+        }
+        if (idx < fragNode.items.length - 1) {
+          const rightUri = fragNode.items[idx + 1]!;
+          const rightResolved = itemsResolved[idx + 1]!;
+          const existing = rightNeighbors.get(rightUri);
+          if (existing) { existing.count++; }
+          else {
+            const rightNode = pgsl.nodes.get(rightUri as IRI);
+            rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+          }
+        }
       }
     }
   }
