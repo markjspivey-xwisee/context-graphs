@@ -440,12 +440,23 @@ async function renderFocus() {
   const rightData = await rightResp.json();
 
   // Filter out nodes already in the chain from neighbor options
-  const chainSet = new Set(focusChain.map(u => {
+  // Include ALL words from nested fragments (not just the fragment itself)
+  const chainContentWords = new Set();
+  for (const u of focusChain) {
     const n = allNodes.find(x => x.uri === u);
-    return n ? n.resolved : '';
-  }));
-  const leftOptions = leftData.left.filter(n => !chainSet.has(n.resolved));
-  const rightOptions = rightData.right.filter(n => !chainSet.has(n.resolved));
+    if (n) {
+      // Add the resolved content
+      chainContentWords.add(n.resolved);
+      // If it's a fragment, also add each word from its resolved content
+      if (n.level > 0) {
+        for (const word of n.resolved.split(/\s+/)) {
+          if (word.length > 0) chainContentWords.add(word);
+        }
+      }
+    }
+  }
+  const leftOptions = leftData.left.filter(n => !chainContentWords.has(n.resolved));
+  const rightOptions = rightData.right.filter(n => !chainContentWords.has(n.resolved));
 
   let html = '<div class="focus-label">Focus Chain (' + focusChain.length + ' nodes)</div>';
   html += '<div class="chain">';
