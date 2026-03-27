@@ -47,6 +47,7 @@
   .chain-node:hover { transform: scale(1.05); filter: brightness(1.2); }
   .chain-node.multi { border-style: dashed; }
   .chain-node.chain-item { background: #1a2a3e; color: #aac; border: 1px solid #2a3a5e; }
+  .chain-node.nested { background: #2a2a1a; color: #eedd88; border: 2px solid #5a5a2a; font-style: italic; }
 
   .chain-arrow { font-size: 18px; color: #333; padding: 0 6px; }
 
@@ -374,6 +375,39 @@ function onAddKeydown(side, event) {
   }
 }
 
+// Wrap/nest the entire current chain as a single element
+async function wrapChain() {
+  if (focusChain.length < 2) return; // nothing to wrap
+
+  // Resolve each chain element to its content
+  const contents = [];
+  for (const uri of focusChain) {
+    const node = allNodes.find(n => n.uri === uri);
+    contents.push(node ? node.resolved : '?');
+  }
+  const chainContent = contents.join(' ');
+
+  // Ingest the chain content as a fragment (word mode)
+  const resp = await fetch('/api/ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: chainContent }),
+  });
+  const data = await resp.json();
+  await refreshAll();
+
+  // The top fragment URI represents the entire chain as one element
+  if (data.uri) {
+    focusChain = [data.uri];
+    const focusResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: data.uri})});
+    focusData = await focusResp.json();
+    renderFocus();
+    renderAnnotations();
+    renderFragments();
+    renderNodeList(allNodes);
+  }
+}
+
 function collapseLeft() {
   if (focusChain.length > 1) {
     focusChain.shift();
@@ -440,8 +474,12 @@ async function renderFocus() {
     const node = allNodes.find(n => n.uri === uri);
     const resolved = node ? node.resolved : '?';
 
+    const isNested = node && node.level > 0;
+    const nodeClass = isNested ? 'chain-node nested' : 'chain-node chain-item';
+    const display = isNested ? '(' + resolved + ')' : resolved;
+
     html += '<div class="chain-segment">';
-    html += `<div class="chain-node chain-item" onclick="setFocus('${encodeURIComponent(uri)}')" title="Click to refocus on '${resolved}'">${resolved}</div>`;
+    html += `<div class="${nodeClass}" onclick="setFocus('${encodeURIComponent(uri)}')" title="${isNested ? 'Nested L'+node.level+' — click to expand' : 'Click to refocus'}: ${resolved}">${display}</div>`;
     html += '</div>';
 
     if (i < focusChain.length - 1) {
@@ -469,6 +507,11 @@ async function renderFocus() {
   </div>`;
 
   html += '</div>';
+
+  // Wrap button — nest the current chain as one element
+  if (focusChain.length >= 2) {
+    html += `<div style="margin-top:12px"><button class="collapse-btn" onclick="wrapChain()" title="Wrap entire chain as a single nested element" style="border-color:#4a8aee;color:#7ecfff;font-size:11px;padding:4px 12px">&#x2937; Wrap chain as one element</button></div>`;
+  }
 
   // Chain info
   const chainResolved = focusChain.map(u => {
