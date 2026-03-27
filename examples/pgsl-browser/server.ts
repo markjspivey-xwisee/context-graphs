@@ -1,5 +1,4 @@
 import express from 'express';
-import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -7,15 +6,11 @@ import {
   embedInPGSL,
   pgslResolve,
   mintAtom,
+  ingest,
   latticeStats,
   latticeMeet,
   queryNeighbors,
-  mintAtom,
-  ingest,
   discover,
-  parseManifest,
-  computeLatticeCids,
-  cryptoComputeCid,
   computeContainmentAnnotations,
 } from '@foxxi/context-graphs';
 import type { IRI, PGSLInstance, TokenGranularity } from '@foxxi/context-graphs';
@@ -176,7 +171,6 @@ app.post('/api/focus', (req, res) => {
   if (!focusNode) { res.status(404).json({ error: 'Not found' }); return; }
 
   const resolved = pgslResolve(pgsl, focusUri);
-  const focusContent = resolved;
 
   // Build a set of ALL URIs that "contain" or "are" this focus node
   // An atom is contained in its L1 wrapper, which is in L2 pairs, etc.
@@ -228,24 +222,22 @@ app.post('/api/focus', (req, res) => {
     if (frag.position > 0) {
       const leftUri = frag.items[frag.position - 1]!;
       const leftResolved = frag.itemsResolved[frag.position - 1]!;
-      // Use the resolved content as key to deduplicate across levels
-      const key = leftResolved;
-      const existing = leftNeighbors.get(key);
+      // Key by URI — structural identity, not content
+      const existing = leftNeighbors.get(leftUri);
       if (existing) { existing.count++; }
       else {
         const leftNode = pgsl.nodes.get(leftUri as IRI);
-        leftNeighbors.set(key, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
+        leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
       }
     }
     if (frag.position < frag.items.length - 1) {
       const rightUri = frag.items[frag.position + 1]!;
       const rightResolved = frag.itemsResolved[frag.position + 1]!;
-      const key = rightResolved;
-      const existing = rightNeighbors.get(key);
+      const existing = rightNeighbors.get(rightUri);
       if (existing) { existing.count++; }
       else {
         const rightNode = pgsl.nodes.get(rightUri as IRI);
-        rightNeighbors.set(key, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+        rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
       }
     }
   }
@@ -263,6 +255,33 @@ app.post('/api/focus', (req, res) => {
       parentResolved: pgslResolve(pgsl, a.parentUri),
     })),
   });
+});
+
+// Ingest a sequence of URIs as a new fragment (preserving structural identity)
+app.post('/api/ingest-uris', (req, res) => {
+  const { uris } = req.body as { uris: string[] };
+  if (!uris || uris.length < 2) {
+    res.status(400).json({ error: 'Need at least 2 URIs' });
+    return;
+  }
+
+  try {
+    // Verify all URIs exist in the lattice
+    for (const uri of uris) {
+      if (!pgsl.nodes.has(uri as IRI)) {
+        res.status(400).json({ error: `URI not found in lattice: ${uri}` });
+        return;
+      }
+    }
+
+    // Ingest the URI sequence — this creates a real fragment
+    const topUri = ingest(pgsl, uris as IRI[]);
+    const resolved = pgslResolve(pgsl, topUri);
+    const stats = latticeStats(pgsl);
+    res.json({ uri: topUri, resolved, stats });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // Lattice meet

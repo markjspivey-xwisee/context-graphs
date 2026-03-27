@@ -264,21 +264,16 @@ async function setFocus(encodedUri) {
 async function expandLeft(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   focusChain.unshift(uri);
-  // Re-fetch focus for the NEW leftmost to get its left neighbors
-  const resp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri})});
-  const newFocus = await resp.json();
-  focusData._leftExpansion = newFocus;
-  renderFocus();
+  await ingestCurrentChain();
+  await renderFocus();
   renderNodeList(allNodes);
 }
 
 async function expandRight(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
   focusChain.push(uri);
-  const resp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri})});
-  const newFocus = await resp.json();
-  focusData._rightExpansion = newFocus;
-  renderFocus();
+  await ingestCurrentChain();
+  await renderFocus();
   renderNodeList(allNodes);
 }
 
@@ -306,7 +301,7 @@ function onAddInputChange(side, value) {
   const query = value.toLowerCase();
   const matches = allNodes.filter(n => {
     const r = n.resolved.toLowerCase();
-    return r.includes(query) && n.level === 0; // only atoms
+    return r.includes(query); // all nodes, not just atoms
   }).slice(0, 8);
 
   if (matches.length === 0 && value.trim().length > 0) {
@@ -358,37 +353,16 @@ async function addNewToChain(side, value) {
   renderNodeList(allNodes);
 }
 
-// Ingest the current chain as actual PGSL structure
-// This ensures the chain is a REAL fragment in the lattice, not just a UI array
+// Ingest the current chain as actual PGSL structure using URIs directly
+// This ensures the chain is a REAL fragment in the lattice, preserving structural identity
 async function ingestCurrentChain() {
   if (focusChain.length < 2) return;
 
-  // Build the chain content — resolve each URI, use parens for nested fragments
-  const parts = [];
-  for (const uri of focusChain) {
-    const node = allNodes.find(n => n.uri === uri);
-    if (!node) continue;
-    if (node.level > 0) {
-      // Nested fragment — wrap in parens for structured ingestion
-      parts.push('(' + node.resolved + ')');
-    } else {
-      parts.push(node.resolved);
-    }
-  }
-
-  // Ingest as structured if any nested elements, otherwise as words
-  const hasNested = focusChain.some(u => {
-    const n = allNodes.find(x => x.uri === u);
-    return n && n.level > 0;
-  });
-
-  const content = hasNested ? '(' + parts.join(',') + ')' : parts.join(' ');
-  const granularity = hasNested ? 'structured' : 'word';
-
-  await fetch('/api/ingest', {
+  // Pass the actual URIs to the server — no content reconstruction, no lossy roundtrip
+  await fetch('/api/ingest-uris', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, granularity }),
+    body: JSON.stringify({ uris: focusChain }),
   });
   await refreshAll();
 }
