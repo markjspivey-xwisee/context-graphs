@@ -243,15 +243,68 @@ app.post('/api/focus', (req, res) => {
     }
   }
 
-  // Find left/right neighbors — resolve to ATOM level for display
+  // Find left/right neighbors
   const leftNeighbors = new Map<string, { uri: string; resolved: string; count: number; level: number }>();
   const rightNeighbors = new Map<string, { uri: string; resolved: string; count: number; level: number }>();
 
-  for (const frag of containingFragments) {
-    if (frag.position > 0) {
-      const leftUri = frag.items[frag.position - 1]!;
-      const leftResolved = frag.itemsResolved[frag.position - 1]!;
-      // Key by URI — structural identity, not content
+  // Build chain URIs set (including L1 wrappers) for matching
+  const chainUrisWithWrappers: IRI[][] = chainContext.map(cu => {
+    const result = [cu as IRI];
+    const cn = pgsl.nodes.get(cu as IRI);
+    if (cn && cn.kind === 'Atom') {
+      for (const [fUri, fNode] of pgsl.nodes) {
+        if (fNode.kind === 'Fragment' && fNode.level === 1 && fNode.items.length === 1 && fNode.items[0] === cu) {
+          result.push(fUri as IRI);
+        }
+      }
+    }
+    return result;
+  });
+
+  // For multi-node chains: find fragments containing the ENTIRE chain as a sub-sequence
+  // For single-node: use all containing fragments
+  const validFragments = chainContext.length <= 1
+    ? containingFragments
+    : containingFragments.filter(frag => {
+        // Check if this fragment contains all chain items in order starting at some position
+        for (let startPos = 0; startPos <= frag.items.length - chainContext.length; startPos++) {
+          let allMatch = true;
+          for (let ci = 0; ci < chainContext.length; ci++) {
+            const fragItem = frag.items[startPos + ci]!;
+            const chainAlts = chainUrisWithWrappers[ci]!;
+            if (!chainAlts.includes(fragItem as IRI)) {
+              allMatch = false;
+              break;
+            }
+          }
+          if (allMatch) return true;
+        }
+        return false;
+      });
+
+  const chainUriSet = new Set(chainContext);
+
+  for (const frag of validFragments) {
+    // Find where the chain starts in this fragment
+    let chainStart = -1;
+    for (let startPos = 0; startPos <= frag.items.length - chainContext.length; startPos++) {
+      let allMatch = true;
+      for (let ci = 0; ci < chainContext.length; ci++) {
+        const fragItem = frag.items[startPos + ci]!;
+        const chainAlts = chainUrisWithWrappers[ci] ?? [chainContext[ci] as IRI];
+        if (!chainAlts.includes(fragItem as IRI)) {
+          allMatch = false;
+          break;
+        }
+      }
+      if (allMatch) { chainStart = startPos; break; }
+    }
+    if (chainStart < 0) chainStart = frag.position; // fallback for single-node
+
+    // Left neighbor: what's before the chain start
+    if (chainStart > 0) {
+      const leftUri = frag.items[chainStart - 1]!;
+      const leftResolved = frag.itemsResolved[chainStart - 1]!;
       const existing = leftNeighbors.get(leftUri);
       if (existing) { existing.count++; }
       else {
@@ -259,9 +312,12 @@ app.post('/api/focus', (req, res) => {
         leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
       }
     }
-    if (frag.position < frag.items.length - 1) {
-      const rightUri = frag.items[frag.position + 1]!;
-      const rightResolved = frag.itemsResolved[frag.position + 1]!;
+
+    // Right neighbor: what's after the chain end
+    const chainEnd = chainStart + Math.max(chainContext.length, 1);
+    if (chainEnd < frag.items.length) {
+      const rightUri = frag.items[chainEnd]!;
+      const rightResolved = frag.itemsResolved[chainEnd]!;
       const existing = rightNeighbors.get(rightUri);
       if (existing) { existing.count++; }
       else {
