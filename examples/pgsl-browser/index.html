@@ -328,6 +328,8 @@ async function addExistingToChain(side, encodedUri) {
   } else {
     focusChain.push(uri);
   }
+  // INGEST the full chain into PGSL so the structure is real
+  await ingestCurrentChain();
   await renderFocus();
   renderNodeList(allNodes);
 }
@@ -339,10 +341,9 @@ async function addNewToChain(side, value) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: value }),
   });
-  const data = await resp.json();
+  await resp.json();
   await refreshAll();
 
-  // Find the atom URI (for single words, it's the atom directly)
   const atomNode = allNodes.find(n => n.resolved === value && n.level === 0);
   if (atomNode) {
     if (side === 'left') {
@@ -351,8 +352,45 @@ async function addNewToChain(side, value) {
       focusChain.push(atomNode.uri);
     }
   }
+  // INGEST the full chain into PGSL so the structure is real
+  await ingestCurrentChain();
   await renderFocus();
   renderNodeList(allNodes);
+}
+
+// Ingest the current chain as actual PGSL structure
+// This ensures the chain is a REAL fragment in the lattice, not just a UI array
+async function ingestCurrentChain() {
+  if (focusChain.length < 2) return;
+
+  // Build the chain content — resolve each URI, use parens for nested fragments
+  const parts = [];
+  for (const uri of focusChain) {
+    const node = allNodes.find(n => n.uri === uri);
+    if (!node) continue;
+    if (node.level > 0) {
+      // Nested fragment — wrap in parens for structured ingestion
+      parts.push('(' + node.resolved + ')');
+    } else {
+      parts.push(node.resolved);
+    }
+  }
+
+  // Ingest as structured if any nested elements, otherwise as words
+  const hasNested = focusChain.some(u => {
+    const n = allNodes.find(x => x.uri === u);
+    return n && n.level > 0;
+  });
+
+  const content = hasNested ? '(' + parts.join(',') + ')' : parts.join(' ');
+  const granularity = hasNested ? 'structured' : 'word';
+
+  await fetch('/api/ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, granularity }),
+  });
+  await refreshAll();
 }
 
 function onAddKeydown(side, event) {
