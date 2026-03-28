@@ -177,10 +177,17 @@ app.post('/api/focus', (req, res) => {
   // Build set of fragment URIs to EXCLUDE from neighbor search
   // These are chain elements AND their sub-fragments
   const excludedFragments = new Set<string>();
+  // Only apply nested exclusion when chain has BOTH nested and non-nested items
+  // For single-element chains (even nested), use standard neighbors
+  const hasNonNestedItems = chainContext.some(cu => {
+    const cn = pgsl.nodes.get(cu as IRI);
+    return !cn || cn.kind === 'Atom' || cn.level === 0;
+  });
+
   for (const chainUri of chainContext) {
     excludedFragments.add(chainUri); // exclude the chain element itself
     const chainNode = pgsl.nodes.get(chainUri as IRI);
-    if (chainNode && chainNode.kind === 'Fragment' && chainNode.level > 0) {
+    if (hasNonNestedItems && chainNode && chainNode.kind === 'Fragment' && chainNode.level > 0) {
       // This is a nested fragment in the chain — exclude all its sub-fragments
       // AND any fragment that contains ONLY atoms from inside this nested element
       const nestedAtoms = new Set<string>();
@@ -259,7 +266,33 @@ app.post('/api/focus', (req, res) => {
   const rightNeighbors = new Map<string, { uri: string; resolved: string; count: number; level: number }>();
 
   if (chainContext.length <= 1) {
-    // Single node: use all containing fragments directly
+    // Single node: use containing fragments + constituent relationships
+    // For L2+ fragments, also check left/right constituent relationships in higher fragments
+    if (focusNode.kind === 'Fragment' && focusNode.level >= 2) {
+      for (const [fragUri, fragNode] of pgsl.nodes) {
+        if (fragNode.kind !== 'Fragment' || excludedFragments.has(fragUri)) continue;
+        if (fragNode.left === focusUri && fragNode.right) {
+          const rightUri = fragNode.right;
+          const rightResolved = pgslResolve(pgsl, rightUri);
+          const existing = rightNeighbors.get(rightUri);
+          if (existing) { existing.count++; }
+          else {
+            const rn = pgsl.nodes.get(rightUri);
+            rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rn?.level ?? 0 });
+          }
+        }
+        if (fragNode.right === focusUri && fragNode.left) {
+          const leftUri = fragNode.left;
+          const leftResolved = pgslResolve(pgsl, leftUri);
+          const existing = leftNeighbors.get(leftUri);
+          if (existing) { existing.count++; }
+          else {
+            const ln = pgsl.nodes.get(leftUri);
+            leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: ln?.level ?? 0 });
+          }
+        }
+      }
+    }
     for (const frag of containingFragments) {
       if (frag.position > 0) {
         const leftUri = frag.items[frag.position - 1]!;
