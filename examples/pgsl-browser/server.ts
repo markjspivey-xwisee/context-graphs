@@ -366,6 +366,31 @@ app.post('/api/focus', (req, res) => {
           }
         }
       }
+    } else {
+      // Chain fragment not found in lattice — fall back to single-node neighbors
+      // for the leftmost (sources) and rightmost (targets) chain items
+      for (const frag of containingFragments) {
+        if (frag.position > 0) {
+          const leftUri = frag.items[frag.position - 1]!;
+          const leftResolved = frag.itemsResolved[frag.position - 1]!;
+          const existing = leftNeighbors.get(leftUri);
+          if (existing) { existing.count++; }
+          else {
+            const leftNode = pgsl.nodes.get(leftUri as IRI);
+            leftNeighbors.set(leftUri, { uri: leftUri, resolved: leftResolved, count: 1, level: leftNode?.level ?? 0 });
+          }
+        }
+        if (frag.position < frag.items.length - 1) {
+          const rightUri = frag.items[frag.position + 1]!;
+          const rightResolved = frag.itemsResolved[frag.position + 1]!;
+          const existing = rightNeighbors.get(rightUri);
+          if (existing) { existing.count++; }
+          else {
+            const rightNode = pgsl.nodes.get(rightUri as IRI);
+            rightNeighbors.set(rightUri, { uri: rightUri, resolved: rightResolved, count: 1, level: rightNode?.level ?? 0 });
+          }
+        }
+      }
     }
   }
 
