@@ -131,6 +131,7 @@ export {
   findFirstAfter,
   whichCameFirst,
   shouldAbstain,
+  countUniquePGSL,
 } from './computation.js';
 export type {
   TemporalFact,

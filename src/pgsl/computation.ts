@@ -124,13 +124,96 @@ export function countUnique(items: string[]): {
     if (normalized.has(norm)) {
       duplicates.push(item);
     } else {
-      normalized.set(norm, item);
+      // Check if this item is structurally contained in an existing item
+      // or if an existing item is contained in this one (substring check)
+      let isContained = false;
+      for (const [existingNorm] of normalized) {
+        if (existingNorm.includes(norm) || norm.includes(existingNorm)) {
+          // One contains the other — same thing at different granularity
+          // Keep the shorter (more specific) version
+          if (norm.length < existingNorm.length) {
+            // New item is shorter (more specific) — replace
+            normalized.delete(existingNorm);
+            normalized.set(norm, item);
+          }
+          duplicates.push(item);
+          isContained = true;
+          break;
+        }
+      }
+      if (!isContained) {
+        normalized.set(norm, item);
+      }
     }
   }
 
   return {
     count: normalized.size,
     unique: [...normalized.values()],
+    duplicates,
+  };
+}
+
+/**
+ * Count unique items using PGSL structural containment.
+ *
+ * Instead of string comparison, ingests each item into the lattice and checks
+ * if any item is a sub-fragment of another. "banana bread" IS structurally
+ * inside "banana bread for neighbors" — count once.
+ *
+ * This is the PGSL-native way: canonical atoms are reused, so structural
+ * overlap is automatic. Two items sharing the same atoms ARE related.
+ */
+export function countUniquePGSL(
+  items: string[],
+  pgsl: import('./types.js').PGSLInstance,
+): {
+  count: number;
+  unique: string[];
+  duplicates: string[];
+} {
+  const { embedInPGSL } = require('./geometric.js');
+  const { isSubFragment } = require('./category.js');
+
+  // Ingest each item and get its URI
+  const itemUris: Array<{ text: string; uri: import('../model/types.js').IRI }> = [];
+  for (const item of items) {
+    const trimmed = item.trim();
+    if (trimmed.length === 0) continue;
+    try {
+      const uri = embedInPGSL(pgsl, trimmed);
+      itemUris.push({ text: trimmed, uri });
+    } catch {}
+  }
+
+  // Dedup: if item A is a sub-fragment of item B, they're the same thing
+  const unique: typeof itemUris = [];
+  const duplicates: string[] = [];
+
+  for (const item of itemUris) {
+    let isDup = false;
+    for (let i = 0; i < unique.length; i++) {
+      const existing = unique[i]!;
+      if (isSubFragment(pgsl, item.uri, existing.uri)) {
+        // item is inside existing — duplicate
+        duplicates.push(item.text);
+        isDup = true;
+        break;
+      }
+      if (isSubFragment(pgsl, existing.uri, item.uri)) {
+        // existing is inside item — keep item (more specific), remove existing
+        duplicates.push(existing.text);
+        unique[i] = item;
+        isDup = true;
+        break;
+      }
+    }
+    if (!isDup) unique.push(item);
+  }
+
+  return {
+    count: unique.length,
+    unique: unique.map(u => u.text),
     duplicates,
   };
 }
