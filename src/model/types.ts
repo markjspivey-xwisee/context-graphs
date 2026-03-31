@@ -495,6 +495,36 @@ export interface ComposedDescriptorData extends ContextDescriptorData {
   readonly compositionOp: CompositionOperator;
   readonly operands: readonly IRI[];
   readonly restrictToTypes?: readonly ContextTypeName[];  // for 'restriction' op
+
+  /**
+   * PGSL structural metadata for the composition.
+   *
+   * Composition maps to PGSL operations:
+   *   union       = extend the pyramid (overlapping pair, shared boundary deduped)
+   *   intersection = the shared boundary itself (lattice meet)
+   *   restriction = collapse to subset (wrap/project)
+   *   override    = replace inner element, preserve outer structure
+   *
+   * The pgslUri is the canonical content-addressed URI of this composed
+   * structure in the lattice. Two identical compositions produce the same URI.
+   */
+  readonly pgslUri?: IRI;
+
+  /**
+   * The structural operation type in PGSL terms:
+   *   'extend'  = inner + (grow the pyramid)
+   *   'beside'  = outer + (place beside, independent)
+   *   'wrap'    = create boundary (turn pyramid into single element)
+   *   'meet'    = find shared sub-structure
+   */
+  readonly structuralOp?: 'extend' | 'beside' | 'wrap' | 'meet';
+
+  /**
+   * The shared boundary between operands (for union/intersection).
+   * This is the overlap region in the overlapping pair construction —
+   * the facets/structure that both operands share.
+   */
+  readonly sharedBoundary?: readonly ContextFacetData[];
 }
 
 // ── Triple Context Annotation (§3.5) ─────────────────────────

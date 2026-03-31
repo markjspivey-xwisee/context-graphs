@@ -86,12 +86,29 @@ export function union(
     }
   }
 
+  // Compute shared boundary (facet types in both operands)
+  const sharedTypes = [...g1.keys()].filter(t => g2.has(t));
+  const sharedBoundary: ContextFacetData[] = [];
+  for (const type of sharedTypes) {
+    const f1 = g1.get(type)!;
+    const f2 = g2.get(type)!;
+    const entry = getFacetEntry(type);
+    if (entry) {
+      sharedBoundary.push(...executeMerge(entry.intersectionStrategy, [...f1, ...f2], entry.intersectionMerge));
+    }
+  }
+
   return {
     id: id ?? nextComposedId(),
     compositionOp: 'union',
     operands: [d1.id, d2.id],
     describes: allDescribedGraphs([d1, d2]),
     facets: resultFacets,
+    // PGSL structural metadata:
+    // Union = extend the pyramid. The shared boundary is where the two
+    // operands overlap (like the shared middle atom in (0,0,0)).
+    structuralOp: sharedBoundary.length > 0 ? 'extend' : 'beside',
+    sharedBoundary: sharedBoundary.length > 0 ? sharedBoundary : undefined,
   };
 }
 
@@ -133,6 +150,11 @@ export function intersection(
     operands: [d1.id, d2.id],
     describes: commonGraphs.length > 0 ? commonGraphs : allDescribedGraphs([d1, d2]),
     facets: resultFacets,
+    // PGSL structural metadata:
+    // Intersection = the shared boundary itself (lattice meet).
+    // The result IS the overlap — the deduped middle of the overlapping pair.
+    structuralOp: 'meet',
+    sharedBoundary: resultFacets,
   };
 }
 
@@ -156,6 +178,10 @@ export function restriction(
     restrictToTypes: types,
     describes: [...d.describes],
     facets: resultFacets,
+    // PGSL structural metadata:
+    // Restriction = wrap/project. Collapses the structure to a subset,
+    // like viewing only certain levels of the pyramid.
+    structuralOp: 'wrap',
   };
 }
 
@@ -184,12 +210,25 @@ export function override(
     }
   }
 
+  // Compute what was replaced (the shared types where override took priority)
+  const replacedTypes = [...overrideByType.keys()].filter(t => baseByType.has(t));
+  const sharedBoundary: ContextFacetData[] = [];
+  for (const type of replacedTypes) {
+    sharedBoundary.push(...baseByType.get(type)!);
+  }
+
   return {
     id: id ?? nextComposedId(),
     compositionOp: 'override',
     operands: [base.id, overrideDesc.id],
     describes: allDescribedGraphs([base, overrideDesc]),
     facets: resultFacets,
+    // PGSL structural metadata:
+    // Override = replace inner element, preserve outer structure.
+    // The base structure is preserved, but specific inner elements
+    // (shared-type facets) are replaced by the override's versions.
+    structuralOp: 'extend',
+    sharedBoundary: sharedBoundary.length > 0 ? sharedBoundary : undefined,
   };
 }
 
