@@ -411,7 +411,22 @@ export async function publish(
     );
   }
 
-  return { descriptorUrl, graphUrl, manifestUrl };
+  // 4. Optional: ingest into PGSL lattice for structural indexing
+  let pgslUri: string | undefined;
+  let pgslLevel: number | undefined;
+  if (options.pgsl) {
+    try {
+      const { embedInPGSL } = await import('../pgsl/geometric.js');
+      const topUri = embedInPGSL(options.pgsl, graphContent, descriptor, options.pgslGranularity);
+      const node = options.pgsl.nodes.get(topUri);
+      pgslUri = topUri;
+      pgslLevel = node?.level;
+    } catch {
+      // PGSL ingestion is optional — don't fail the publish
+    }
+  }
+
+  return { descriptorUrl, graphUrl, manifestUrl, pgslUri, pgslLevel };
 }
 
 // ═════════════════════════════════════════════════════════════

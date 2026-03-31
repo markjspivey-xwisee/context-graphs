@@ -47,6 +47,17 @@ export interface PublishResult {
   readonly graphUrl: string;
   /** IRI of the updated manifest. */
   readonly manifestUrl: string;
+  /**
+   * PGSL structural URI of the published content (if PGSL ingestion was enabled).
+   * This is the canonical content-addressed URI in the lattice — same content
+   * always produces the same URI regardless of when or where it's published.
+   */
+  readonly pgslUri?: string;
+  /**
+   * PGSL structural level of the published content.
+   * Level 0 = atom, Level N = N-item overlapping pair construction.
+   */
+  readonly pgslLevel?: number;
 }
 
 /** Options for the publish function. */
@@ -59,6 +70,17 @@ export interface PublishOptions {
   readonly graphSlug?: string;
   /** Custom fetch implementation (default: globalThis.fetch). */
   readonly fetch?: FetchFn;
+  /**
+   * Optional PGSL instance — if provided, the published content will be
+   * ingested into the lattice during publish. This creates the structural
+   * representation alongside the RDF representation.
+   *
+   * The graph content is ingested (not the descriptor metadata) so that
+   * the actual knowledge is structurally indexed and addressable.
+   */
+  readonly pgsl?: import('../pgsl/types.js').PGSLInstance;
+  /** Tokenization granularity for PGSL ingestion (default: 'word'). */
+  readonly pgslGranularity?: import('../pgsl/types.js').TokenGranularity;
 }
 
 /** Options for the discover function. */
@@ -99,6 +121,23 @@ export interface ManifestEntry {
   readonly modalStatus?: ModalStatus;
   /** Trust level from the Trust facet (if present). */
   readonly trustLevel?: TrustLevel;
+  /**
+   * PGSL structural URI (if the content was ingested into the lattice).
+   * Same content from different pods produces the same URI —
+   * structural overlap is detectable across federation.
+   */
+  readonly pgslUri?: string;
+  /** PGSL structural level. */
+  readonly pgslLevel?: number;
+  /**
+   * Structural overlap with a query or other descriptor.
+   * Computed via PGSL lattice meet — the shared sub-structure.
+   */
+  readonly structuralOverlap?: {
+    readonly meetUri?: string;
+    readonly meetResolved?: string;
+    readonly meetLevel?: number;
+  };
 }
 
 // ── Subscribe ───────────────────────────────────────────────
