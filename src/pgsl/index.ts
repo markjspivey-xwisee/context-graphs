@@ -141,3 +141,66 @@ export type {
   AdvancedTemporalResult,
 } from './advanced-temporal.js';
 export type { TokenGranularity, ContainmentAnnotation, ContainmentRole } from './types.js';
+// Ingestion profiles
+export {
+  registerProfile,
+  getProfile,
+  listProfiles,
+  ingestWithProfile,
+  batchIngestWithProfile,
+} from './profiles.js';
+export type {
+  IngestionProfile,
+  XapiStatement,
+  LersCredential,
+  RdfTriple,
+} from './profiles.js';
+// SPARQL engine
+export {
+  createTripleStore,
+  addTriple,
+  addTriples,
+  matchPattern,
+  materializeTriples,
+  parseSparql,
+  executeSparql,
+  executeSparqlString,
+  sparqlQueryPGSL,
+} from './sparql-engine.js';
+export type {
+  Triple,
+  TripleStore,
+  SparqlPattern,
+  SparqlQuery,
+  SparqlResult,
+  Binding,
+} from './sparql-engine.js';
+// SHACL validation
+export {
+  validateCorePGSL,
+  validateStructuralPGSL,
+  validateDomainShapes,
+  validateAllPGSL,
+  domainShapesToTurtle,
+} from './shacl.js';
+export type {
+  ShaclViolation,
+  ShaclValidationResult,
+  ShaclShapeDefinition,
+  ShaclPropertyConstraint,
+} from './shacl.js';
+// LLM tools
+export {
+  getToolDefinitions,
+  parseToolCalls,
+  executeToolCall,
+  formatToolPrompt,
+  formatToolResult,
+  runToolLoop,
+} from './tools.js';
+export type {
+  ToolDefinition,
+  ToolCall,
+  ToolResult,
+  ToolContext,
+} from './tools.js';

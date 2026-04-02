@@ -334,6 +334,35 @@ export {
   findFirstAfter,
   whichCameFirst,
   shouldAbstain,
+  // Ingestion profiles
+  registerProfile,
+  getProfile,
+  listProfiles,
+  ingestWithProfile,
+  batchIngestWithProfile,
+  // SPARQL engine
+  createTripleStore,
+  addTriple,
+  addTriples,
+  matchPattern as sparqlMatchPattern,
+  materializeTriples,
+  parseSparql,
+  executeSparql,
+  executeSparqlString,
+  sparqlQueryPGSL,
+  // SHACL validation
+  validateCorePGSL,
+  validateStructuralPGSL,
+  validateDomainShapes,
+  validateAllPGSL,
+  domainShapesToTurtle,
+  // LLM tools
+  getToolDefinitions,
+  parseToolCalls,
+  executeToolCall,
+  formatToolPrompt,
+  formatToolResult,
+  runToolLoop,
 } from './pgsl/index.js';
 
 export type {
@@ -353,6 +382,27 @@ export type {
   TokenGranularity,
   RetrievalResult,
   RetrievalOptions,
+  // SPARQL engine types
+  Triple,
+  TripleStore,
+  SparqlQuery,
+  SparqlResult,
+  Binding,
+  // SHACL types
+  ShaclViolation,
+  ShaclValidationResult,
+  ShaclShapeDefinition,
+  ShaclPropertyConstraint,
+  // Tool types
+  ToolDefinition,
+  ToolCall,
+  ToolResult,
+  ToolContext,
+  // Ingestion profile types
+  IngestionProfile,
+  XapiStatement,
+  LersCredential,
+  RdfTriple,
 } from './pgsl/index.js';
 
 // ── Affordance Engine ────────────────────────────────────────

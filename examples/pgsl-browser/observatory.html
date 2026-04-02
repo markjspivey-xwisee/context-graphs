@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Graphs Observatory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0d1117; color: #c9d1d9; }
+
+  .header { padding: 10px 20px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 15px; color: #58a6ff; font-weight: 600; }
+  .header .stats { font-size: 11px; color: #8b949e; }
+
+  .tabs { display: flex; gap: 0; background: #161b22; border-bottom: 1px solid #30363d; padding: 0 20px; }
+  .tab { padding: 8px 16px; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; color: #8b949e; }
+  .tab:hover { color: #c9d1d9; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+
+  .content { height: calc(100vh - 80px); overflow-y: auto; padding: 20px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Cards */
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+  .card h3 { font-size: 13px; color: #58a6ff; margin-bottom: 8px; }
+  .card p { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+
+  /* Pod cards */
+  .pod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .pod-card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; }
+  .pod-card.active-pod { border-color: #238636; }
+  .pod-card.unreachable { border-color: #da3633; opacity: 0.7; }
+  .pod-name { font-size: 14px; font-weight: 600; color: #58a6ff; }
+  .pod-url { font-size: 10px; color: #8b949e; word-break: break-all; }
+  .pod-meta { font-size: 11px; color: #8b949e; margin-top: 6px; }
+
+  /* Descriptor list */
+  .desc-item { background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; }
+  .desc-item:hover { border-color: #58a6ff; }
+  .desc-graph { font-size: 12px; color: #c9d1d9; }
+  .desc-facets { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .facet-badge { font-size: 9px; padding: 2px 6px; border-radius: 8px; }
+  .facet-Temporal { background: #1f3d2b; color: #3fb950; }
+  .facet-Provenance { background: #2d2006; color: #d29922; }
+  .facet-Agent { background: #1c2840; color: #58a6ff; }
+  .facet-Semiotic { background: #2d1c3a; color: #bc8cff; }
+  .facet-Trust { background: #3d1f1f; color: #f85149; }
+  .facet-AccessControl { background: #1c3040; color: #79c0ff; }
+  .facet-Federation { background: #0d2840; color: #39d353; }
+
+  /* Trust chain */
+  .trust-chain { display: flex; flex-direction: column; gap: 8px; }
+  .trust-node { display: flex; align-items: center; gap: 12px; padding: 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 4px; }
+  .trust-level { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .trust-SelfAsserted { background: #2d2006; color: #d29922; }
+  .trust-ThirdPartyAttested { background: #1c2840; color: #58a6ff; }
+  .trust-CryptographicallyVerified { background: #1f3d2b; color: #3fb950; }
+  .trust-arrow { color: #484f58; font-size: 16px; text-align: center; }
+
+  /* Composition */
+  .compose-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .compose-row select, .compose-row button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 12px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+  .compose-row button { background: #238636; border-color: #238636; cursor: pointer; }
+  .compose-row button:hover { background: #2ea043; }
+  .compose-result { background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 16px; }
+  .compose-result pre { font-size: 10px; color: #8b949e; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+
+  /* SPARQL */
+  .sparql-input { width: 100%; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 12px; font-family: inherit; font-size: 11px; border-radius: 4px; min-height: 120px; resize: vertical; }
+  .sparql-btn { background: #238636; color: #fff; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 11px; margin-top: 8px; }
+  .sparql-result { margin-top: 12px; }
+  .sparql-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .sparql-table th { background: #21262d; padding: 6px 8px; text-align: left; color: #8b949e; border: 1px solid #30363d; }
+  .sparql-table td { padding: 4px 8px; border: 1px solid #21262d; color: #c9d1d9; word-break: break-all; max-width: 300px; }
+
+  /* SHACL */
+  .shacl-status { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .shacl-pass { color: #3fb950; }
+  .shacl-fail { color: #f85149; }
+  .violation-item { background: #0d1117; border-left: 3px solid #f85149; padding: 8px 12px; margin-bottom: 4px; font-size: 11px; }
+  .violation-item.warning { border-left-color: #d29922; }
+
+  /* Lattice link */
+  .lattice-link { display: inline-block; padding: 8px 16px; background: #21262d; color: #58a6ff; border: 1px solid #30363d; border-radius: 4px; text-decoration: none; font-size: 12px; }
+  .lattice-link:hover { background: #30363d; }
+
+  /* Activity log */
+  .activity-panel { position: fixed; bottom: 0; left: 0; right: 0; height: 220px; background: #0d1117; border-top: 2px solid #30363d; z-index: 20; display: flex; flex-direction: column; }
+  .activity-header { padding: 6px 20px; background: #161b22; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #21262d; }
+  .activity-header h3 { font-size: 12px; color: #58a6ff; }
+  .activity-scroll { flex: 1; overflow-y: auto; padding: 8px 20px; font-size: 11px; }
+  .activity-entry { padding: 3px 0; border-bottom: 1px solid #161b22; display: flex; gap: 12px; }
+  .activity-time { color: #484f58; min-width: 70px; }
+  .activity-agent { min-width: 70px; font-weight: 600; }
+  .agent-Scanner { color: #f85149; }
+  .agent-Analyst { color: #d29922; }
+  .agent-Lead { color: #3fb950; }
+  .agent-System { color: #8b949e; }
+  .agent-LRS { color: #58a6ff; }
+  .agent-Competency { color: #d29922; }
+  .agent-Credential { color: #3fb950; }
+  .agent-Sarah { color: #bc8cff; }
+  .agent-James { color: #39d353; }
+  .agent-Maria { color: #f0883e; }
+  .agent-Chen { color: #bc8cff; }
+  .agent-Park { color: #39d353; }
+  .agent-Ortiz { color: #f0883e; }
+  .agent-Verifier { color: #e6edf3; }
+  .activity-action { color: #58a6ff; min-width: 70px; }
+  .activity-detail { color: #c9d1d9; }
+
+  .demo-btn { background: #238636; color: #fff; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; }
+  .demo-btn:hover { background: #2ea043; }
+  .demo-btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+  .demo-reset { background: #21262d; color: #8b949e; border: 1px solid #30363d; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 11px; }
+
+  .content { height: calc(100vh - 300px); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Context Graphs Observatory</h1>
+  <div class="stats" id="headerStats">Loading...</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('federation')">Federation</div>
+  <div class="tab" onclick="switchTab('descriptors')">Descriptors</div>
+  <div class="tab" onclick="switchTab('trust')">Trust</div>
+  <div class="tab" onclick="switchTab('composition')">Composition</div>
+  <div class="tab" onclick="switchTab('sparql')">SPARQL</div>
+  <div class="tab" onclick="switchTab('shacl')">SHACL</div>
+  <div class="tab" onclick="switchTab('lattice')">PGSL Lattice</div>
+</div>
+
+<div class="content">
+
+  <!-- Federation Tab -->
+  <div class="panel active" id="panel-federation">
+    <div class="card">
+      <h3>Pod Federation</h3>
+      <p>Decentralized pods discovered across the federation. Each pod is an autonomous Solid container with its own context descriptors, agent registries, and access control.</p>
+      <div style="margin-top:8px">
+        <input id="addPodInput" placeholder="http://localhost:3456/newpod/" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;padding:4px 8px;font-size:11px;border-radius:3px;width:300px">
+        <button onclick="addPod()" style="background:#238636;color:#fff;border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:4px">Add Pod</button>
+        <button onclick="refreshPods()" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:4px">Refresh All</button>
+      </div>
+    </div>
+    <div class="pod-grid" id="podGrid"></div>
+  </div>
+
+  <!-- Descriptors Tab -->
+  <div class="panel" id="panel-descriptors">
+    <div class="card">
+      <h3>Context Descriptors</h3>
+      <p>All descriptors discovered across the federation. Each descriptor annotates a Named Graph with typed facets: temporal validity, provenance, semiotic frame, trust level, access control, and federation metadata.</p>
+    </div>
+    <div id="descriptorList"></div>
+    <div id="descriptorDetail" class="card" style="display:none; margin-top:12px">
+      <h3>Descriptor Detail</h3>
+      <pre id="descriptorTurtle" style="font-size:10px;color:#8b949e;white-space:pre-wrap;max-height:400px;overflow-y:auto"></pre>
+    </div>
+  </div>
+
+  <!-- Trust Tab -->
+  <div class="panel" id="panel-trust">
+    <div class="card">
+      <h3>Trust Chain</h3>
+      <p>Trust levels across the federation. Each descriptor declares its trust basis: SelfAsserted (unverified claim), ThirdPartyAttested (external attestation), or CryptographicallyVerified (signed proof).</p>
+    </div>
+    <div class="trust-chain" id="trustChain"></div>
+  </div>
+
+  <!-- Composition Tab -->
+  <div class="panel" id="panel-composition">
+    <div class="card">
+      <h3>Algebraic Composition</h3>
+      <p>Compose context descriptors from two pods using algebraic operators. Union (A + B), Intersection (A * B), Restriction (A | B), Override (A >> B). The operators form a bounded lattice with well-defined merge semantics per facet type.</p>
+    </div>
+    <div class="compose-row">
+      <select id="composePodA"></select>
+      <span style="color:#8b949e">operator</span>
+      <select id="composeOp">
+        <option value="union">Union (A + B)</option>
+        <option value="intersection">Intersection (A * B)</option>
+        <option value="restriction">Restriction (A | B)</option>
+        <option value="override">Override (A >> B)</option>
+      </select>
+      <select id="composePodB"></select>
+      <button onclick="doCompose()">Compose</button>
+    </div>
+    <div class="compose-result" id="composeResult" style="display:none">
+      <h3 style="font-size:12px;color:#58a6ff;margin-bottom:8px" id="composeTitle"></h3>
+      <div id="composeFacets" style="margin-bottom:8px"></div>
+      <pre id="composeTurtle" style="font-size:10px;color:#8b949e;white-space:pre-wrap;max-height:300px;overflow-y:auto"></pre>
+    </div>
+  </div>
+
+  <!-- SPARQL Tab -->
+  <div class="panel" id="panel-sparql">
+    <div class="card">
+      <h3>SPARQL Query</h3>
+      <p>Execute SPARQL queries against the materialized PGSL triple store. The triple store contains all atoms, fragments, levels, constituents, and provenance from the lattice.</p>
+    </div>
+    <textarea class="sparql-input" id="sparqlInput">PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
+
+SELECT ?atom ?value WHERE {
+  ?atom a pgsl:Atom ;
+        pgsl:value ?value .
+} LIMIT 20</textarea>
+    <div>
+      <button class="sparql-btn" onclick="runSparql()">Execute</button>
+      <span style="font-size:10px;color:#8b949e;margin-left:12px" id="sparqlStatus"></span>
+    </div>
+    <div class="sparql-result" id="sparqlResult"></div>
+  </div>
+
+  <!-- SHACL Tab -->
+  <div class="panel" id="panel-shacl">
+    <div class="card">
+      <h3>SHACL Validation</h3>
+      <p>Three-layer SHACL validation of the PGSL lattice: Core (node constraints), Structural (lattice invariants), Domain (custom shapes).</p>
+      <button onclick="runShacl()" style="background:#238636;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:11px;margin-top:8px">Validate</button>
+    </div>
+    <div id="shaclResult" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Lattice Tab -->
+  <div class="panel" id="panel-lattice">
+    <div class="card">
+      <h3>PGSL Lattice Browser</h3>
+      <p>The original lattice browser for exploring atoms, fragments, structural overlap, and chain navigation.</p>
+      <a href="/" class="lattice-link">Open PGSL Lattice Browser</a>
+    </div>
+    <div class="card">
+      <h3>Lattice Stats</h3>
+      <div id="latticeStatsDetail"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Activity Log Panel -->
+<div class="activity-panel">
+  <div class="activity-header">
+    <h3>TLA Demo</h3>
+    <button class="demo-btn" id="demoBtn" onclick="runDemoStep()">1: Setup</button>
+    <span id="demoStatus" style="font-size:11px;color:#8b949e">6 phases: Setup → xAPI → Competency → Credentials → Discovery → Verify</span>
+    <button class="demo-reset" onclick="resetDemo()">Reset</button>
+    <span style="font-size:10px;color:#484f58;margin-left:auto" id="pgslStats"></span>
+  </div>
+  <div class="activity-scroll" id="activityScroll"></div>
+</div>
+
+<script>
+let podsData = { pods: [], totalPods: 0, totalDescriptors: 0 };
+let lastActivityTime = '';
+let demoRunning = false;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Federation ──
+
+async function refreshPods() {
+  const resp = await fetch('/api/pods');
+  podsData = await resp.json();
+  document.getElementById('headerStats').textContent =
+    podsData.totalPods + ' pods | ' + podsData.totalDescriptors + ' descriptors';
+  renderPods();
+  renderDescriptors();
+  renderTrust();
+  populateComposeSelects();
+  renderLatticeStats();
+}
+
+function renderPods() {
+  const grid = document.getElementById('podGrid');
+  grid.innerHTML = podsData.pods.map(pod => {
+    const statusClass = pod.status === 'active' ? 'active-pod' : 'unreachable';
+    const statusIcon = pod.status === 'active' ? '\u2705' : '\u274c';
+    return '<div class="pod-card ' + statusClass + '">' +
+      '<div class="pod-name">' + statusIcon + ' ' + pod.name + '</div>' +
+      '<div class="pod-url">' + pod.url + '</div>' +
+      '<div class="pod-meta">' +
+        pod.descriptorCount + ' descriptor(s) | ' +
+        'Last: ' + new Date(pod.lastDiscovered).toLocaleTimeString() +
+      '</div>' +
+      '<div style="margin-top:8px">' +
+        pod.entries.map(e =>
+          '<div class="desc-item" onclick="fetchDescriptor(\'' + e.descriptorUrl + '\')" style="margin-bottom:4px">' +
+            '<div class="desc-graph">' + e.describes[0] + '</div>' +
+            '<div class="desc-facets">' +
+              e.facetTypes.map(ft => '<span class="facet-badge facet-' + ft + '">' + ft + '</span>').join('') +
+            '</div>' +
+            (e.validFrom ? '<div style="font-size:9px;color:#484f58;margin-top:2px">' + e.validFrom.slice(0,10) + ' \u2192 ' + (e.validUntil?.slice(0,10) || '\u221e') + '</div>' : '') +
+          '</div>'
+        ).join('') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function addPod() {
+  const url = document.getElementById('addPodInput').value.trim();
+  if (!url) return;
+  await fetch('/api/pods/add', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+  document.getElementById('addPodInput').value = '';
+  await refreshPods();
+}
+
+// ── Descriptors ──
+
+function renderDescriptors() {
+  const list = document.getElementById('descriptorList');
+  const allEntries = podsData.pods.flatMap(p => p.entries.map(e => ({...e, podName: p.name, podUrl: p.url})));
+  list.innerHTML = allEntries.map(e =>
+    '<div class="desc-item" onclick="fetchDescriptor(\'' + e.descriptorUrl + '\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="desc-graph">' + e.describes[0] + '</div>' +
+        '<span style="font-size:9px;color:#484f58;background:#21262d;padding:2px 6px;border-radius:4px">' + e.podName + '</span>' +
+      '</div>' +
+      '<div class="desc-facets">' +
+        e.facetTypes.map(ft => '<span class="facet-badge facet-' + ft + '">' + ft + '</span>').join('') +
+      '</div>' +
+      (e.validFrom ? '<div style="font-size:9px;color:#484f58;margin-top:2px">' + e.validFrom.slice(0,10) + ' \u2192 ' + (e.validUntil?.slice(0,10) || '\u221e') + '</div>' : '') +
+    '</div>'
+  ).join('');
+}
+
+async function fetchDescriptor(url) {
+  const resp = await fetch('/api/descriptor/fetch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+  const data = await resp.json();
+  document.getElementById('descriptorDetail').style.display = 'block';
+  document.getElementById('descriptorTurtle').textContent = data.turtle;
+}
+
+// ── Trust ──
+
+function renderTrust() {
+  const chain = document.getElementById('trustChain');
+  const allEntries = podsData.pods.flatMap(p => p.entries.map(e => ({...e, podName: p.name})));
+
+  // Group by trust-related facets
+  const trustItems = allEntries.map(e => {
+    const hasTrust = e.facetTypes.includes('Trust');
+    const hasSemiotic = e.facetTypes.includes('Semiotic');
+    return { ...e, hasTrust, hasSemiotic };
+  });
+
+  chain.innerHTML = trustItems.map((item, i) => {
+    return '<div class="trust-node">' +
+      '<div style="flex:1">' +
+        '<div style="font-size:12px;color:#c9d1d9">' + item.podName + '</div>' +
+        '<div style="font-size:10px;color:#8b949e">' + item.describes[0] + '</div>' +
+      '</div>' +
+      '<div class="desc-facets">' +
+        item.facetTypes.map(ft => '<span class="facet-badge facet-' + ft + '">' + ft + '</span>').join('') +
+      '</div>' +
+    '</div>' +
+    (i < trustItems.length - 1 ? '<div class="trust-arrow">\u2193</div>' : '');
+  }).join('');
+}
+
+// ── Composition ──
+
+function populateComposeSelects() {
+  const selA = document.getElementById('composePodA');
+  const selB = document.getElementById('composePodB');
+  const opts = podsData.pods.filter(p => p.descriptorCount > 0).map(p =>
+    '<option value="' + p.url + '">' + p.name + ' (' + p.descriptorCount + ')</option>'
+  ).join('');
+  selA.innerHTML = opts;
+  selB.innerHTML = opts;
+  if (selB.options.length > 1) selB.selectedIndex = 1;
+}
+
+async function doCompose() {
+  const podA = document.getElementById('composePodA').value;
+  const podB = document.getElementById('composePodB').value;
+  const op = document.getElementById('composeOp').value;
+
+  const resp = await fetch('/api/compose', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({podA, podB, operator: op}) });
+  const data = await resp.json();
+
+  document.getElementById('composeResult').style.display = 'block';
+  document.getElementById('composeTitle').textContent = op.toUpperCase() + ' result: ' + data.facetCount + ' facets';
+  document.getElementById('composeFacets').innerHTML =
+    '<div class="desc-facets">' +
+    data.facets.map(f => '<span class="facet-badge facet-' + f.type + '">' + f.type + '</span>').join('') +
+    '</div>';
+  document.getElementById('composeTurtle').textContent = data.turtle;
+}
+
+// ── SPARQL ──
+
+async function runSparql() {
+  const query = document.getElementById('sparqlInput').value;
+  const status = document.getElementById('sparqlStatus');
+  status.textContent = 'Executing...';
+
+  const resp = await fetch('/api/sparql', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({query}) });
+  const data = await resp.json();
+
+  if (data.error) {
+    status.textContent = 'Error: ' + data.error;
+    document.getElementById('sparqlResult').innerHTML = '';
+    return;
+  }
+
+  if (data.type === 'ASK') {
+    status.textContent = 'ASK result';
+    document.getElementById('sparqlResult').innerHTML = '<div class="card"><h3>' + (data.boolean ? 'YES' : 'NO') + '</h3></div>';
+    return;
+  }
+
+  status.textContent = data.count + ' result(s)';
+  if (data.bindings.length === 0) {
+    document.getElementById('sparqlResult').innerHTML = '<div class="card"><p>No results</p></div>';
+    return;
+  }
+
+  const cols = Object.keys(data.bindings[0]);
+  let html = '<table class="sparql-table"><tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+  for (const row of data.bindings.slice(0, 100)) {
+    html += '<tr>' + cols.map(c => '<td>' + (row[c] || '') + '</td>').join('') + '</tr>';
+  }
+  html += '</table>';
+  document.getElementById('sparqlResult').innerHTML = html;
+}
+
+// ── SHACL ──
+
+async function runShacl() {
+  const resp = await fetch('/api/shacl');
+  const data = await resp.json();
+
+  let html = '<div class="shacl-status ' + (data.conforms ? 'shacl-pass' : 'shacl-fail') + '">' +
+    (data.conforms ? '\u2705 CONFORMS' : '\u274c ' + data.violationCount + ' VIOLATION(S)') +
+    '</div>';
+
+  if (data.violations.length > 0) {
+    html += data.violations.map(v =>
+      '<div class="violation-item ' + (v.severity === 'warning' ? 'warning' : '') + '">' +
+        '<strong>' + v.shape + '</strong>' + (v.path ? ' \u2192 ' + v.path : '') +
+        '<br>' + v.message +
+        '<br><span style="font-size:9px;color:#484f58">' + v.node + '</span>' +
+      '</div>'
+    ).join('');
+  }
+
+  document.getElementById('shaclResult').innerHTML = html;
+}
+
+// ── Lattice Stats ──
+
+async function renderLatticeStats() {
+  const resp = await fetch('/api/stats');
+  const stats = await resp.json();
+  document.getElementById('latticeStatsDetail').innerHTML =
+    '<p>Atoms: ' + stats.atoms + '</p>' +
+    '<p>Fragments: ' + stats.fragments + '</p>' +
+    '<p>Max Level: ' + stats.maxLevel + '</p>' +
+    '<p>Total Nodes: ' + stats.totalNodes + '</p>';
+}
+
+// ── Demo Runner ──
+
+const PHASE_LABELS = ['1: Setup', '2: xAPI Ingest', '3: Competency', '4: Credentials', '5: Discovery', '6: Verify', 'Reset'];
+let currentPhase = 0;
+
+async function runDemoStep() {
+  const btn = document.getElementById('demoBtn');
+  const status = document.getElementById('demoStatus');
+  btn.disabled = true;
+  status.textContent = 'Running phase ' + (currentPhase + 1) + '...';
+
+  try {
+    const resp = await fetch('/api/demo/run', { method: 'POST' });
+    const data = await resp.json();
+    currentPhase = data.phase;
+    status.textContent = data.status;
+
+    await pollActivity();
+    await refreshPods();
+
+    // Update PGSL stats
+    const statsResp = await fetch('/api/stats');
+    const stats = await statsResp.json();
+    document.getElementById('pgslStats').textContent = 'PGSL: ' + stats.atoms + ' atoms, ' + stats.fragments + ' frags';
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = PHASE_LABELS[currentPhase] || 'Reset';
+}
+
+async function resetDemo() {
+  await fetch('/api/demo/reset', { method: 'POST' });
+  currentPhase = 0;
+  document.getElementById('demoBtn').textContent = '1: Setup';
+  document.getElementById('demoStatus').textContent = '6 phases: Setup → xAPI → Competency → Credentials → Discovery → Verify';
+  document.getElementById('activityScroll').innerHTML = '';
+  document.getElementById('pgslStats').textContent = '';
+  lastActivityTime = '';
+  await refreshPods();
+}
+
+async function pollActivity() {
+  const url = lastActivityTime ? '/api/activity?since=' + encodeURIComponent(lastActivityTime) : '/api/activity';
+  const resp = await fetch(url);
+  const data = await resp.json();
+
+  const scroll = document.getElementById('activityScroll');
+  for (const evt of data.events) {
+    const div = document.createElement('div');
+    div.className = 'activity-entry';
+    const time = new Date(evt.time).toLocaleTimeString();
+    div.innerHTML =
+      '<span class="activity-time">' + time + '</span>' +
+      '<span class="activity-agent agent-' + evt.agent + '">' + evt.agent + '</span>' +
+      '<span class="activity-action">' + evt.action + '</span>' +
+      '<span class="activity-detail">' + evt.detail + '</span>';
+    scroll.appendChild(div);
+    lastActivityTime = evt.time;
+  }
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+// Poll for activity every 2 seconds
+setInterval(pollActivity, 2000);
+
+// Initial load
+refreshPods();
+</script>
+</body>
+</html>

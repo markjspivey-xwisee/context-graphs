@@ -48,8 +48,9 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │   ├── solid/        publish(), discover(), subscribe(), directory, WebFinger,
 │   │                 DID resolution, IPFS anchoring
 │   ├── pgsl/         Poly-Granular Sequence Lattice — content-addressed substrate,
-│   │                 entity/relation extraction, ontological inference, usage-based
-│   │                 semantics, structural retrieval, fact extraction, computation
+│   │                 in-memory SPARQL engine, three-layer SHACL validation,
+│   │                 LLM tool interface, ingestion profiles (xAPI, LERS, RDF),
+│   │                 entity/relation extraction, fact extraction, computation
 │   │                 (date arithmetic, counting, aggregation, abstention detection)
 │   ├── affordance/   Affordance engine integrating 8 frameworks:
 │   │                 Gibson, Norman, Pearl, Boyd (OODA), Endsley (SA),
@@ -64,9 +65,11 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │   ├── identity/     WebID + DID + Ed25519 + WebFinger + bearer tokens + SIWE
 │   ├── mcp-relay/    HTTP/REST bridge with auth, X402 payments, IPFS pinning
 │   └── css-config/   Community Solid Server configuration
-├── examples/         Dashboard UI + multi-agent demo
-├── benchmarks/       LongMemEval (94.0%) + LoCoMo (80.0%) evaluation suites
-└── tests/            264 tests across 10 suites
+├── examples/
+│   ├── multi-agent/  Team security audit demo + TLA/xAPI/LERS demo
+│   └── pgsl-browser/ PGSL lattice browser + Context Graphs Observatory
+├── benchmarks/       LongMemEval (89.2% agentic, 92.4% raw) evaluation suite
+└── tests/            315 tests across 13 suites
 ```
 
 ### Design Principles
@@ -89,7 +92,7 @@ git clone https://github.com/markjspivey-xwisee/context-graphs.git
 cd context-graphs
 npm install
 npm run build
-npm test  # 264 tests
+npm test  # 315 tests
 ```
 
 ### Build a Context Descriptor
@@ -176,6 +179,122 @@ PGSL provides:
 - **Ontological inference** — synonym groups, IS-A hierarchies, part-of relations
 - **Usage-based semantics** — co-occurrence mining, Yoneda embedding, emergent synonyms
 - **Structural computation** — date arithmetic, counting, aggregation, abstention detection
+- **In-memory SPARQL engine** — materialize lattice as triple store, execute SELECT/ASK/FILTER/OPTIONAL/UNION/aggregates
+- **Three-layer SHACL validation** — core (node constraints), structural (lattice invariants), domain (user-defined shapes)
+- **LLM tool interface** — 5 tools (sparql_query, lookup_entity, count_items, temporal_query, validate_shacl) with multi-turn dispatch loop
+- **Ingestion profiles** — domain-specific data mapping (xAPI, LERS, RDF, custom)
+
+### SPARQL Engine
+
+```typescript
+import { sparqlQueryPGSL, materializeTriples, executeSparqlString } from '@foxxi/context-graphs';
+
+// Execute SPARQL against the PGSL lattice
+const result = sparqlQueryPGSL(pgsl, `
+  PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
+  SELECT ?atom ?value WHERE {
+    ?atom a pgsl:Atom ; pgsl:value ?value .
+  } LIMIT 10
+`);
+console.log(result.bindings.length); // number of matching atoms
+```
+
+### SHACL Validation
+
+```typescript
+import { validateAllPGSL, validateDomainShapes } from '@foxxi/context-graphs';
+
+// Validate lattice with all 3 layers (core + structural + domain)
+const result = validateAllPGSL(pgsl);
+console.log(result.conforms); // true if no violations
+
+// Custom domain shapes
+const result = validateDomainShapes(pgsl, [{
+  name: 'AtomMustHaveValue',
+  targetClass: 'https://...pgsl#Atom',
+  properties: [{ path: 'https://...pgsl#value', minCount: 1 }],
+}]);
+```
+
+### Ingestion Profiles
+
+```typescript
+import { ingestWithProfile } from '@foxxi/context-graphs';
+
+// xAPI profile: preserves actor/verb/object/result nesting
+const uri = ingestWithProfile(pgsl, 'xapi', {
+  actor: { name: 'CPT Sarah Chen' },
+  verb: { id: 'http://adlnet.gov/expapi/verbs/completed', display: { 'en-US': 'completed' } },
+  object: { id: 'urn:activity:ils-approach', definition: { name: { 'en-US': 'ILS Approach Rwy 28L' } } },
+  result: { score: { raw: 92, max: 100 }, success: true, duration: 'PT45M' },
+});
+// Ingested as: ((CPT,Sarah,Chen),completed,(ILS,Approach,Rwy,28L),(92,passed,PT45M))
+// Actor, object, and result are nested fragments — shared across statements
+
+// LERS profile: issuer/subject/achievement/evidence nesting
+const credUri = ingestWithProfile(pgsl, 'lers', {
+  issuer: 'credential.training.airforce.mil',
+  subject: { name: 'CPT Sarah Chen' },
+  achievement: { name: 'USAF Instrument Rating', level: 'Proficient', framework: 'USAF v3' },
+  evidence: { statementCount: 5, averageScore: 91.6 },
+});
+
+// Custom profiles: register your own
+import { registerProfile } from '@foxxi/context-graphs';
+registerProfile({
+  name: 'fhir',
+  description: 'FHIR observation: patient/encounter/observation nesting',
+  transform(input) { /* domain-specific mapping */ return '((patient),(encounter),(observation))'; },
+});
+```
+
+---
+
+## Observatory
+
+The Context Graphs Observatory is a real-time dashboard for monitoring multi-agent federation:
+
+```bash
+CSS_URL=http://localhost:3456/ \
+KNOWN_PODS=http://localhost:3456/lrs/,http://localhost:3456/competency/ \
+PORT=5001 npx tsx examples/pgsl-browser/server.ts
+# → Observatory at http://localhost:5001/observatory
+# → PGSL Lattice Browser at http://localhost:5001/
+```
+
+**Tabs:** Federation (pod registry), Descriptors (facet browsing), Trust (chain visualization), Composition (algebraic operators), SPARQL (query interface), SHACL (validation), PGSL Lattice (original browser)
+
+**Interactive Demo:** Click "Run Next Phase" to step through a 6-phase TLA pipeline with real-time activity logging — agents publishing, discovering, signing, composing, and verifying across live Solid pods.
+
+---
+
+## Multi-Agent Demos
+
+### TLA / xAPI / IEEE LERS Demo
+
+A flight training pipeline for a 3-pilot cohort across 6 Solid pods:
+
+```bash
+npx tsx examples/multi-agent/tla-demo.ts --keep-alive
+```
+
+**6 Phases:**
+1. **Setup** — 6 pods, 6 ethers.js wallets, 3 EIP-712 delegations
+2. **xAPI Ingestion** — 15 statements from flight simulator, PGSL structural ingestion via xAPI profile, ECDSA-signed descriptors
+3. **Competency Assessment** — SPARQL queries, affordance engine, Pearl's causal model (SCM + counterfactual), competency mapping
+4. **Credential Issuance** — Composition (intersection), SHACL validation, IEEE LERS credentials, ECDSA signatures
+5. **Learner Discovery** — Bidirectional: learners discover, verify signatures + delegation chains, republish to own pods
+6. **External Verification** — Full trust chain audit, cohort overlap via SPARQL
+
+### Team Security Audit Demo
+
+3 agents (Scanner, Analyst, Lead) across 3 pods:
+
+```bash
+npx tsx examples/multi-agent/team-demo.ts --keep-alive
+```
+
+Shows: trust escalation (SelfAsserted → ThirdPartyAttested → CryptographicallyVerified), composition operators, PGSL structural overlap, provenance chains.
 
 ---
 
@@ -363,14 +482,13 @@ Supports: WebID, DID (did:web), W3C Verifiable Credentials, Open Badges 3.0, IEE
 
 ## Benchmarks
 
-| Benchmark | Score | Method | LLM Calls | Cost |
-|-----------|-------|--------|-----------|------|
-| **LongMemEval** | **94.0%** (500q) | Affordance-routed strategies + structural computation | ~2/question | $0 (subscription) |
-| **LoCoMo** | **80.0%** (50q) | PGSL KG + structural + LLM | ~1/question | $0 (subscription) |
-| Supermemory (production) | 85.2% | Vector embeddings + reranking | Unknown | Paid |
-| Supermemory (ASMR experimental) | ~99% | 18+ LLM calls/question | 19/question | ~$10/run |
+| Approach | Raw (500q) | Adjusted | Excl Preference |
+|----------|-----------|----------|-----------------|
+| **Agentic v3** (SPARQL + fact extraction) | **86.6%** | **89.2%** | **92.1%** |
+| Raw LLM (no system) | 92.4% | — | — |
+| Agentic v1 (first run) | 83.0% | — | — |
 
-Our 94.0% uses ~2 LLM calls/question vs their ~19. The structural layer (PGSL, entity extraction, ontological inference, computation) handles retrieval and arithmetic. The LLM handles comprehension.
+The system adds value on structural tasks (counting, temporal reasoning, knowledge-update tracking) but a raw LLM with a large context window is competitive at pure text comprehension. The system's real value is **not** in beating LLMs at reading text — it's in providing **composable, verifiable, federated context infrastructure** that LLMs cannot provide: typed metadata, trust chains, access control, algebraic composition, structural dedup, and provenance.
 
 ---
 
@@ -398,7 +516,7 @@ Deploys: CSS (Solid server), Dashboard (observation UI), MCP Relay (HTTP bridge)
 ```bash
 npm install
 npm run build        # TypeScript → dist/
-npm test             # 264 tests across 10 suites
+npm test             # 315 tests across 13 suites
 npm run test:watch   # Watch mode
 ```
 
@@ -411,11 +529,14 @@ npm run test:watch   # Watch mode
 | `federation.test.ts` | 21 | Pod directory, multi-pod, WebFinger, Hydra |
 | `causality.test.ts` | 38 | SCM, do-calculus, d-separation, counterfactual |
 | `pgsl.test.ts` | 31 | Lattice, category, geometric morphism |
+| `pgsl-sparql.test.ts` | 19 | Triple store, SPARQL execution, existing generators |
+| `pgsl-shacl.test.ts` | 13 | Core/structural/domain SHACL validation |
+| `pgsl-tools.test.ts` | 19 | LLM tools, tool call parsing, tool loop |
 | `projection.test.ts` | 15 | Vocabulary mapping, binding strength |
 | `affordance.test.ts` | 23 | Gibson, Norman, OODA, BDI, Friston, stigmergy |
 | `crypto.test.ts` | 25 | Wallets, ECDSA, delegation, SIWE |
 | `encryption-zk.test.ts` | 30 | NaCl encryption, ZK proofs, selective disclosure |
-| (additional) | 17 | Category theory, semiotic functor |
+| `sdk-extractors.test.ts` | 17 | Category theory, semiotic functor |
 
 ---
 

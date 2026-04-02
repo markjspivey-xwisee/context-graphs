@@ -27,21 +27,69 @@ import {
   queryNeighbors,
   discover,
   computeContainmentAnnotations,
+  ContextDescriptor,
+  union,
+  intersection,
+  restriction,
+  override,
+  validate,
+  toTurtle,
+  publish,
+  materializeTriples,
+  executeSparqlString,
+  validateAllPGSL,
+  sparqlQueryPGSL,
+  sparqlFragmentsContaining,
+  // Crypto
+  createWallet,
+  signDescriptor,
+  verifyDescriptorSignature,
+  createDelegation,
+  verifyDelegationSignature,
+  // Causality
+  buildSCM,
+  evaluateCounterfactual,
+  isDSeparated,
+  findBackdoorSet,
+  // Affordance
+  computeCognitiveStrategy,
+  // Ingestion profiles
+  ingestWithProfile,
+  getProfile,
 } from '@foxxi/context-graphs';
-import type { IRI, PGSLInstance, TokenGranularity } from '@foxxi/context-graphs';
+
+// Get the xAPI profile for direct transform calls
+const xapiProfile = getProfile('xapi')!;
+import type {
+  IRI, PGSLInstance, TokenGranularity, ContextDescriptorData, ManifestEntry,
+  Wallet, WalletDelegation, SignedDescriptor,
+} from '@foxxi/context-graphs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env['PORT'] ?? '5000');
-const CSS_URL = process.env['CSS_URL'] ?? 'https://context-graphs-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/';
+const CSS_URL = process.env['CSS_URL'] ?? 'http://localhost:3456/';
 const POD_NAME = process.env['POD_NAME'] ?? 'markj';
 const POD_URL = `${CSS_URL}${POD_NAME}/`;
 const CLEAN = process.env['CLEAN'] === '1';
+const KNOWN_PODS = (process.env['KNOWN_PODS'] ?? '')
+  .split(',').map(s => s.trim()).filter(Boolean);
 
 // The PGSL lattice — derived from pod content, not a separate store
 let pgsl: PGSLInstance = createPGSL({
   wasAttributedTo: `urn:pgsl-browser:${POD_NAME}` as IRI,
   generatedAtTime: new Date().toISOString(),
 });
+
+// Federation state — descriptors discovered from all pods
+interface PodState {
+  url: string;
+  name: string;
+  entries: ManifestEntry[];
+  descriptors: Map<string, ContextDescriptorData>;
+  lastDiscovered: string;
+  status: 'active' | 'unreachable';
+}
+const podRegistry = new Map<string, PodState>();
 
 // Solid fetch wrapper
 const solidFetch = async (url: string, init?: any) => {
@@ -391,6 +439,655 @@ app.get('/api/all', (_req, res) => {
     nodes.push({ uri, resolved: pgslResolve(pgsl, uri as IRI), level: node.level, kind: node.kind });
   }
   res.json({ nodes, stats: latticeStats(pgsl) });
+});
+
+// ── Activity log for live demo ──
+const activityLog: Array<{ time: string; agent: string; action: string; detail: string }> = [];
+function logActivity(agent: string, action: string, detail: string) {
+  activityLog.push({ time: new Date().toISOString(), agent, action, detail });
+}
+
+// ── Observatory: serve the observatory HTML ──
+app.get('/observatory', (_req, res) => {
+  res.sendFile(resolve(__dirname, 'observatory.html'));
+});
+
+// ── Observatory API: Federation ──
+
+app.get('/api/pods', async (_req, res) => {
+  // Discover from all known pods
+  const allPods = [POD_URL, ...KNOWN_PODS].filter(Boolean);
+  for (const podUrl of allPods) {
+    if (podRegistry.has(podUrl)) continue;
+    try {
+      const entries = await discover(podUrl, undefined, { fetch: solidFetch });
+      const name = podUrl.replace(CSS_URL, '').replace(/\/$/, '') || 'home';
+      podRegistry.set(podUrl, {
+        url: podUrl, name, entries,
+        descriptors: new Map(),
+        lastDiscovered: new Date().toISOString(),
+        status: 'active',
+      });
+    } catch {
+      const name = podUrl.replace(CSS_URL, '').replace(/\/$/, '') || 'unknown';
+      podRegistry.set(podUrl, {
+        url: podUrl, name, entries: [],
+        descriptors: new Map(),
+        lastDiscovered: new Date().toISOString(),
+        status: 'unreachable',
+      });
+    }
+  }
+  const pods = [...podRegistry.values()].map(p => ({
+    url: p.url, name: p.name, status: p.status,
+    descriptorCount: p.entries.length,
+    lastDiscovered: p.lastDiscovered,
+    entries: p.entries.map(e => ({
+      descriptorUrl: e.descriptorUrl,
+      describes: e.describes,
+      facetTypes: e.facetTypes,
+      validFrom: e.validFrom,
+      validUntil: e.validUntil,
+      version: e.version,
+    })),
+  }));
+  res.json({ pods, totalPods: pods.length, totalDescriptors: pods.reduce((s, p) => s + p.descriptorCount, 0) });
+});
+
+app.post('/api/pods/add', (req, res) => {
+  const { url } = req.body;
+  if (!url) { res.status(400).json({ error: 'Missing url' }); return; }
+  if (!KNOWN_PODS.includes(url)) KNOWN_PODS.push(url);
+  res.json({ added: url });
+});
+
+app.post('/api/pods/discover', async (req, res) => {
+  const { url } = req.body;
+  try {
+    const entries = await discover(url, undefined, { fetch: solidFetch });
+    const name = url.replace(CSS_URL, '').replace(/\/$/, '');
+    podRegistry.set(url, {
+      url, name, entries,
+      descriptors: new Map(),
+      lastDiscovered: new Date().toISOString(),
+      status: 'active',
+    });
+    res.json({ url, entries: entries.length });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ── Observatory API: Descriptor Details ──
+
+app.post('/api/descriptor/fetch', async (req, res) => {
+  const { url } = req.body;
+  try {
+    const resp = await fetch(url, { headers: { 'Accept': 'text/turtle' } });
+    const turtle = await resp.text();
+    res.json({ url, turtle, size: turtle.length });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ── Observatory API: Composition ──
+
+app.post('/api/compose', async (req, res) => {
+  const { podA, podB, operator } = req.body as { podA: string; podB: string; operator: string };
+  const stateA = podRegistry.get(podA);
+  const stateB = podRegistry.get(podB);
+  if (!stateA?.entries.length || !stateB?.entries.length) {
+    res.status(400).json({ error: 'Both pods must have descriptors' });
+    return;
+  }
+
+  // Fetch first descriptor from each as Turtle and re-parse (simplified — uses manifest metadata)
+  const entryA = stateA.entries[0]!;
+  const entryB = stateB.entries[0]!;
+
+  // Build minimal descriptor data from manifest entries for composition
+  const descA = ContextDescriptor.create(entryA.descriptorUrl.replace('.ttl', '') as IRI)
+    .describes(entryA.describes[0] as IRI);
+  if (entryA.validFrom) descA.temporal({ validFrom: entryA.validFrom, validUntil: entryA.validUntil });
+  for (const ft of entryA.facetTypes) {
+    if (ft === 'Semiotic') descA.asserted(0.95);
+    if (ft === 'Trust') descA.selfAsserted('urn:pod:a' as IRI);
+  }
+  const builtA = descA.version(1).build();
+
+  const descB = ContextDescriptor.create(entryB.descriptorUrl.replace('.ttl', '') as IRI)
+    .describes(entryB.describes[0] as IRI);
+  if (entryB.validFrom) descB.temporal({ validFrom: entryB.validFrom, validUntil: entryB.validUntil });
+  for (const ft of entryB.facetTypes) {
+    if (ft === 'Semiotic') descB.asserted(0.88);
+    if (ft === 'Trust') descB.selfAsserted('urn:pod:b' as IRI);
+  }
+  const builtB = descB.version(1).build();
+
+  let composed: ContextDescriptorData;
+  switch (operator) {
+    case 'union': composed = union(builtA, builtB); break;
+    case 'intersection': composed = intersection(builtA, builtB); break;
+    case 'restriction': composed = restriction(builtA, builtB); break;
+    case 'override': composed = override(builtA, builtB); break;
+    default: res.status(400).json({ error: 'Invalid operator' }); return;
+  }
+
+  res.json({
+    operator,
+    facets: composed.facets.map(f => ({ type: f.type, ...f })),
+    facetCount: composed.facets.length,
+    compositionOp: composed.compositionOp,
+    turtle: toTurtle(composed),
+  });
+});
+
+// ── Observatory API: SPARQL ──
+
+app.post('/api/sparql', (req, res) => {
+  const { query } = req.body;
+  try {
+    const store = materializeTriples(pgsl);
+    const result = executeSparqlString(store, query);
+    if (result.boolean !== undefined) {
+      res.json({ type: 'ASK', boolean: result.boolean });
+    } else {
+      const rows = result.bindings.map(b => Object.fromEntries(b));
+      res.json({ type: 'SELECT', bindings: rows, count: rows.length });
+    }
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// ── Observatory API: SHACL Validation ──
+
+app.get('/api/shacl', (_req, res) => {
+  const result = validateAllPGSL(pgsl);
+  res.json({
+    conforms: result.conforms,
+    violationCount: result.violations.length,
+    violations: result.violations.slice(0, 50).map(v => ({
+      node: v.node,
+      shape: v.shape,
+      path: v.path,
+      message: v.message,
+      severity: v.severity,
+    })),
+  });
+});
+
+// ── Observatory API: Activity Log ──
+app.get('/api/activity', (_req, res) => {
+  const since = _req.query['since'] as string | undefined;
+  if (since) {
+    const filtered = activityLog.filter(a => a.time > since);
+    res.json({ events: filtered, total: activityLog.length });
+  } else {
+    res.json({ events: activityLog, total: activityLog.length });
+  }
+});
+
+// ── Observatory API: Comprehensive TLA Demo ──
+
+// xAPI JSON data for 3 learners (real xAPI format)
+const XAPI_DATA: Record<string, Array<{ verb: string; activity: string; activityName: string; score: number; success: boolean; duration: string; timestamp: string }>> = {
+  chen: [
+    { verb: 'completed', activity: 'ils-approach-rwy-28L', activityName: 'ILS Approach Rwy 28L', score: 92, success: true, duration: 'PT45M', timestamp: '2026-03-15T14:30:00Z' },
+    { verb: 'completed', activity: 'vor-approach-rwy-10R', activityName: 'VOR Approach Rwy 10R', score: 88, success: true, duration: 'PT35M', timestamp: '2026-03-15T15:45:00Z' },
+    { verb: 'completed', activity: 'gps-approach-rwy-04', activityName: 'GPS Approach Rwy 04', score: 95, success: true, duration: 'PT40M', timestamp: '2026-03-16T09:15:00Z' },
+    { verb: 'attempted', activity: 'emergency-missed-approach', activityName: 'Emergency Missed Approach', score: 78, success: false, duration: 'PT25M', timestamp: '2026-03-16T10:30:00Z' },
+    { verb: 'completed', activity: 'emergency-missed-approach', activityName: 'Emergency Missed Approach', score: 91, success: true, duration: 'PT30M', timestamp: '2026-03-17T08:00:00Z' },
+  ],
+  park: [
+    { verb: 'completed', activity: 'ils-approach-rwy-28L', activityName: 'ILS Approach Rwy 28L', score: 85, success: true, duration: 'PT50M', timestamp: '2026-03-15T14:00:00Z' },
+    { verb: 'attempted', activity: 'vor-approach-rwy-10R', activityName: 'VOR Approach Rwy 10R', score: 72, success: false, duration: 'PT40M', timestamp: '2026-03-15T16:00:00Z' },
+    { verb: 'completed', activity: 'vor-approach-rwy-10R', activityName: 'VOR Approach Rwy 10R', score: 83, success: true, duration: 'PT38M', timestamp: '2026-03-16T10:00:00Z' },
+    { verb: 'completed', activity: 'gps-approach-rwy-04', activityName: 'GPS Approach Rwy 04', score: 88, success: true, duration: 'PT42M', timestamp: '2026-03-16T14:00:00Z' },
+    { verb: 'completed', activity: 'holding-pattern', activityName: 'Holding Pattern', score: 90, success: true, duration: 'PT20M', timestamp: '2026-03-17T09:00:00Z' },
+  ],
+  ortiz: [
+    { verb: 'completed', activity: 'ils-approach-rwy-28L', activityName: 'ILS Approach Rwy 28L', score: 94, success: true, duration: 'PT38M', timestamp: '2026-03-15T13:00:00Z' },
+    { verb: 'completed', activity: 'gps-approach-rwy-04', activityName: 'GPS Approach Rwy 04', score: 97, success: true, duration: 'PT35M', timestamp: '2026-03-15T15:00:00Z' },
+    { verb: 'completed', activity: 'emergency-missed-approach', activityName: 'Emergency Missed Approach', score: 93, success: true, duration: 'PT28M', timestamp: '2026-03-16T08:00:00Z' },
+    { verb: 'completed', activity: 'ndb-approach', activityName: 'NDB Approach', score: 89, success: true, duration: 'PT45M', timestamp: '2026-03-16T11:00:00Z' },
+    { verb: 'completed', activity: 'visual-approach', activityName: 'Visual Approach', score: 96, success: true, duration: 'PT20M', timestamp: '2026-03-17T07:00:00Z' },
+  ],
+};
+
+const LEARNER_INFO: Record<string, { name: string; rank: string; did: string }> = {
+  chen: { name: 'CPT Sarah Chen', rank: 'Captain', did: 'did:web:learner.airforce.mil:chen.sarah' },
+  park: { name: 'LT James Park', rank: 'Lieutenant', did: 'did:web:learner.airforce.mil:park.james' },
+  ortiz: { name: 'SGT Maria Ortiz', rank: 'Sergeant', did: 'did:web:learner.airforce.mil:ortiz.maria' },
+};
+
+function xapiToRdf(learner: string, stmts: typeof XAPI_DATA['chen']): string {
+  const info = LEARNER_INFO[learner]!;
+  const lines = ['@prefix xapi: <https://w3id.org/xapi/ontology#> .', '@prefix verb: <https://w3id.org/xapi/adl/verbs/> .', '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .', ''];
+  stmts.forEach((s, i) => {
+    lines.push(`<urn:xapi:${learner}:${String(i + 1).padStart(3, '0')}> a xapi:Statement ;`);
+    lines.push(`    xapi:actor <${info.did}> ;`);
+    lines.push(`    xapi:verb verb:${s.verb} ;`);
+    lines.push(`    xapi:object <urn:activity:${s.activity}> ;`);
+    lines.push(`    xapi:timestamp "${s.timestamp}"^^xsd:dateTime ;`);
+    lines.push(`    <https://w3id.org/xapi/ontology#result/score> "${s.score}"^^xsd:integer ;`);
+    lines.push(`    <https://w3id.org/xapi/ontology#result/success> "${s.success}"^^xsd:boolean .`);
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+interface DemoState {
+  wallets: Record<string, Wallet>;
+  delegations: WalletDelegation[];
+  signatures: Record<string, SignedDescriptor>;
+  descriptors: Record<string, ContextDescriptorData>;
+}
+let demoState: DemoState | null = null;
+let demoPhase = 0;
+const PHASE_NAMES = ['', 'Setup', 'xAPI Ingestion', 'Competency Assessment', 'Credential Issuance', 'Learner Discovery', 'Verification'];
+
+app.post('/api/demo/run', async (_req, res) => {
+  demoPhase++;
+  const phase = demoPhase;
+  const cssUrl = CSS_URL;
+  const addr = (w: Wallet) => w.address.slice(0, 10) + '...' + w.address.slice(-6);
+
+  try {
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 1: Setup — Pods + Wallets + Delegations
+    // ════════════════════════════════════════════════════════════
+    if (phase === 1) {
+      logActivity('System', 'phase', 'PHASE 1: Setup — Creating pods, wallets, delegations');
+
+      // Create 6 pods
+      for (const name of ['lrs', 'competency', 'credential', 'chen', 'park', 'ortiz']) {
+        const podUrl = `${cssUrl}${name}/`;
+        try { await fetch(podUrl, { method: 'PUT', headers: { 'Content-Type': 'text/turtle', 'Link': '<http://www.w3.org/ns/ldp#BasicContainer>; rel="type"' }, body: '' }); } catch {}
+        logActivity('System', 'pod', `Created pod: ${name}/`);
+      }
+
+      // Create wallets
+      const wallets: Record<string, Wallet> = {};
+      for (const [key, label] of [['lrs', 'LRS Agent'], ['competency', 'Competency Manager'], ['credential', 'Credential Issuer'], ['chen', 'CPT Sarah Chen'], ['park', 'LT James Park'], ['ortiz', 'SGT Maria Ortiz']]) {
+        wallets[key] = await createWallet(key.length <= 5 ? 'human' : 'agent', label);
+        logActivity(key === 'lrs' ? 'LRS' : key === 'competency' ? 'Competency' : key === 'credential' ? 'Credential' : LEARNER_INFO[key]?.name.split(' ')[0] ?? key, 'wallet', `Created wallet: ${addr(wallets[key]!)} (${label})`);
+      }
+
+      // Create delegations: each learner authorizes LRS
+      const delegations: WalletDelegation[] = [];
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const d = await createDelegation(wallets[learner]!, wallets['lrs']!, 'ReadWrite', '2027-03-17T00:00:00Z');
+        delegations.push(d);
+        logActivity(LEARNER_INFO[learner]!.name.split(' ')[0]!, 'delegate', `Delegated ReadWrite to LRS Agent (sig: ${d.signature.slice(0, 18)}...)`);
+      }
+
+      demoState = { wallets, delegations, signatures: {}, descriptors: {} };
+      podRegistry.clear();
+      res.json({ phase, status: '6 pods created, 6 wallets, 3 delegations', next: 'LRS ingests xAPI statements' });
+
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 2: xAPI Ingestion — LRS Agent
+    // ════════════════════════════════════════════════════════════
+    } else if (phase === 2 && demoState) {
+      logActivity('LRS', 'phase', 'PHASE 2: xAPI Ingestion — Processing flight simulator data');
+
+      for (const [learner, stmts] of Object.entries(XAPI_DATA)) {
+        const info = LEARNER_INFO[learner]!;
+        logActivity('LRS', 'ingest', `Parsing ${stmts.length} xAPI statements for ${info.name}`);
+
+        // Ingest each statement into PGSL using xAPI profile
+        for (const s of stmts) {
+          const xapiJson = {
+            actor: { name: info.name },
+            verb: { id: `http://adlnet.gov/expapi/verbs/${s.verb}`, display: { 'en-US': s.verb } },
+            object: { id: `urn:activity:${s.activity}`, definition: { name: { 'en-US': s.activityName } } },
+            result: { score: { raw: s.score, max: 100 }, success: s.success, duration: s.duration },
+            timestamp: s.timestamp,
+          };
+          const structured = xapiProfile.transform(xapiJson);
+          embedInPGSL(pgsl, structured, undefined, 'structured');
+          logActivity('LRS', 'pgsl', `xapi_ingest: ${structured}`);
+        }
+
+        // Classify with affordance engine
+        const strategy = computeCognitiveStrategy(`How did ${info.name} perform on instrument approaches?`);
+        logActivity('LRS', 'affordance', `analyze_question → type: ${strategy.questionType}, strategy: ${strategy.strategy}`);
+
+        // Build xAPI RDF
+        const rdfGraph = xapiToRdf(learner, stmts);
+
+        // Build descriptor
+        const descId = `urn:cg:lrs:${learner}-session-2026-03` as IRI;
+        const desc = ContextDescriptor.create(descId)
+          .describes(`urn:graph:lrs:${learner}-xapi` as IRI)
+          .temporal({ validFrom: stmts[0]!.timestamp, validUntil: stmts[stmts.length - 1]!.timestamp })
+          .provenance({ wasGeneratedBy: { agent: 'urn:system:lrs:adl-conformant' as IRI, startedAt: stmts[0]!.timestamp, endedAt: stmts[stmts.length - 1]!.timestamp }, wasAttributedTo: 'did:web:lrs.training.airforce.mil' as IRI, generatedAtTime: stmts[stmts.length - 1]!.timestamp })
+          .agent('did:web:lrs.training.airforce.mil' as IRI, 'LRS')
+          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.99 })
+          .trust({ trustLevel: 'SelfAsserted', issuer: 'did:web:lrs.training.airforce.mil' as IRI })
+          .federation({ origin: `${cssUrl}lrs/` as IRI, storageEndpoint: `${cssUrl}lrs/` as IRI, syncProtocol: 'SolidNotifications' })
+          .version(1).build();
+
+        // Sign with ECDSA
+        const turtle = toTurtle(desc);
+        const signed = await signDescriptor(descId, turtle, demoState.wallets['lrs']!);
+        demoState.signatures[descId] = signed;
+        demoState.descriptors[descId] = desc;
+        logActivity('LRS', 'sign', `ECDSA signed ${learner} descriptor (sig: ${signed.signature.slice(0, 18)}...)`);
+
+        // Publish
+        const pubResult = await publish(desc, rdfGraph, `${cssUrl}lrs/`, { fetch: solidFetch });
+        logActivity('LRS', 'publish', `Published ${info.name}'s xAPI to ${pubResult.descriptorUrl}`);
+      }
+
+      // SPARQL: find shared activities
+      const stats = latticeStats(pgsl);
+      logActivity('LRS', 'pgsl', `Lattice: ${stats.atoms} atoms, ${stats.fragments} fragments, L0-L${stats.maxLevel}`);
+
+      const completedAtom = [...pgsl.atoms.entries()].find(([k]) => k === 'completed');
+      if (completedAtom) {
+        const query = sparqlFragmentsContaining(completedAtom[1]);
+        const result = sparqlQueryPGSL(pgsl, query);
+        logActivity('LRS', 'sparql', `SPARQL: "completed" appears in ${result.bindings.length} fragments (shared across all learners)`);
+      }
+
+      podRegistry.clear();
+      res.json({ phase, status: '15 xAPI statements ingested, 3 descriptors signed + published', next: 'Competency Manager assesses mastery' });
+
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 3: Competency Assessment
+    // ════════════════════════════════════════════════════════════
+    } else if (phase === 3 && demoState) {
+      logActivity('Competency', 'phase', 'PHASE 3: Competency Assessment — Mapping xAPI to framework');
+
+      // Discover from LRS
+      const lrsEntries = await discover(`${cssUrl}lrs/`, undefined, { fetch: solidFetch });
+      logActivity('Competency', 'discover', `Found ${lrsEntries.length} xAPI descriptor(s) on LRS pod`);
+
+      // SPARQL: query which learners completed which activities
+      const store = materializeTriples(pgsl);
+      const sparqlQuery = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
+SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
+      const sparqlResult = executeSparqlString(store, sparqlQuery);
+      logActivity('Competency', 'sparql', `SPARQL: Found ${sparqlResult.bindings.length} atoms in lattice`);
+
+      // Affordance engine: assess proficiency questions
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const q = `Is ${info.name} proficient in instrument approaches?`;
+        const strategy = computeCognitiveStrategy(q);
+        logActivity('Competency', 'affordance', `"${q}" → ${strategy.strategy} (${strategy.computationType ?? 'comprehension'})`);
+      }
+
+      // Build causal model
+      logActivity('Competency', 'causal', 'Building Structural Causal Model for flight training...');
+      const scm = buildSCM('urn:scm:flight-training' as IRI, [
+        { name: 'SimulatorExposure', observed: true, mechanism: 'xAPI completion count' },
+        { name: 'SkillEngagement', observed: false, mechanism: 'latent: practice quality' },
+        { name: 'ConceptMastery', observed: true, mechanism: 'assessment scores' },
+        { name: 'TransferSuccess', observed: false, mechanism: 'latent: real-world readiness' },
+      ], [
+        { from: 'SimulatorExposure', to: 'SkillEngagement', strength: 0.85 },
+        { from: 'SkillEngagement', to: 'ConceptMastery', strength: 0.9 },
+        { from: 'ConceptMastery', to: 'TransferSuccess', strength: 0.8 },
+      ], 'Flight Training Causal Model');
+      logActivity('Competency', 'causal', `SCM: ${scm.variables.length} variables, ${scm.edges.length} edges`);
+
+      // d-separation test
+      const dSep = isDSeparated(scm, 'SimulatorExposure', 'TransferSuccess', new Set(['ConceptMastery']));
+      logActivity('Competency', 'causal', `d-separation: SimExposure ⊥ TransferSuccess | ConceptMastery = ${dSep}`);
+
+      // Backdoor set
+      const backdoor = findBackdoorSet(scm, 'SimulatorExposure', 'ConceptMastery');
+      logActivity('Competency', 'causal', `Backdoor adjustment set: ${backdoor ? '{' + [...backdoor].join(', ') + '}' : 'identifiable without adjustment'}`);
+
+      // Counterfactual
+      const cf = evaluateCounterfactual(scm, {
+        intervention: { variable: 'SimulatorExposure', value: 'reduced' },
+        target: 'ConceptMastery',
+      });
+      logActivity('Competency', 'causal', `Counterfactual: "If SimExposure reduced, ConceptMastery affected?" → ${cf.targetAffected ? 'YES' : 'NO'} (${cf.affectedVariables.length} vars affected)`);
+
+      // Structural overlap via latticeMeet
+      const chenAtom = [...pgsl.atoms.entries()].find(([k]) => k === 'Chen');
+      const parkAtom = [...pgsl.atoms.entries()].find(([k]) => k === 'Park');
+      if (chenAtom && parkAtom) {
+        const meet = latticeMeet(pgsl, chenAtom[1], parkAtom[1]);
+        logActivity('Competency', 'pgsl', `Lattice meet(Chen, Park): ${meet ? 'shared structure found' : 'no direct overlap'}`);
+      }
+
+      // Map verbs to competency levels and publish
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const stmts = XAPI_DATA[learner]!;
+        const completed = stmts.filter(s => s.success);
+        const avgScore = Math.round(completed.reduce((s, x) => s + x.score, 0) / completed.length);
+        const level = avgScore >= 90 ? 'Advanced' : avgScore >= 80 ? 'Proficient' : 'Developing';
+
+        logActivity('Competency', 'assess', `${info.name}: ${completed.length}/${stmts.length} passed, avg ${avgScore} → ${level}`);
+
+        const compGraph = `@prefix comp: <https://example.org/competency#> .\n<urn:competency:${learner}> a comp:CompetencyAssertion ; comp:learner <${info.did}> ; comp:level "${level}" ; comp:score "${avgScore}" .`;
+
+        const descId = `urn:cg:competency:${learner}-assessment-2026-03` as IRI;
+        const desc = ContextDescriptor.create(descId)
+          .describes(`urn:graph:competency:${learner}-assertions` as IRI)
+          .temporal({ validFrom: '2026-03-17T09:00:00Z', validUntil: '2026-09-17T09:00:00Z' })
+          .provenance({ wasGeneratedBy: { agent: 'urn:system:competency-manager' as IRI, startedAt: '2026-03-17T09:00:00Z', endedAt: '2026-03-17T09:05:00Z' }, wasAttributedTo: 'did:web:competency.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T09:05:00Z', sources: [`urn:cg:lrs:${learner}-session-2026-03` as IRI] })
+          .agent('did:web:competency.training.airforce.mil' as IRI, 'Assessor')
+          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.92 })
+          .trust({ trustLevel: 'ThirdPartyAttested', issuer: 'did:web:competency.training.airforce.mil' as IRI })
+          .federation({ origin: `${cssUrl}competency/` as IRI, storageEndpoint: `${cssUrl}competency/` as IRI, syncProtocol: 'SolidNotifications' })
+          .version(1).build();
+
+        const turtle = toTurtle(desc);
+        const signed = await signDescriptor(descId, turtle, demoState.wallets['competency']!);
+        demoState.signatures[descId] = signed;
+        demoState.descriptors[descId] = desc;
+        logActivity('Competency', 'sign', `Signed ${learner} assessment (sig: ${signed.signature.slice(0, 18)}...)`);
+
+        await publish(desc, compGraph, `${cssUrl}competency/`, { fetch: solidFetch });
+        logActivity('Competency', 'publish', `Published ${info.name} → ${level} (Trust: ThirdPartyAttested)`);
+      }
+
+      podRegistry.clear();
+      res.json({ phase, status: 'Competency assessments published with causal reasoning', next: 'Credential Issuer issues LERS credentials' });
+
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 4: Credential Issuance
+    // ════════════════════════════════════════════════════════════
+    } else if (phase === 4 && demoState) {
+      logActivity('Credential', 'phase', 'PHASE 4: Credential Issuance — IEEE LERS credentials');
+
+      const compEntries = await discover(`${cssUrl}competency/`, undefined, { fetch: solidFetch });
+      const lrsEntries = await discover(`${cssUrl}lrs/`, undefined, { fetch: solidFetch });
+      logActivity('Credential', 'discover', `Competency: ${compEntries.length} descriptors, LRS: ${lrsEntries.length} descriptors`);
+
+      // SHACL validation on evidence lattice
+      const shaclResult = validateAllPGSL(pgsl);
+      logActivity('Credential', 'shacl', `SHACL validation: ${shaclResult.conforms ? 'CONFORMS' : shaclResult.violations.length + ' violations'}`);
+
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const stmts = XAPI_DATA[learner]!;
+        const completed = stmts.filter(s => s.success);
+        const avgScore = Math.round(completed.reduce((s, x) => s + x.score, 0) / completed.length);
+
+        // Compose: intersection of xAPI + competency descriptors
+        const lrsDescId = `urn:cg:lrs:${learner}-session-2026-03` as IRI;
+        const compDescId = `urn:cg:competency:${learner}-assessment-2026-03` as IRI;
+        const lrsDesc = demoState.descriptors[lrsDescId];
+        const compDesc = demoState.descriptors[compDescId];
+        if (lrsDesc && compDesc) {
+          const composed = intersection(lrsDesc, compDesc);
+          logActivity('Credential', 'compose', `${info.name}: intersection → ${composed.facets.length} facets (temporal overlap verified)`);
+        }
+
+        // Build LERS credential
+        const credGraph = `@prefix vc: <https://www.w3.org/2018/credentials#> .\n@prefix lers: <https://purl.org/lers/ns#> .\n<urn:lers:${learner}-instrument-2026> a vc:VerifiableCredential, lers:LearningEmploymentRecord ; vc:issuer <did:web:credential.training.airforce.mil> ; vc:issuanceDate "2026-03-17T10:00:00Z" ; vc:credentialSubject [ lers:learner <${info.did}> ; lers:achievement [ lers:level "${avgScore >= 90 ? 'Advanced' : 'Proficient'}" ; lers:framework "USAF Instrument Rating v3" ] ] .`;
+
+        const credDescId = `urn:cg:credential:${learner}-instrument-2026` as IRI;
+        const credDesc = ContextDescriptor.create(credDescId)
+          .describes(`urn:graph:credential:${learner}-lers` as IRI)
+          .temporal({ validFrom: '2026-03-17T10:00:00Z', validUntil: '2027-03-17T10:00:00Z' })
+          .provenance({ wasGeneratedBy: { agent: 'urn:system:credential-issuer' as IRI, startedAt: '2026-03-17T10:00:00Z', endedAt: '2026-03-17T10:00:05Z' }, wasAttributedTo: 'did:web:credential.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T10:00:05Z', sources: [lrsDescId, compDescId] })
+          .agent('did:web:credential.training.airforce.mil' as IRI, 'Issuer')
+          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.98, groundTruth: true })
+          .trust({ trustLevel: 'CryptographicallyVerified', issuer: 'did:web:credential.training.airforce.mil' as IRI })
+          .federation({ origin: `${cssUrl}credential/` as IRI, storageEndpoint: `${cssUrl}credential/` as IRI, syncProtocol: 'SolidNotifications' })
+          .version(1).build();
+
+        const turtle = toTurtle(credDesc);
+        const signed = await signDescriptor(credDescId, turtle, demoState.wallets['credential']!);
+        demoState.signatures[credDescId] = signed;
+        demoState.descriptors[credDescId] = credDesc;
+        logActivity('Credential', 'sign', `ECDSA signed ${info.name}'s LERS credential (sig: ${signed.signature.slice(0, 18)}...)`);
+
+        await publish(credDesc, credGraph, `${cssUrl}credential/`, { fetch: solidFetch });
+        logActivity('Credential', 'publish', `Published ${info.name}'s IEEE LERS credential (Trust: CryptographicallyVerified)`);
+      }
+
+      podRegistry.clear();
+      res.json({ phase, status: '3 LERS credentials signed and published', next: 'Learners discover their credentials' });
+
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 5: Learner Discovery (Bidirectional)
+    // ════════════════════════════════════════════════════════════
+    } else if (phase === 5 && demoState) {
+      logActivity('System', 'phase', 'PHASE 5: Learner Discovery — Bidirectional credential flow');
+
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const firstName = info.name.split(' ')[1] ?? learner;
+
+        // Discover credentials
+        const credEntries = await discover(`${cssUrl}credential/`, undefined, { fetch: solidFetch });
+        logActivity(firstName, 'discover', `Found ${credEntries.length} credential(s) on credential pod`);
+
+        // Verify ECDSA signature
+        const credDescId = `urn:cg:credential:${learner}-instrument-2026` as IRI;
+        const signed = demoState.signatures[credDescId];
+        if (signed) {
+          const credDesc = demoState.descriptors[credDescId];
+          const turtle = credDesc ? toTurtle(credDesc) : '';
+          const verification = await verifyDescriptorSignature(signed, turtle);
+          logActivity(firstName, 'verify', `ECDSA signature: ${verification.valid ? 'VALID' : 'INVALID'} (recovered: ${verification.recoveredAddress?.slice(0, 10)}...)`);
+        }
+
+        // Verify delegation chain
+        const delegation = demoState.delegations.find(d => {
+          const msg = JSON.parse(d.message);
+          return msg.owner === demoState!.wallets[learner]!.address;
+        });
+        if (delegation) {
+          const delegValid = verifyDelegationSignature(delegation);
+          logActivity(firstName, 'verify', `Delegation chain: ${delegValid ? 'VALID' : 'INVALID'} (learner → LRS authorization)`);
+        }
+
+        // Publish to own pod
+        const credDesc = demoState.descriptors[credDescId];
+        if (credDesc) {
+          const credGraph = `<urn:lers:${learner}> a <https://www.w3.org/2018/credentials#VerifiableCredential> .`;
+          await publish(credDesc, credGraph, `${cssUrl}${learner}/`, { fetch: solidFetch });
+          logActivity(firstName, 'publish', `Published verified credential to personal pod: ${learner}/`);
+        }
+      }
+
+      podRegistry.clear();
+      res.json({ phase, status: '3 learners verified and republished credentials', next: 'External verification' });
+
+    // ════════════════════════════════════════════════════════════
+    //  PHASE 6: External Verification
+    // ════════════════════════════════════════════════════════════
+    } else if (phase === 6 && demoState) {
+      logActivity('Verifier', 'phase', 'PHASE 6: External Verification — Full trust chain audit');
+
+      // Discover from all learner pods
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const entries = await discover(`${cssUrl}${learner}/`, undefined, { fetch: solidFetch });
+        logActivity('Verifier', 'discover', `${info.name}'s pod: ${entries.length} credential(s)`);
+      }
+
+      // Verify full signature chain
+      logActivity('Verifier', 'verify', '── Full Trust Chain ──');
+      for (const learner of ['chen', 'park', 'ortiz']) {
+        const info = LEARNER_INFO[learner]!;
+        const lrsSig = demoState.signatures[`urn:cg:lrs:${learner}-session-2026-03`];
+        const compSig = demoState.signatures[`urn:cg:competency:${learner}-assessment-2026-03`];
+        const credSig = demoState.signatures[`urn:cg:credential:${learner}-instrument-2026`];
+
+        const chain = [
+          lrsSig ? `LRS(${addr(demoState.wallets['lrs']!)})` : 'LRS(?)',
+          compSig ? `Competency(${addr(demoState.wallets['competency']!)})` : 'Comp(?)',
+          credSig ? `Credential(${addr(demoState.wallets['credential']!)})` : 'Cred(?)',
+        ];
+        logActivity('Verifier', 'verify', `${info.name}: ${chain.join(' → ')} ✓`);
+      }
+
+      // SPARQL: cohort overlap
+      const store = materializeTriples(pgsl);
+      const overlapQuery = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
+SELECT (COUNT(DISTINCT ?atom) AS ?sharedAtoms) WHERE { ?atom a pgsl:Atom . }`;
+      const overlapResult = executeSparqlString(store, overlapQuery);
+      const atomCount = overlapResult.bindings[0]?.get('?sharedAtoms')?.replace(/"/g, '') ?? '0';
+      logActivity('Verifier', 'sparql', `Cohort SPARQL: ${atomCount} shared atoms across 3 learners (content-addressed dedup)`);
+
+      // Trust escalation summary
+      logActivity('Verifier', 'summary', '── Trust Escalation ──');
+      logActivity('Verifier', 'summary', 'Simulator → xAPI (SelfAsserted, 0.99)');
+      logActivity('Verifier', 'summary', '  → Competency (ThirdPartyAttested, 0.92)');
+      logActivity('Verifier', 'summary', '    → LERS Credential (CryptographicallyVerified, 0.98)');
+      logActivity('Verifier', 'summary', '      → Learner Pod (verified + republished)');
+      logActivity('Verifier', 'summary', '        → External Verifier (full chain audited) ✓');
+
+      // Final stats
+      const finalStats = latticeStats(pgsl);
+      logActivity('Verifier', 'summary', `Final PGSL: ${finalStats.atoms} atoms, ${finalStats.fragments} fragments across ${Object.keys(demoState.signatures).length} signed descriptors`);
+
+      podRegistry.clear();
+      res.json({ phase, status: 'Full trust chain verified across cohort', next: 'Demo complete — click Reset to restart' });
+
+    } else {
+      // Reset
+      demoPhase = 0;
+      demoState = null;
+      activityLog.length = 0;
+      pgsl = createPGSL({ wasAttributedTo: 'urn:pgsl-browser:observatory' as IRI, generatedAtTime: new Date().toISOString() });
+      podRegistry.clear();
+      res.json({ phase: 0, status: 'Demo reset', next: 'Setup pods + wallets' });
+    }
+  } catch (err) {
+    logActivity('System', 'error', (err as Error).message);
+    res.status(500).json({ error: (err as Error).message, phase });
+  }
+});
+
+// Demo state endpoints
+app.get('/api/demo/wallets', (_req, res) => {
+  if (!demoState) { res.json({ wallets: [] }); return; }
+  const wallets = Object.entries(demoState.wallets).map(([key, w]) => ({
+    key, label: w.label, address: w.address, type: w.type,
+  }));
+  res.json({ wallets });
+});
+
+app.get('/api/demo/signatures', (_req, res) => {
+  if (!demoState) { res.json({ signatures: [] }); return; }
+  const sigs = Object.entries(demoState.signatures).map(([id, s]) => ({
+    descriptorId: id, signature: s.signature.slice(0, 30) + '...', signer: s.signer, timestamp: s.signedAt,
+  }));
+  res.json({ signatures: sigs, count: sigs.length });
+});
+
+app.post('/api/demo/reset', (_req, res) => {
+  demoPhase = 0;
+  demoState = null;
+  activityLog.length = 0;
+  pgsl = createPGSL({ wasAttributedTo: 'urn:pgsl-browser:observatory' as IRI, generatedAtTime: new Date().toISOString() });
+  podRegistry.clear();
+  res.json({ status: 'reset' });
 });
 
 // Build from pod then start

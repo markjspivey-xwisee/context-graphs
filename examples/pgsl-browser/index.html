@@ -61,6 +61,14 @@
   .chain-display .paren { color: #888; font-size: 16px; font-weight: bold; }
   .chain-info { text-align: center; margin-top: 6px; font-size: 10px; color: #888; }
 
+  /* Source/target option stacks */
+  .options-stack { display: inline-flex; flex-direction: column; gap: 2px; vertical-align: middle; max-height: 100px; overflow-y: auto; }
+  .option-item { display: block; padding: 2px 8px; font-size: 10px; cursor: pointer; border-radius: 3px; white-space: nowrap; }
+  .option-item.source { color: #4a8a4a; background: #f0f8f0; border: 1px solid #cde0cd; }
+  .option-item.source:hover { background: #d0e8d0; }
+  .option-item.target { color: #8a4a8a; background: #f8f0f8; border: 1px solid #e0cde0; }
+  .option-item.target:hover { background: #e8d0e8; }
+
   /* Add input */
   .add-popup { position: fixed; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 20; }
   .add-popup input { border: 1px solid #ccc; padding: 4px 8px; font-size: 12px; font-family: inherit; width: 120px; outline: none; }
@@ -313,7 +321,7 @@ async function renderChain() {
   html += '<span class="plus" onclick="showAddPopup(\'left\', event)" title="Add to start of sequence">+</span>';
   if (leftOptions.length > 0) {
     html += '<span class="sep">,</span>';
-    html += leftOptions.map(l => '<span class="plus" style="font-size:10px;color:#4a8a4a" onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + l.resolved + '</span>').join('<span class="sep">,</span>');
+    html += '<span class="options-stack">' + leftOptions.map(l => '<span class="option-item source" onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + l.resolved + '</span>').join('') + '</span>';
   }
 
   // Chain items
@@ -335,7 +343,7 @@ async function renderChain() {
   // Inner right + (sequence-level: extends the sequence)
   if (rightOptions.length > 0) {
     html += '<span class="sep">,</span>';
-    html += rightOptions.map(r => '<span class="plus" style="font-size:10px;color:#8a4a8a" onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + r.resolved + '</span>').join('<span class="sep">,</span>');
+    html += '<span class="options-stack">' + rightOptions.map(r => '<span class="option-item target" onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + r.resolved + '</span>').join('') + '</span>';
   }
   html += '<span class="sep">,</span>';
   html += '<span class="plus" onclick="showAddPopup(\'right\', event)" title="Add to end of sequence">+</span>';
