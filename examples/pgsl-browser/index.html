@@ -255,31 +255,60 @@ function renderGraph() {
 }
 
 async function clickNode(encodedUri) {
-  const uri = decodeURIComponent(encodedUri);
-  const node = allNodes.find(n => n.uri === uri);
+  try {
+    const uri = decodeURIComponent(encodedUri);
+    const node = allNodes.find(n => n.uri === uri);
 
-  if (node && node.level > 0 && node.kind === 'Fragment') {
-    // Decompose fragment into chain items
-    const resp = await fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri}) });
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.node && data.node.items && data.node.items.length > 1) {
-        focusChain = [...data.node.items];
+    if (node && node.level > 0 && node.kind === 'Fragment') {
+      // Decompose fragment into chain items
+      const resp = await fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri}) });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.node && data.node.items && data.node.items.length > 1) {
+          // Verify all items exist in allNodes before using them
+          const validItems = data.node.items.filter(u => allNodes.some(n => n.uri === u));
+          focusChain = validItems.length > 1 ? [...validItems] : [uri];
+        } else {
+          focusChain = [uri];
+        }
       } else {
         focusChain = [uri];
       }
+    } else if (!node) {
+      // URI not found in allNodes — refresh and retry
+      await refreshAll();
+      focusChain = [];
+      renderChain();
+      return;
     } else {
       focusChain = [uri];
     }
-  } else {
-    focusChain = [uri];
-  }
 
-  const focusResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
-  focusData = await focusResp.json();
-  renderChain();
-  renderNodeList();
-  renderGraph(); // re-render to highlight focused nodes
+    // Filter chain to only valid URIs
+    focusChain = focusChain.filter(u => allNodes.some(n => n.uri === u));
+    if (focusChain.length === 0) {
+      renderChain();
+      renderNodeList();
+      return;
+    }
+
+    const focusResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
+    if (focusResp.ok) {
+      focusData = await focusResp.json();
+    } else {
+      focusData = { focus: { uri: focusChain[0], resolved: '?', level: 0 }, left: [], right: [], containingFragments: [], annotations: [] };
+    }
+    renderChain();
+    renderNodeList();
+    renderGraph();
+  } catch (err) {
+    console.error('clickNode error:', err);
+    focusChain = [];
+    focusData = null;
+    renderChain();
+    renderNodeList();
+    renderGraph();
+  }
 }
 
 async function renderChain() {
@@ -296,12 +325,16 @@ async function renderChain() {
   let leftData = { left: [], right: [] };
   let rightData = { left: [], right: [] };
   try {
-    const leftResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
-    if (leftResp.ok) leftData = await leftResp.json();
-  } catch {}
-  try {
-    const rightResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[focusChain.length - 1], chainContext: focusChain})});
-    if (rightResp.ok) rightData = await rightResp.json();
+    const validFirst = focusChain[0] && allNodes.some(n => n.uri === focusChain[0]);
+    const validLast = focusChain[focusChain.length - 1] && allNodes.some(n => n.uri === focusChain[focusChain.length - 1]);
+    if (validFirst) {
+      const leftResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[0], chainContext: focusChain})});
+      if (leftResp.ok) leftData = await leftResp.json();
+    }
+    if (validLast) {
+      const rightResp = await fetch('/api/focus', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: focusChain[focusChain.length - 1], chainContext: focusChain})});
+      if (rightResp.ok) rightData = await rightResp.json();
+    }
   } catch {}
 
   const chainUriSet = new Set(focusChain);
@@ -408,6 +441,7 @@ function collapseRightTo(idx) {
 
 async function expandLeft(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
+  if (!allNodes.some(n => n.uri === uri)) { await refreshAll(); return; }
   focusChain.unshift(uri);
   await renderChain();
   renderNodeList();
@@ -416,6 +450,7 @@ async function expandLeft(encodedUri) {
 
 async function expandRight(encodedUri) {
   const uri = decodeURIComponent(encodedUri);
+  if (!allNodes.some(n => n.uri === uri)) { await refreshAll(); return; }
   focusChain.push(uri);
   await renderChain();
   renderNodeList();
