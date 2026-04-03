@@ -560,13 +560,13 @@ async function renderChain() {
 
   display.innerHTML = html;
 
-  // Chain info with + notation — nested items get parens
+  // Chain info — clean notation with commas, nested items in parens
   const chainItems = focusChain.map(u => {
     const n = allNodes.find(x => x.uri === u);
     if (!n) return '?';
     return n.level > 0 ? '(' + n.resolved + ')' : n.resolved;
   });
-  info.textContent = '+,(+,' + chainItems.join(' ') + ',+),+';
+  info.textContent = '(' + chainItems.join(', ') + ')';
 }
 
 async function wrapChain() {
