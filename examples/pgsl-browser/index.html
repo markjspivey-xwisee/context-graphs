@@ -255,31 +255,21 @@ function renderGraph() {
     }
   }
 
-  // Draw edges from fragments to their items
+  // Draw edges: constituents only (not all items)
+  // L1 → its single atom (gray)
+  // L2+ → left constituent (blue) + right constituent (red)
   for (const n of allNodes) {
     if (n.kind !== 'Fragment') continue;
     const parentPos = nodePositions[n.uri];
     if (!parentPos) continue;
 
-    // Get node details for edges
     fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: n.uri}) })
       .then(r => r.json())
       .then(data => {
-        if (!data.node || !data.node.items) return;
-        for (const itemUri of data.node.items) {
-          const childPos = nodePositions[itemUri];
-          if (childPos) {
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', parentPos.x);
-            line.setAttribute('y1', parentPos.y);
-            line.setAttribute('x2', childPos.x);
-            line.setAttribute('y2', childPos.y);
-            line.setAttribute('class', 'edge');
-            svg.appendChild(line);
-          }
-        }
-        // Left/right constituent edges (colored)
-        if (data.node.left) {
+        if (!data.node) return;
+
+        if (data.node.left && data.node.right) {
+          // L2+: draw left (blue) and right (red) constituent edges only
           const lPos = nodePositions[data.node.left];
           if (lPos) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -288,14 +278,22 @@ function renderGraph() {
             line.setAttribute('class', 'edge left-const');
             svg.appendChild(line);
           }
-        }
-        if (data.node.right) {
           const rPos = nodePositions[data.node.right];
           if (rPos) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', parentPos.x); line.setAttribute('y1', parentPos.y);
             line.setAttribute('x2', rPos.x); line.setAttribute('y2', rPos.y);
             line.setAttribute('class', 'edge right-const');
+            svg.appendChild(line);
+          }
+        } else if (data.node.items && data.node.items.length === 1) {
+          // L1 wrapper: single edge to its atom
+          const childPos = nodePositions[data.node.items[0]];
+          if (childPos) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', parentPos.x); line.setAttribute('y1', parentPos.y);
+            line.setAttribute('x2', childPos.x); line.setAttribute('y2', childPos.y);
+            line.setAttribute('class', 'edge');
             svg.appendChild(line);
           }
         }
