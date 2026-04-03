@@ -334,6 +334,8 @@ export {
   findFirstAfter,
   whichCameFirst,
   shouldAbstain,
+  signNode,
+  verifyNodeSignature,
   // Ingestion profiles
   registerProfile,
   getProfile,

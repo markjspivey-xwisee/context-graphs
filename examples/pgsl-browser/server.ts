@@ -166,9 +166,21 @@ app.get('/', (_req, res) => {
 });
 
 // Hypermedia: dereferenceable node URLs
-// /node/{encoded-uri} serves the same browser but with the URI in the URL
+// /node/{hash} serves the browser — the hash is the content-addressed ID
 app.get('/node/*', (_req, res) => {
   res.sendFile(resolve(__dirname, 'index.html'));
+});
+
+// Resolve a hash to full URI (for URL-based lookups)
+app.get('/api/resolve-hash/:hash', (req, res) => {
+  const hash = req.params['hash']!;
+  for (const [uri] of pgsl.nodes) {
+    if (uri.endsWith(':' + hash)) {
+      res.json({ uri, resolved: pgslResolve(pgsl, uri as IRI), kind: pgsl.nodes.get(uri as IRI)?.kind, level: pgsl.nodes.get(uri as IRI)?.level });
+      return;
+    }
+  }
+  res.status(404).json({ error: 'Hash not found', hash });
 });
 
 // Hypermedia API: full self-descriptive resource for a node

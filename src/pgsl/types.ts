@@ -65,6 +65,12 @@ export interface NodeProvenance {
   readonly wasAttributedTo: IRI;
   /** ISO 8601 timestamp of creation. */
   readonly generatedAtTime: string;
+  /** ECDSA signature of the content hash (optional — set when node is signed). */
+  readonly signature?: string;
+  /** Ethereum address of the signer (recovered from signature). */
+  readonly signerAddress?: string;
+  /** Encrypted content key, wrapped for authorized recipients (optional). */
+  readonly encryptedForRecipients?: readonly string[];
 }
 
 // ── Node Types (Discriminated Union) ────────────────────────

@@ -30,23 +30,37 @@ import type {
   ContainmentRole,
 } from './types.js';
 
-// ── URI Generation (Content-Addressing) ─────────────────────
+// ── URI Generation (Content-Addressing via SHA-256) ─────────
+
+import { createHash } from 'node:crypto';
+
+/**
+ * Compute a SHA-256 hash of a string, return as hex.
+ * Uses Node.js built-in crypto — no external dependencies.
+ */
+function contentHash(input: string): string {
+  return createHash('sha256').update(input, 'utf-8').digest('hex');
+}
 
 /**
  * Generate a canonical URI for an atom from its value.
- * Deterministic: same value always produces same URI.
+ * Content-addressed: URI is derived from SHA-256 hash of the value.
+ * Same value always produces same URI. The value is NOT in the URI.
+ * Globally unique — same atom on any pod has the same URI.
  */
 function atomUri(value: Value): IRI {
-  return `urn:pgsl:atom:${encodeURIComponent(String(value))}` as IRI;
+  const hash = contentHash(`atom:${String(value)}`);
+  return `urn:pgsl:atom:${hash.slice(0, 40)}` as IRI;
 }
 
 /**
  * Generate a canonical URI for a fragment from its items.
- * Deterministic: same item sequence always produces same URI.
+ * Content-addressed: URI is derived from SHA-256 hash of the item URIs.
+ * Same item sequence always produces same URI regardless of pod.
  */
 function fragmentUri(items: readonly IRI[], level: Level): IRI {
-  const hash = items.join('|');
-  return `urn:pgsl:fragment:L${level}:${encodeURIComponent(hash)}` as IRI;
+  const hash = contentHash(`fragment:L${level}:${items.join('|')}`);
+  return `urn:pgsl:fragment:${hash.slice(0, 40)}` as IRI;
 }
 
 /**
@@ -535,4 +549,67 @@ export function allContainmentAnnotations(
   }
 
   return result;
+}
+
+// ── Node Signing ───────────────────────────────────────────
+
+/**
+ * Sign a PGSL node with a cryptographic signature.
+ *
+ * This adds a signature to the node's provenance, proving
+ * that the content was created by a specific agent.
+ * The signature is over the content hash (the URI itself
+ * is content-addressed, so signing the URI = signing the content).
+ *
+ * Does NOT change the URI — the URI is content-addressed from
+ * the value, not from the signature. The signature is metadata.
+ *
+ * @param signFn — async function that signs a message string
+ *                 and returns { signature, signerAddress }
+ */
+export async function signNode(
+  pgsl: PGSLInstance,
+  nodeUri: IRI,
+  signFn: (message: string) => Promise<{ signature: string; signerAddress: string }>,
+): Promise<void> {
+  const node = pgsl.nodes.get(nodeUri);
+  if (!node) throw new Error(`Node ${nodeUri} not found`);
+
+  // Sign the content hash (embedded in the URI)
+  const message = `pgsl:sign:${nodeUri}:${node.provenance.generatedAtTime}`;
+  const { signature, signerAddress } = await signFn(message);
+
+  // Update provenance with signature (create a new node object to maintain immutability pattern)
+  const signed = {
+    ...node,
+    provenance: {
+      ...node.provenance,
+      signature,
+      signerAddress,
+    },
+  };
+
+  (pgsl.nodes as Map<IRI, Node>).set(nodeUri, signed as Node);
+}
+
+/**
+ * Verify a PGSL node's signature.
+ *
+ * @param verifyFn — function that verifies a signature
+ *                   returns true if valid
+ */
+export function verifyNodeSignature(
+  pgsl: PGSLInstance,
+  nodeUri: IRI,
+  verifyFn: (message: string, signature: string, expectedAddress: string) => boolean,
+): { valid: boolean; signerAddress?: string } {
+  const node = pgsl.nodes.get(nodeUri);
+  if (!node) return { valid: false };
+  if (!node.provenance.signature || !node.provenance.signerAddress) {
+    return { valid: false };
+  }
+
+  const message = `pgsl:sign:${nodeUri}:${node.provenance.generatedAtTime}`;
+  const valid = verifyFn(message, node.provenance.signature, node.provenance.signerAddress);
+  return { valid, signerAddress: node.provenance.signerAddress };
 }

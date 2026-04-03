@@ -123,27 +123,48 @@ let chainData = null; // from /api/chain — inner/outer neighbors
 let nodePositions = {}; // uri -> {x, y}
 
 // ── URL-based navigation ──
+// Extract the hash portion of a PGSL URI for clean browser URLs
+// urn:pgsl:atom:53d880ec... → 53d880ec...
+function uriToHash(uri) {
+  const parts = uri.split(':');
+  return parts[parts.length - 1] || uri;
+}
+
+// Reconstruct full URI from hash by searching allNodes
+function hashToUri(hash) {
+  const node = allNodes.find(n => n.uri.endsWith(':' + hash));
+  return node ? node.uri : null;
+}
+
 function updateUrl() {
   if (focusChain.length === 1) {
-    history.pushState(null, '', '/node/' + encodeURIComponent(focusChain[0]));
+    history.pushState(null, '', '/node/' + uriToHash(focusChain[0]));
   } else if (focusChain.length > 1) {
-    history.pushState(null, '', '/node/' + encodeURIComponent(focusChain[0]) + '?chain=' + focusChain.map(encodeURIComponent).join(','));
+    history.pushState(null, '', '/node/' + uriToHash(focusChain[0]) + '?chain=' + focusChain.map(uriToHash).join(','));
   }
 }
 
 function loadFromUrl() {
   const path = window.location.pathname;
   if (path.startsWith('/node/')) {
-    const uri = decodeURIComponent(path.slice(6));
+    const hash = path.slice(6);
     const params = new URLSearchParams(window.location.search);
-    const chain = params.get('chain');
-    if (chain) {
-      focusChain = chain.split(',').map(decodeURIComponent);
-    } else {
-      focusChain = [uri];
-    }
-    // Defer click until allNodes is loaded
-    setTimeout(() => { if (focusChain.length > 0) clickNode(encodeURIComponent(focusChain[0])); }, 500);
+    const chainParam = params.get('chain');
+
+    // Defer until allNodes loaded
+    setTimeout(() => {
+      const uri = hashToUri(hash);
+      if (!uri) return;
+
+      if (chainParam) {
+        const chainUris = chainParam.split(',').map(h => hashToUri(h)).filter(Boolean);
+        if (chainUris.length > 0) focusChain = chainUris;
+        else focusChain = [uri];
+      } else {
+        focusChain = [uri];
+      }
+      if (focusChain.length > 0) clickNode(encodeURIComponent(focusChain[0]));
+    }, 500);
   }
 }
 

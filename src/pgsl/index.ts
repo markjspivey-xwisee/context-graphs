@@ -140,6 +140,7 @@ export type {
   TemporalQuestionParsed,
   AdvancedTemporalResult,
 } from './advanced-temporal.js';
+export { signNode, verifyNodeSignature } from './lattice.js';
 export type { TokenGranularity, ContainmentAnnotation, ContainmentRole } from './types.js';
 // Ingestion profiles
 export {
