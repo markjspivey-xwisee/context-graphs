@@ -64,12 +64,15 @@
   .chain-info { text-align: center; margin-top: 6px; font-size: 10px; color: #888; }
 
   /* Source/target option stacks */
-  .options-stack { display: inline-flex; flex-direction: column; gap: 2px; vertical-align: middle; max-height: 100px; overflow-y: auto; }
+  .options-stack { display: inline-flex; flex-direction: column; gap: 2px; vertical-align: middle; max-height: 100px; overflow-y: auto; border: 2px dashed #ccc; border-radius: 4px; padding: 3px; }
   .option-item { display: block; padding: 2px 8px; font-size: 10px; cursor: pointer; border-radius: 3px; white-space: nowrap; }
   .option-item.source { color: #4a8a4a; background: #f0f8f0; border: 1px solid #cde0cd; }
   .option-item.source:hover { background: #d0e8d0; }
   .option-item.target { color: #8a4a8a; background: #f8f0f8; border: 1px solid #e0cde0; }
   .option-item.target:hover { background: #e8d0e8; }
+  /* Nested rendering inside options */
+  .option-item .nested-atom { background: #ffe0e0; border: 1px solid #e88; padding: 1px 4px; border-radius: 2px; font-size: 9px; display: inline-block; }
+  .option-item .nested-frag { background: #e0e8ff; border: 1px solid #88e; padding: 1px 4px; border-radius: 2px; font-size: 9px; display: inline-block; }
 
   /* Add input */
   .add-popup { position: fixed; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 20; }
@@ -377,6 +380,34 @@ async function clickNode(encodedUri) {
   }
 }
 
+// Render a node as HTML — atoms as simple boxes, fragments as nested sub-boxes
+async function renderNodeHtml(uri, clickAction) {
+  const node = allNodes.find(n => n.uri === uri);
+  if (!node) return '<span class="item atom">' + uri.slice(-8) + '</span>';
+  const resolved = node.resolved;
+  const isFragment = node.level > 0 && node.kind === 'Fragment';
+
+  if (isFragment) {
+    try {
+      const r = await fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri}) });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.node?.items) {
+          let inner = '';
+          for (const itemUri of d.node.items) {
+            const itemNode = allNodes.find(n => n.uri === itemUri);
+            const itemResolved = itemNode ? itemNode.resolved : '?';
+            const isSubFrag = itemNode && itemNode.level > 0;
+            inner += '<span class="' + (isSubFrag ? 'nested-frag' : 'nested-atom') + '">' + itemResolved + '</span>';
+          }
+          return '<span class="item nested-item" ' + (clickAction || '') + ' title="' + resolved + '">' + inner + '</span>';
+        }
+      }
+    } catch {}
+  }
+  return '<span class="item atom" ' + (clickAction || '') + ' title="' + resolved + '">' + resolved + '</span>';
+}
+
 async function renderChain() {
   const display = document.getElementById('chainDisplay');
   const info = document.getElementById('chainInfo');
@@ -409,7 +440,12 @@ async function renderChain() {
   // ── OUTER LEFT: neighbors of the chain-as-unit (only for multi-item chains that exist as fragments) ──
   if (hasOuterLevel) {
     if (filteredOuterLeft.length > 0) {
-      html += '<span class="options-stack">' + filteredOuterLeft.map(l => '<span class="option-item source" onclick="clickNode(\'' + encodeURIComponent(l.uri) + '\')" title="outer: ' + l.resolved + '">' + l.resolved + '</span>').join('') + '</span>';
+      let olHtml = '';
+      for (const l of filteredOuterLeft) {
+        const innerRender = await renderNodeHtml(l.uri, 'onclick="clickNode(\'' + encodeURIComponent(l.uri) + '\')"');
+        olHtml += '<span class="option-item source" onclick="clickNode(\'' + encodeURIComponent(l.uri) + '\')" title="outer: ' + l.resolved + '">' + innerRender + '</span>';
+      }
+      html += '<span class="options-stack">' + olHtml + '</span>';
       html += '<span class="sep">,</span>';
     }
     html += '<span class="plus" onclick="showAddPopup(\'outer-left\', event)" title="Add before group">+</span>';
@@ -433,7 +469,12 @@ async function renderChain() {
   html += '<span class="plus" onclick="showAddPopup(\'left\', event)" title="Extend sequence left">+</span>';
   if (innerLeft.length > 0) {
     html += '<span class="sep">,</span>';
-    html += '<span class="options-stack">' + innerLeft.map(l => '<span class="option-item source" onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + l.resolved + '</span>').join('') + '</span>';
+    let leftHtml = '';
+    for (const l of innerLeft) {
+      const innerRender = await renderNodeHtml(l.uri, 'onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')"');
+      leftHtml += '<span class="option-item source" onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + innerRender + '</span>';
+    }
+    html += '<span class="options-stack">' + leftHtml + '</span>';
   }
 
   // ── CHAIN ITEMS ──
@@ -477,7 +518,12 @@ async function renderChain() {
   // ── INNER RIGHT: sequence extensions ──
   if (innerRight.length > 0) {
     html += '<span class="sep">,</span>';
-    html += '<span class="options-stack">' + innerRight.map(r => '<span class="option-item target" onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + r.resolved + '</span>').join('') + '</span>';
+    let rightHtml = '';
+    for (const r of innerRight) {
+      const innerRender = await renderNodeHtml(r.uri, 'onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')"');
+      rightHtml += '<span class="option-item target" onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + innerRender + '</span>';
+    }
+    html += '<span class="options-stack">' + rightHtml + '</span>';
   }
   html += '<span class="sep">,</span>';
   html += '<span class="plus" onclick="showAddPopup(\'right\', event)" title="Extend sequence right">+</span>';
@@ -499,7 +545,12 @@ async function renderChain() {
     html += '<span class="plus" onclick="showAddPopup(\'outer-right\', event)" title="Add after group">+</span>';
     if (filteredOuterRight.length > 0) {
       html += '<span class="sep">,</span>';
-      html += '<span class="options-stack">' + filteredOuterRight.map(r => '<span class="option-item target" onclick="clickNode(\'' + encodeURIComponent(r.uri) + '\')" title="outer: ' + r.resolved + '">' + r.resolved + '</span>').join('') + '</span>';
+      let orHtml = '';
+      for (const r of filteredOuterRight) {
+        const innerRender = await renderNodeHtml(r.uri, 'onclick="clickNode(\'' + encodeURIComponent(r.uri) + '\')"');
+        orHtml += '<span class="option-item target" onclick="clickNode(\'' + encodeURIComponent(r.uri) + '\')" title="outer: ' + r.resolved + '">' + innerRender + '</span>';
+      }
+      html += '<span class="options-stack">' + orHtml + '</span>';
     }
   }
 
