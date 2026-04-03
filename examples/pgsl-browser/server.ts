@@ -315,12 +315,15 @@ app.post('/api/chain', (req, res) => {
     }
   }
 
-  // OUTER neighbors: what contains the chain-as-unit in higher-level fragments
+  // OUTER neighbors: fragments that contain chainFragUri as an ITEM (not sub-sequence).
+  // This only applies when the chain has been wrapped into a fragment and that fragment
+  // appears as an item in a higher-level structure (e.g., structured ingestion with nesting).
+  // If no fragment contains chainFragUri as an item, outer neighbors are empty —
+  // the chain only has inner neighbors (sequence extensions).
   const outerLeft: any[] = [];
   const outerRight: any[] = [];
 
   if (chainFragUri) {
-    // Look for fragments that contain chainFragUri as an item
     for (const [fUri, fNode] of pgsl.nodes) {
       if (fNode.kind !== 'Fragment') continue;
       const pos = fNode.items.indexOf(chainFragUri);
@@ -335,23 +338,6 @@ app.post('/api/chain', (req, res) => {
         const ru = fNode.items[pos + 1]!;
         if (!outerRight.some(n => n.uri === ru)) {
           outerRight.push({ uri: ru, href: `/node/${encodeURIComponent(ru)}`, rel: 'outer-right', resolved: pgslResolve(pgsl, ru), level: pgsl.nodes.get(ru)?.level ?? 0 });
-        }
-      }
-    }
-
-    // Also check constituent relationships
-    for (const [fUri, fNode] of pgsl.nodes) {
-      if (fNode.kind !== 'Fragment') continue;
-      if (fNode.left === chainFragUri && fNode.right) {
-        const ru = fNode.right;
-        if (!outerRight.some(n => n.uri === ru)) {
-          outerRight.push({ uri: ru, href: `/node/${encodeURIComponent(ru)}`, rel: 'outer-right', resolved: pgslResolve(pgsl, ru), level: pgsl.nodes.get(ru)?.level ?? 0 });
-        }
-      }
-      if (fNode.right === chainFragUri && fNode.left) {
-        const lu = fNode.left;
-        if (!outerLeft.some(n => n.uri === lu)) {
-          outerLeft.push({ uri: lu, href: `/node/${encodeURIComponent(lu)}`, rel: 'outer-left', resolved: pgslResolve(pgsl, lu), level: pgsl.nodes.get(lu)?.level ?? 0 });
         }
       }
     }
