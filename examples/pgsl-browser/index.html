@@ -386,8 +386,9 @@ async function renderChain() {
   const outerRight = chainData?._links?.outerRight || [];
   const chainFrag = chainData?.chainFragment;
 
-  // Only show outer level when chain is 2+ items AND the chain exists as a fragment
-  const hasOuterLevel = focusChain.length >= 2 && chainFrag;
+  // Always show the outer level with parens — the notation is always +,(+,items,+),+
+  // Outer neighbors only populate when chainFrag exists as an item in a higher fragment
+  const hasOuterLevel = true;
 
   // Deduplicate: remove outer neighbors that also appear as inner neighbors
   const innerLeftUris = new Set(innerLeft.map(n => n.uri));
@@ -408,8 +409,10 @@ async function renderChain() {
   }
 
   // ── OPEN PAREN ──
-  if (hasOuterLevel) {
+  if (chainFrag) {
     html += '<span class="paren"><a href="/node/' + encodeURIComponent(chainFrag.uri) + '" onclick="event.preventDefault(); clickNode(\'' + encodeURIComponent(chainFrag.uri) + '\')" title="' + chainFrag.resolved + '" style="color:#888;text-decoration:none">(</a></span>';
+  } else {
+    html += '<span class="paren">(</span>';
   }
 
   // ── INNER LEFT: sequence extensions ──
