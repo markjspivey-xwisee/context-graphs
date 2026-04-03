@@ -218,17 +218,16 @@ function renderGraph() {
 
   if (allNodes.length === 0) return;
 
-  // Filter out L1 wrappers — internal to pullback construction, not meaningful structure
+  // Filter out L1 wrappers — internal to pullback construction
   const visibleNodes = allNodes.filter(n => n.level !== 1);
 
-  // Group by level (renumber: L0 stays, L2+ shift down by 1 for display)
+  // Group by ACTUAL level — preserves correct vertical positioning
   const levels = {};
   let maxLevel = 0;
   for (const n of visibleNodes) {
-    const displayLevel = n.level === 0 ? 0 : n.level - 1;
-    if (!levels[displayLevel]) levels[displayLevel] = [];
-    levels[displayLevel].push(n);
-    if (displayLevel > maxLevel) maxLevel = displayLevel;
+    if (!levels[n.level]) levels[n.level] = [];
+    levels[n.level].push(n);
+    if (n.level > maxLevel) maxLevel = n.level;
   }
 
   // Position nodes: level = y (bottom to top), index = x
@@ -240,9 +239,9 @@ function renderGraph() {
 
   for (let level = 0; level <= maxLevel; level++) {
     const nodes = levels[level] || [];
+    if (nodes.length === 0) continue; // skip empty levels (L1 filtered out)
     const y = graphH - (level + 1) * (nodeH + gapY);
-    const totalW = nodes.length * (nodeW + gapX);
-    const startX = Math.max(20, 20 + level * 30); // stagger levels
+    const startX = Math.max(20, 20 + level * 30);
 
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
@@ -251,14 +250,16 @@ function renderGraph() {
       nodePositions[n.uri] = { x: x + nodeW/2, y: y + nodeH/2 };
 
       const div = document.createElement('div');
-      div.className = 'gnode ' + (n.level === 0 ? 'atom' : n.level === 1 ? 'l1' : 'fragment');
+      div.className = 'gnode ' + (n.level === 0 ? 'atom' : 'fragment');
       if (focusChain.includes(n.uri)) div.className += ' focused';
       div.style.left = x + 'px';
       div.style.top = y + 'px';
       div.style.background = levelColors[Math.min(n.level, levelColors.length - 1)];
 
-      const display = n.resolved.length > 15 ? n.resolved.slice(0, 13) + '..' : n.resolved;
-      div.textContent = display;
+      // Atoms get text labels, fragments are unlabeled boxes
+      if (n.level === 0) {
+        div.textContent = n.resolved;
+      }
       div.title = 'L' + n.level + ': ' + n.resolved + '\n' + n.uri;
       div.onclick = () => clickNode(encodeURIComponent(n.uri));
       container.appendChild(div);
