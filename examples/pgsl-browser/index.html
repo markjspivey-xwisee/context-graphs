@@ -92,12 +92,6 @@
     <h2>Ingest</h2>
     <textarea id="ingestInput" placeholder="mark is human"></textarea>
     <div class="ctrl-row">
-      <select id="granularity">
-        <option value="word">word</option>
-        <option value="character">char</option>
-        <option value="sentence">sent</option>
-        <option value="structured">struct</option>
-      </select>
       <button onclick="doIngest()">Ingest</button>
     </div>
 
@@ -176,10 +170,9 @@ window.addEventListener('popstate', loadFromUrl);
 async function doIngest() {
   const content = document.getElementById('ingestInput').value.trim();
   if (!content) return;
-  const granularity = document.getElementById('granularity').value;
   await fetch('/api/ingest', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ content, granularity }),
+    body: JSON.stringify({ content, granularity: 'word' }),
   });
   document.getElementById('ingestInput').value = '';
   await refreshAll();
@@ -660,14 +653,27 @@ function showAddPopup(side, event) {
 
   input.oninput = () => {
     const q = input.value.toLowerCase();
-    if (!q) { dropdown.innerHTML = ''; return; }
-    const matches = allNodes.filter(n => n.resolved.toLowerCase().includes(q)).slice(0, 6);
-    dropdown.innerHTML = matches.map(n =>
-      '<div class="dropdown-item" onclick="addToChain(\'' + side + '\',\'' + encodeURIComponent(n.uri) + '\')">' + n.resolved + ' <small style="color:#999">L' + n.level + '</small></div>'
-    ).join('');
-    if (matches.length === 0 && q.trim()) {
-      dropdown.innerHTML = '<div class="dropdown-item" onclick="createAndAdd(\'' + side + '\',\'' + q.trim() + '\')">Create "' + q.trim() + '"</div>';
+    if (!q) {
+      // Show all atoms and non-L1 fragments when empty
+      const all = allNodes.filter(n => n.level !== 1 && !focusChain.includes(n.uri)).slice(0, 10);
+      dropdown.innerHTML = all.map(n => {
+        const isF = n.level > 0;
+        const label = isF ? '<span style="background:#e0e8ff;border:1px solid #88e;padding:1px 4px;border-radius:2px;font-size:9px">(' + n.resolved + ')</span>' : n.resolved;
+        return '<div class="dropdown-item" onclick="addToChain(\'' + side + '\',\'' + encodeURIComponent(n.uri) + '\')">' + label + '</div>';
+      }).join('');
+      return;
     }
+    const matches = allNodes.filter(n => n.level !== 1 && n.resolved.toLowerCase().includes(q) && !focusChain.includes(n.uri)).slice(0, 8);
+    let html = matches.map(n => {
+      const isF = n.level > 0;
+      const label = isF ? '<span style="background:#e0e8ff;border:1px solid #88e;padding:1px 4px;border-radius:2px;font-size:9px">(' + n.resolved + ')</span>' : n.resolved;
+      return '<div class="dropdown-item" onclick="addToChain(\'' + side + '\',\'' + encodeURIComponent(n.uri) + '\')">' + label + '</div>';
+    }).join('');
+    // Always show create option at the bottom
+    if (q.trim()) {
+      html += '<div class="dropdown-item" style="border-top:1px solid #eee;color:#888" onclick="createAndAdd(\'' + side + '\',\'' + q.trim() + '\')">+ Create "' + q.trim() + '"</div>';
+    }
+    dropdown.innerHTML = html;
   };
 
   input.onkeydown = (e) => {
