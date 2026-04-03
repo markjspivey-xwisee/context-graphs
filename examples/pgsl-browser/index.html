@@ -380,9 +380,10 @@ async function clickNode(encodedUri) {
 }
 
 // Render a node as HTML — atoms as simple boxes, fragments as nested sub-boxes
-async function renderNodeHtml(uri, clickAction) {
+// When `bare` is true, returns just the inner content (for use inside option-items)
+async function renderNodeHtml(uri, clickAction, bare) {
   const node = allNodes.find(n => n.uri === uri);
-  if (!node) return '<span class="item atom">' + uri.slice(-8) + '</span>';
+  if (!node) return bare ? '?' : '<span class="item atom">?</span>';
   const resolved = node.resolved;
   const isFragment = node.level > 0 && node.kind === 'Fragment';
 
@@ -399,11 +400,13 @@ async function renderNodeHtml(uri, clickAction) {
             const isSubFrag = itemNode && itemNode.level > 0;
             inner += '<span class="' + (isSubFrag ? 'nested-frag' : 'nested-atom') + '">' + itemResolved + '</span>';
           }
+          if (bare) return inner;
           return '<span class="item nested-item" ' + (clickAction || '') + ' title="' + resolved + '">' + inner + '</span>';
         }
       }
     } catch {}
   }
+  if (bare) return resolved;
   return '<span class="item atom" ' + (clickAction || '') + ' title="' + resolved + '">' + resolved + '</span>';
 }
 
@@ -441,7 +444,7 @@ async function renderChain() {
     if (filteredOuterLeft.length > 0) {
       let olHtml = '';
       for (const l of filteredOuterLeft) {
-        const innerRender = await renderNodeHtml(l.uri);
+        const innerRender = await renderNodeHtml(l.uri, null, true);
         olHtml += '<span class="option-item source" onclick="clickNode(\'' + encodeURIComponent(l.uri) + '\')" title="outer: ' + l.resolved + '">' + innerRender + '</span>';
       }
       html += '<span class="options-stack">' + olHtml + '</span>';
@@ -470,7 +473,7 @@ async function renderChain() {
     html += '<span class="sep">,</span>';
     let leftHtml = '';
     for (const l of innerLeft) {
-      const innerRender = await renderNodeHtml(l.uri);
+      const innerRender = await renderNodeHtml(l.uri, null, true);
       leftHtml += '<span class="option-item source" onclick="expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + innerRender + '</span>';
     }
     html += '<span class="options-stack">' + leftHtml + '</span>';
@@ -519,7 +522,7 @@ async function renderChain() {
     html += '<span class="sep">,</span>';
     let rightHtml = '';
     for (const r of innerRight) {
-      const innerRender = await renderNodeHtml(r.uri);
+      const innerRender = await renderNodeHtml(r.uri, null, true);
       rightHtml += '<span class="option-item target" onclick="expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + innerRender + '</span>';
     }
     html += '<span class="options-stack">' + rightHtml + '</span>';
@@ -546,7 +549,7 @@ async function renderChain() {
       html += '<span class="sep">,</span>';
       let orHtml = '';
       for (const r of filteredOuterRight) {
-        const innerRender = await renderNodeHtml(r.uri);
+        const innerRender = await renderNodeHtml(r.uri, null, true);
         orHtml += '<span class="option-item target" onclick="clickNode(\'' + encodeURIComponent(r.uri) + '\')" title="outer: ' + r.resolved + '">' + innerRender + '</span>';
       }
       html += '<span class="options-stack">' + orHtml + '</span>';
