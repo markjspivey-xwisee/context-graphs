@@ -194,7 +194,8 @@ async function refreshAll() {
 
 function renderNodeList() {
   const list = document.getElementById('nodeList');
-  const sorted = [...allNodes].sort((a, b) => a.level - b.level || a.resolved.localeCompare(b.resolved));
+  // Hide L1 wrappers — they're internal to the pullback construction, not meaningful structure
+  const sorted = [...allNodes].filter(n => n.level !== 1).sort((a, b) => a.level - b.level || a.resolved.localeCompare(b.resolved));
   list.innerHTML = sorted.map(n => {
     const active = focusChain.includes(n.uri) ? ' active' : '';
     const display = n.resolved.length > 20 ? n.resolved.slice(0, 18) + '..' : n.resolved;
@@ -212,13 +213,17 @@ function renderGraph() {
 
   if (allNodes.length === 0) return;
 
-  // Group by level
+  // Filter out L1 wrappers — internal to pullback construction, not meaningful structure
+  const visibleNodes = allNodes.filter(n => n.level !== 1);
+
+  // Group by level (renumber: L0 stays, L2+ shift down by 1 for display)
   const levels = {};
   let maxLevel = 0;
-  for (const n of allNodes) {
-    if (!levels[n.level]) levels[n.level] = [];
-    levels[n.level].push(n);
-    if (n.level > maxLevel) maxLevel = n.level;
+  for (const n of visibleNodes) {
+    const displayLevel = n.level === 0 ? 0 : n.level - 1;
+    if (!levels[displayLevel]) levels[displayLevel] = [];
+    levels[displayLevel].push(n);
+    if (displayLevel > maxLevel) maxLevel = displayLevel;
   }
 
   // Position nodes: level = y (bottom to top), index = x
@@ -255,22 +260,33 @@ function renderGraph() {
     }
   }
 
-  // Draw edges: constituents only (not all items)
-  // L1 → its single atom (gray)
-  // L2+ → left constituent (blue) + right constituent (red)
-  for (const n of allNodes) {
-    if (n.kind !== 'Fragment') continue;
+  // Draw edges: constituent structure only, skip L1 wrappers
+  // For L2: constituents are L1 wrappers — follow through to their atoms
+  // For L3+: constituents are L2+ — draw directly
+  for (const n of visibleNodes) {
+    if (n.kind !== 'Fragment' || n.level < 2) continue;
     const parentPos = nodePositions[n.uri];
     if (!parentPos) continue;
 
     fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri: n.uri}) })
       .then(r => r.json())
       .then(data => {
-        if (!data.node) return;
+        if (!data.node || !data.node.left || !data.node.right) return;
 
-        if (data.node.left && data.node.right) {
-          // L2+: draw left (blue) and right (red) constituent edges only
-          const lPos = nodePositions[data.node.left];
+        // Resolve through L1 wrappers: if constituent is L1, use its single item (the atom) instead
+        const resolveThrough = (uri) => {
+          const node = allNodes.find(x => x.uri === uri);
+          if (node && node.level === 1) {
+            // L1 wrapper — return its atom (first item)
+            return fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri}) })
+              .then(r => r.json())
+              .then(d => d.node?.items?.[0] || uri);
+          }
+          return Promise.resolve(uri);
+        };
+
+        Promise.all([resolveThrough(data.node.left), resolveThrough(data.node.right)]).then(([leftTarget, rightTarget]) => {
+          const lPos = nodePositions[leftTarget];
           if (lPos) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', parentPos.x); line.setAttribute('y1', parentPos.y);
@@ -278,7 +294,7 @@ function renderGraph() {
             line.setAttribute('class', 'edge left-const');
             svg.appendChild(line);
           }
-          const rPos = nodePositions[data.node.right];
+          const rPos = nodePositions[rightTarget];
           if (rPos) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', parentPos.x); line.setAttribute('y1', parentPos.y);
@@ -286,17 +302,7 @@ function renderGraph() {
             line.setAttribute('class', 'edge right-const');
             svg.appendChild(line);
           }
-        } else if (data.node.items && data.node.items.length === 1) {
-          // L1 wrapper: single edge to its atom
-          const childPos = nodePositions[data.node.items[0]];
-          if (childPos) {
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', parentPos.x); line.setAttribute('y1', parentPos.y);
-            line.setAttribute('x2', childPos.x); line.setAttribute('y2', childPos.y);
-            line.setAttribute('class', 'edge');
-            svg.appendChild(line);
-          }
-        }
+        });
       });
   }
 }
