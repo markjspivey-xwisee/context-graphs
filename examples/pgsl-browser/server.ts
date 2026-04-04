@@ -198,12 +198,10 @@ app.post('/api/shapes', (req, res) => {
     definedAt: new Date().toISOString(),
   };
 
-  // Ingest the shape itself into PGSL — it's content in the lattice
-  const shapeText = `WHEN (${whenPattern.join(', ')}) REQUIRE (${requirePattern.join(', ')})`;
-  try {
-    const uri = embedInPGSL(pgsl, shapeText);
-    shape.pgslUri = uri;
-  } catch {}
+  // Shape is NOT ingested as flat text — it's metadata about the lattice,
+  // referencing patterns that exist (or will exist) in the lattice.
+  // The patterns themselves (e.g., "?x is human") use atom values
+  // that are already content-addressed in the lattice.
 
   shapeRegistry.push(shape);
   res.json({ shape, totalShapes: shapeRegistry.length });
