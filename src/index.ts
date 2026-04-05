@@ -336,6 +336,11 @@ export {
   shouldAbstain,
   signNode,
   verifyNodeSignature,
+  // Coherence
+  verifyCoherence,
+  computeCoverage,
+  getCertificates,
+  getCoherenceStatus,
   // Ingestion profiles
   registerProfile,
   getProfile,
@@ -400,6 +405,11 @@ export type {
   ToolCall,
   ToolResult,
   ToolContext,
+  // Coherence types
+  CoherenceStatus,
+  CoherenceCertificate,
+  CoherenceObstruction,
+  CoherenceCoverage,
   // Ingestion profile types
   IngestionProfile,
   XapiStatement,

@@ -141,6 +141,19 @@ export type {
   AdvancedTemporalResult,
 } from './advanced-temporal.js';
 export { signNode, verifyNodeSignature } from './lattice.js';
+// Coherence verification
+export {
+  verifyCoherence,
+  computeCoverage,
+  getCertificates,
+  getCoherenceStatus,
+} from './coherence.js';
+export type {
+  CoherenceStatus,
+  CoherenceCertificate,
+  CoherenceObstruction,
+  CoherenceCoverage,
+} from './coherence.js';
 export type { TokenGranularity, ContainmentAnnotation, ContainmentRole } from './types.js';
 // Ingestion profiles
 export {
