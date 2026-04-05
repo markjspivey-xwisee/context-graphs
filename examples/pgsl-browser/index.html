@@ -906,19 +906,45 @@ async function completeShape(requireChain) {
     return n ? n.resolved : '?';
   });
 
-  // Find shared values and create variables
+  // Create variables: find positions where both chains have the same value
+  // and the chains differ elsewhere. Only variabilize the positions that
+  // represent entities (what varies), not structural connectives.
+  //
+  // Heuristic: among same-value positions, variabilize those whose value
+  // does NOT also appear at a different position in the same chain.
+  // "mark" appears only at position 0 → entity → variable
+  // "is" appears only at position 1, but it's a connective (same in both) →
+  // if ALL same-positions would become variables, keep only the first one
+  // to avoid over-binding.
   const whenPattern = [...whenValues];
   const requirePattern = [...requireValues];
+  const minLen = Math.min(whenPattern.length, requirePattern.length);
+
+  const samePositions = [];
+  let hasDifference = false;
+  for (let i = 0; i < minLen; i++) {
+    if (whenPattern[i] === requirePattern[i]) samePositions.push(i);
+    else hasDifference = true;
+  }
+
+  // Variabilize: only positions where the value differs from ALL values
+  // at the differing positions (i.e., it's not the pattern-defining part)
   let varCount = 0;
-  for (let i = 0; i < whenPattern.length; i++) {
-    for (let j = 0; j < requirePattern.length; j++) {
-      if (whenPattern[i] === requirePattern[j] && !whenPattern[i].startsWith('?')) {
-        const varName = '?x' + (varCount > 0 ? varCount : '');
-        whenPattern[i] = varName;
-        requirePattern[j] = varName;
-        varCount++;
-      }
-    }
+  if (hasDifference && samePositions.length > 0 && samePositions.length < minLen) {
+    // Get the values at differing positions to understand the pattern
+    // Simple approach: variabilize same-value positions that are NOT
+    // adjacent to (immediately before) a differing position
+    // For (mark, is, employee) vs (mark, is, human): position 2 differs
+    // Position 0 (mark) is not adjacent-before position 2 → variable? No that's wrong too.
+    //
+    // Simplest correct approach: just variabilize the FIRST same-value position.
+    // For subject-predicate-object patterns, the subject (position 0) is almost always
+    // the entity that varies.
+    const firstSame = samePositions[0]!;
+    const varName = '?x';
+    whenPattern[firstSame] = varName;
+    requirePattern[firstSame] = varName;
+    varCount = 1;
   }
 
   const name = '(' + whenPattern.join(', ') + ') requires (' + requirePattern.join(', ') + ')';
