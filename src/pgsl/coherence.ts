@@ -100,52 +100,116 @@ export function verifyCoherence(
   agentB: string,
   topic: string,
 ): CoherenceCertificate {
-  // Find atoms that exist in both lattices
-  const sharedAtoms: string[] = [];
-  const divergentAtoms: string[] = [];
+  // ── Usage-based coherence: meaning is usage, not existence ──
+  // Two agents share a sign if they both have the atom.
+  // They share MEANING if they USE the sign in the same syntagmatic contexts.
+  // Same atom in different positions/chains = different meaning.
 
+  // Step 1: Find shared atoms (shared signs)
+  const sharedAtoms: string[] = [];
   for (const [valueA] of pgslA.atoms) {
     if (pgslB.atoms.has(valueA)) {
       sharedAtoms.push(valueA);
     }
   }
 
-  // For shared atoms, check if they participate in the same structures
+  // Step 2: For each shared atom, compare USAGE — what syntagmatic
+  // contexts does it appear in? Build a "usage signature" for each atom:
+  // the set of (position, co-occurring atoms) tuples.
+  interface UsageContext { position: number; coItems: string[] }
+
+  function getUsageContexts(pgsl: PGSLInstance, atomValue: string): UsageContext[] {
+    const atomUri = pgsl.atoms.get(atomValue);
+    if (!atomUri) return [];
+    const contexts: UsageContext[] = [];
+
+    for (const [, node] of pgsl.nodes) {
+      if (node.kind !== 'Fragment') continue;
+      const pos = node.items.indexOf(atomUri);
+      if (pos < 0) continue;
+
+      // Co-occurring items in this syntagm
+      const coItems: string[] = [];
+      for (let i = 0; i < node.items.length; i++) {
+        if (i === pos) continue;
+        const itemNode = pgsl.nodes.get(node.items[i]!);
+        if (itemNode?.kind === 'Atom') coItems.push(String((itemNode as any).value));
+        else coItems.push(resolve(pgsl, node.items[i]!));
+      }
+      contexts.push({ position: pos, coItems: coItems.sort() });
+    }
+    return contexts;
+  }
+
+  // Step 3: Compare usage signatures
+  const sharedUsage: string[] = []; // atoms used the same way
+  const divergentUsage: string[] = []; // atoms used differently
+
+  for (const atomValue of sharedAtoms) {
+    const usageA = getUsageContexts(pgslA, atomValue);
+    const usageB = getUsageContexts(pgslB, atomValue);
+
+    // Convert to comparable strings
+    const sigA = new Set(usageA.map(u => `pos${u.position}:[${u.coItems.join(',')}]`));
+    const sigB = new Set(usageB.map(u => `pos${u.position}:[${u.coItems.join(',')}]`));
+
+    // Find overlap in usage
+    let hasSharedUsage = false;
+    for (const s of sigA) {
+      if (sigB.has(s)) { hasSharedUsage = true; break; }
+    }
+
+    if (hasSharedUsage) {
+      sharedUsage.push(atomValue);
+    } else if (sigA.size > 0 && sigB.size > 0) {
+      // Both agents use this atom but in entirely different contexts
+      const exampleA = [...sigA][0] ?? '?';
+      const exampleB = [...sigB][0] ?? '?';
+      divergentUsage.push(`"${atomValue}": A uses as ${exampleA}, B uses as ${exampleB}`);
+    }
+  }
+
+  // Step 4: Also check shared fragments (shared syntagmatic structures)
   const sharedFragments: string[] = [];
   for (const [keyA, uriA] of pgslA.fragments) {
     if (pgslB.fragments.has(keyA)) {
-      // Same item sequence exists in both lattices
-      const resolvedA = resolve(pgslA, uriA);
-      const resolvedB = resolve(pgslB, pgslB.fragments.get(keyA)!);
-      if (resolvedA === resolvedB) {
-        sharedFragments.push(resolvedA);
-      } else {
-        divergentAtoms.push(`${resolvedA} ≠ ${resolvedB}`);
-      }
+      sharedFragments.push(resolve(pgslA, uriA));
     }
   }
 
   const now = new Date().toISOString();
-  const computationData = `${agentA}|${agentB}|${topic}|${sharedAtoms.join(',')}|${sharedFragments.join(',')}|${divergentAtoms.join(',')}|${now}`;
+  const computationData = `${agentA}|${agentB}|${topic}|usage:${sharedUsage.join(',')}|div:${divergentUsage.join(',')}|frag:${sharedFragments.join(',')}|${now}`;
   const computationHash = createHash('sha256').update(computationData).digest('hex').slice(0, 40);
 
   let status: CoherenceStatus;
   let obstruction: CoherenceObstruction | undefined;
   let sharedStructure: string | undefined;
 
-  if (sharedAtoms.length === 0 && sharedFragments.length === 0) {
-    // No overlap at all — can't verify coherence
+  if (sharedAtoms.length === 0) {
+    // No shared signs at all
     status = 'unexamined';
-  } else if (divergentAtoms.length > 0) {
+  } else if (divergentUsage.length > 0 && sharedUsage.length === 0) {
+    // Shared signs but ALL used differently — frame incompatible
     status = 'divergent';
     obstruction = {
-      type: sharedFragments.length > 0 ? 'term-mismatch' : 'structure-mismatch',
-      description: `${divergentAtoms.length} divergence(s) found in shared structure`,
-      divergentItems: divergentAtoms,
+      type: 'frame-incompatible',
+      description: `Shared signs used in incompatible contexts: ${divergentUsage.length} divergence(s)`,
+      divergentItems: divergentUsage,
     };
-  } else {
+  } else if (divergentUsage.length > 0) {
+    // Some shared usage, some divergent — partial alignment
+    status = 'divergent';
+    obstruction = {
+      type: 'term-mismatch',
+      description: `${sharedUsage.length} sign(s) used coherently, ${divergentUsage.length} used differently`,
+      divergentItems: divergentUsage,
+    };
+  } else if (sharedUsage.length > 0 || sharedFragments.length > 0) {
+    // Shared signs used in the same contexts — coherent
     status = 'verified';
-    sharedStructure = `${sharedAtoms.length} shared atoms, ${sharedFragments.length} shared fragments`;
+    sharedStructure = `${sharedUsage.length} signs with shared usage, ${sharedFragments.length} shared structures`;
+  } else {
+    status = 'unexamined';
   }
 
   const cert: CoherenceCertificate = {
