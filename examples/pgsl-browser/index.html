@@ -539,13 +539,14 @@ async function renderChain() {
   if (innerLeft.length > 0) {
     html += '<span class="sep">,</span>';
     const leftPattern = ['?', ...chainValues];
-    const leftPatternJson = JSON.stringify(leftPattern).replace(/'/g, "\\'");
+    const leftPatternId = 'lp_' + Date.now();
+    window[leftPatternId] = leftPattern;
     let leftHtml = '';
     for (const l of innerLeft) {
       const innerRender = await renderNodeHtml(l.uri, null, true);
       leftHtml += '<span class="option-item source" onclick="event.stopPropagation(); expandLeft(\'' + encodeURIComponent(l.uri) + '\')" title="' + l.resolved + '">' + innerRender + '</span>';
     }
-    leftHtml += '<span onclick="constrainParadigm(' + leftPatternJson + ', 0)" style="font-size:8px;color:#4a4a8a;cursor:pointer;text-align:center;padding:1px 4px;border-top:1px dashed #ccc;margin-top:1px" title="Constrain this paradigm">constrain</span>';
+    leftHtml += '<span onclick="event.stopPropagation(); constrainParadigm(window[\'' + leftPatternId + '\'], 0)" style="font-size:8px;color:#4a4a8a;cursor:pointer;text-align:center;padding:1px 4px;border-top:1px dashed #ccc;margin-top:1px" title="Constrain this paradigm">constrain</span>';
     html += '<span class="options-stack">' + leftHtml + '</span>';
   }
 
@@ -592,14 +593,15 @@ async function renderChain() {
   if (innerRight.length > 0) {
     html += '<span class="sep">,</span>';
     const rightPattern = [...chainValues, '?'];
-    const rightPatternJson = JSON.stringify(rightPattern).replace(/'/g, "\\'");
+    const rightPatternId = 'rp_' + Date.now();
+    window[rightPatternId] = rightPattern;
     const rightPos = chainValues.length;
     let rightHtml = '';
     for (const r of innerRight) {
       const innerRender = await renderNodeHtml(r.uri, null, true);
       rightHtml += '<span class="option-item target" onclick="event.stopPropagation(); expandRight(\'' + encodeURIComponent(r.uri) + '\')" title="' + r.resolved + '">' + innerRender + '</span>';
     }
-    rightHtml += '<span onclick="constrainParadigm(' + rightPatternJson + ', ' + rightPos + ')" style="font-size:8px;color:#4a4a8a;cursor:pointer;text-align:center;padding:1px 4px;border-top:1px dashed #ccc;margin-top:1px" title="Constrain this paradigm">constrain</span>';
+    rightHtml += '<span onclick="event.stopPropagation(); constrainParadigm(window[\'' + rightPatternId + '\'], ' + rightPos + ')" style="font-size:8px;color:#4a4a8a;cursor:pointer;text-align:center;padding:1px 4px;border-top:1px dashed #ccc;margin-top:1px" title="Constrain this paradigm">constrain</span>';
     html += '<span class="options-stack">' + rightHtml + '</span>';
   }
   html += '<span class="sep">,</span>';
