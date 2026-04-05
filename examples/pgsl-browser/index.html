@@ -97,14 +97,16 @@
       <button onclick="doIngest()">Ingest</button>
     </div>
 
-    <h2>Shapes</h2>
+    <h2>Constraints</h2>
     <div id="shapeList" style="font-size:10px;margin-bottom:8px"></div>
-    <div style="margin-bottom:12px">
-      <input id="shapeName" placeholder="name" style="width:100%;border:1px solid #ccc;padding:3px 6px;font-size:10px;border-radius:3px;margin-bottom:2px;font-family:inherit">
-      <input id="shapeWhen" placeholder="WHEN: ?x, is, employee" style="width:100%;border:1px solid #ccc;padding:3px 6px;font-size:10px;border-radius:3px;margin-bottom:2px;font-family:inherit">
-      <input id="shapeRequire" placeholder="REQUIRE: ?x, is, human" style="width:100%;border:1px solid #ccc;padding:3px 6px;font-size:10px;border-radius:3px;margin-bottom:2px;font-family:inherit">
-      <button onclick="addShape()" style="background:#4a4a8a;color:#fff;border:none;padding:3px 10px;font-size:10px;border-radius:3px;cursor:pointer">Add Shape</button>
+    <div id="shapeBuilder" style="margin-bottom:12px;display:none">
+      <div style="font-size:9px;color:#888;margin-bottom:4px">Select a second chain to create a constraint:</div>
+      <div style="font-size:10px;color:#4a4a8a" id="shapeWhenLabel"></div>
+      <div style="font-size:9px;color:#888">requires ↓</div>
+      <div style="font-size:10px;color:#888" id="shapeRequireLabel">click another chain in the graph...</div>
+      <button onclick="cancelShape()" style="background:#8a4a4a;color:#fff;border:none;padding:2px 8px;font-size:9px;border-radius:3px;cursor:pointer;margin-top:4px">Cancel</button>
     </div>
+    <button id="startShapeBtn" onclick="startShapeMode()" style="background:#4a4a8a;color:#fff;border:none;padding:3px 10px;font-size:10px;border-radius:3px;cursor:pointer;margin-bottom:8px">+ Constrain current chain</button>
 
     <h2>Nodes</h2>
     <ul class="node-list" id="nodeList"></ul>
@@ -361,6 +363,24 @@ async function clickNode(encodedUri) {
   try {
     const uri = decodeURIComponent(encodedUri);
     const node = allNodes.find(n => n.uri === uri);
+
+    // If in shape mode, clicking a node completes the constraint
+    if (shapeMode && node) {
+      let requireChain;
+      if (node.level > 0 && node.kind === 'Fragment') {
+        const resp = await fetch('/api/resolve', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({uri}) });
+        if (resp.ok) {
+          const data = await resp.json();
+          requireChain = data.node?.items?.length > 1 ? [...data.node.items] : [uri];
+        } else {
+          requireChain = [uri];
+        }
+      } else {
+        requireChain = [uri];
+      }
+      await completeShape(requireChain);
+      return;
+    }
 
     if (node && node.level > 0 && node.kind === 'Fragment') {
       // Decompose fragment into chain items
@@ -849,25 +869,66 @@ async function createAndAdd(side, value) {
   document.querySelectorAll('.add-popup').forEach(p => p.remove());
 }
 
-// ── Shapes ──
+// ── Constraints (shapes created by relating two chains) ──
 
-async function addShape() {
-  const name = document.getElementById('shapeName').value.trim();
-  const when = document.getElementById('shapeWhen').value.trim();
-  const require = document.getElementById('shapeRequire').value.trim();
-  if (!name || !when || !require) return;
+let shapeMode = false;
+let shapeWhenChain = null; // the "when" chain (current focus when shape mode started)
+let shapeWhenValues = null;
 
-  const whenPattern = when.split(',').map(s => s.trim());
-  const requirePattern = require.split(',').map(s => s.trim());
+function startShapeMode() {
+  if (focusChain.length === 0) return;
+  shapeMode = true;
+  shapeWhenChain = [...focusChain];
+  // Resolve chain to values
+  shapeWhenValues = focusChain.map(u => {
+    const n = allNodes.find(x => x.uri === u);
+    return n ? n.resolved : '?';
+  });
+  document.getElementById('shapeBuilder').style.display = 'block';
+  document.getElementById('startShapeBtn').style.display = 'none';
+  document.getElementById('shapeWhenLabel').textContent = '(' + shapeWhenValues.join(', ') + ')';
+  document.getElementById('shapeRequireLabel').textContent = 'click another chain in the graph...';
+}
+
+function cancelShape() {
+  shapeMode = false;
+  shapeWhenChain = null;
+  shapeWhenValues = null;
+  document.getElementById('shapeBuilder').style.display = 'none';
+  document.getElementById('startShapeBtn').style.display = 'block';
+}
+
+async function completeShape(requireChain) {
+  // Build patterns with variable binding — find shared values and replace with ?x
+  const whenValues = shapeWhenValues;
+  const requireValues = requireChain.map(u => {
+    const n = allNodes.find(x => x.uri === u);
+    return n ? n.resolved : '?';
+  });
+
+  // Find shared values and create variables
+  const whenPattern = [...whenValues];
+  const requirePattern = [...requireValues];
+  let varCount = 0;
+  for (let i = 0; i < whenPattern.length; i++) {
+    for (let j = 0; j < requirePattern.length; j++) {
+      if (whenPattern[i] === requirePattern[j] && !whenPattern[i].startsWith('?')) {
+        const varName = '?x' + (varCount > 0 ? varCount : '');
+        whenPattern[i] = varName;
+        requirePattern[j] = varName;
+        varCount++;
+      }
+    }
+  }
+
+  const name = '(' + whenPattern.join(', ') + ') requires (' + requirePattern.join(', ') + ')';
 
   await fetch('/api/shapes', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ name, whenPattern, requirePattern }),
   });
 
-  document.getElementById('shapeName').value = '';
-  document.getElementById('shapeWhen').value = '';
-  document.getElementById('shapeRequire').value = '';
+  cancelShape();
   await refreshShapes();
 }
 
@@ -881,16 +942,17 @@ async function refreshShapes() {
   const data = await resp.json();
   const list = document.getElementById('shapeList');
   if (data.shapes.length === 0) {
-    list.innerHTML = '<span style="color:#999">No shapes defined</span>';
+    list.innerHTML = '<span style="color:#999">None — focus a chain then click "Constrain"</span>';
     return;
   }
   list.innerHTML = data.shapes.map(s =>
-    '<div style="padding:2px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">' +
-      '<div><strong>' + s.name + '</strong><br>' +
-        '<span style="color:#4a8a4a">WHEN</span> (' + s.whenPattern.join(', ') + ')<br>' +
-        '<span style="color:#8a4a4a">REQUIRE</span> (' + s.requirePattern.join(', ') + ')' +
+    '<div style="padding:3px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">' +
+      '<div style="font-size:10px">' +
+        '(' + s.whenPattern.join(', ') + ')<br>' +
+        '<span style="color:#888">requires</span><br>' +
+        '(' + s.requirePattern.join(', ') + ')' +
       '</div>' +
-      '<span onclick="deleteShape(\'' + s.id + '\')" style="cursor:pointer;color:#c00;font-size:14px" title="Delete">\u00d7</span>' +
+      '<span onclick="deleteShape(\'' + s.id + '\')" style="cursor:pointer;color:#c00;font-size:14px;padding-left:8px" title="Delete">\u00d7</span>' +
     '</div>'
   ).join('');
 }
