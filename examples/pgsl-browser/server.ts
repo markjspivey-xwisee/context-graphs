@@ -1378,6 +1378,50 @@ app.get('/api/shacl', (_req, res) => {
   });
 });
 
+// ── Observatory API: Coherence ──
+import { verifyCoherence, computeCoverage } from '@foxxi/context-graphs';
+
+app.post('/api/coherence/check', (req, res) => {
+  const { agents } = req.body as { agents?: string[] };
+
+  // Use pod names as agent identifiers
+  const agentNames = agents ?? [...podRegistry.keys()].map(url => {
+    const match = url.match(/\/([^/]+)\/?$/);
+    return match ? match[1]! : url;
+  }).filter(n => n.length > 0);
+
+  if (agentNames.length < 2) {
+    res.json({ error: 'Need at least 2 agents', agents: agentNames });
+    return;
+  }
+
+  // For each pair, verify coherence using the shared PGSL lattice
+  // (In a full system, each agent would have its own lattice on its pod)
+  const certificates = [];
+  for (let i = 0; i < agentNames.length; i++) {
+    for (let j = i + 1; j < agentNames.length; j++) {
+      const cert = verifyCoherence(pgsl, pgsl, agentNames[i]!, agentNames[j]!, 'federation');
+      certificates.push(cert);
+    }
+  }
+
+  const coverage = computeCoverage(agentNames);
+
+  res.json({
+    agents: agentNames,
+    coverage,
+    certificates: certificates.map(c => ({
+      agentA: c.agentA,
+      agentB: c.agentB,
+      status: c.status,
+      semanticOverlap: c.semanticOverlap,
+      sharedPatterns: c.sharedPatterns.length,
+      obstruction: c.obstruction,
+      sharedStructure: c.sharedStructure,
+    })),
+  });
+});
+
 // ── Observatory API: Activity Log ──
 app.get('/api/activity', (_req, res) => {
   const since = _req.query['since'] as string | undefined;

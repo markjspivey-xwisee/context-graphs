@@ -132,6 +132,7 @@
   <div class="tab" onclick="switchTab('composition')">Composition</div>
   <div class="tab" onclick="switchTab('sparql')">SPARQL</div>
   <div class="tab" onclick="switchTab('shacl')">SHACL</div>
+  <div class="tab" onclick="switchTab('coherence')">Coherence</div>
   <div class="tab" onclick="switchTab('lattice')">PGSL Lattice</div>
 </div>
 
@@ -228,6 +229,16 @@ SELECT ?atom ?value WHERE {
   </div>
 
   <!-- Lattice Tab -->
+  <!-- Coherence Tab -->
+  <div class="panel" id="panel-coherence">
+    <div class="card">
+      <h3>Coherence Coverage</h3>
+      <p>Usage-based coherence between agents. Meaning is usage — two agents are coherent when they use shared signs in the same syntagmatic contexts. The dangerous state is <strong>unexamined</strong>: agents proceeding as if aligned without verification.</p>
+      <button onclick="runCoherence()" style="background:#238636;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:11px;margin-top:8px">Check Coherence</button>
+    </div>
+    <div id="coherenceResult" style="margin-top:12px"></div>
+  </div>
+
   <div class="panel" id="panel-lattice">
     <div class="card">
       <h3>PGSL Lattice Browser</h3>
@@ -536,6 +547,56 @@ async function pollActivity() {
 
 // Poll for activity every 2 seconds
 setInterval(pollActivity, 2000);
+
+// ── Coherence ──
+
+async function runCoherence() {
+  const resp = await fetch('/api/coherence/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+  const data = await resp.json();
+
+  let html = '';
+  if (data.error) {
+    html = '<div class="card"><p>' + data.error + '</p></div>';
+  } else {
+    const cov = data.coverage;
+    const pct = (cov.coverage * 100).toFixed(0);
+    const color = cov.coverage >= 0.7 ? '#3fb950' : cov.coverage > 0 ? '#d29922' : '#f85149';
+
+    html += '<div class="card"><h3 style="color:' + color + '">' + pct + '% Coverage</h3>';
+    html += '<p>' + cov.verified + ' verified, ' + cov.divergent + ' divergent, ' + cov.unexamined + ' unexamined of ' + cov.totalPairs + ' pairs</p>';
+    if (cov.unexaminedPairs.length > 0) {
+      html += '<p style="color:#f85149">\u26a0 Unexamined pairs (dangerous null state):</p>';
+      html += '<ul style="font-size:11px;color:#f85149">';
+      for (const p of cov.unexaminedPairs) {
+        html += '<li>' + p.agentA + ' \u2194 ' + p.agentB + '</li>';
+      }
+      html += '</ul>';
+    }
+    html += '</div>';
+
+    for (const cert of data.certificates) {
+      const statusColor = cert.status === 'verified' ? '#3fb950' : cert.status === 'divergent' ? '#d29922' : '#8b949e';
+      const statusIcon = cert.status === 'verified' ? '\u2705' : cert.status === 'divergent' ? '\u26a0\ufe0f' : '\u2753';
+      html += '<div class="card">';
+      html += '<h3 style="color:' + statusColor + '">' + statusIcon + ' ' + cert.agentA + ' \u2194 ' + cert.agentB + '</h3>';
+      html += '<p>Status: <strong>' + cert.status + '</strong> | Semantic overlap: ' + (cert.semanticOverlap * 100).toFixed(0) + '% | Shared patterns: ' + cert.sharedPatterns + '</p>';
+      if (cert.sharedStructure) html += '<p style="font-size:11px;color:#8b949e">' + cert.sharedStructure + '</p>';
+      if (cert.obstruction) {
+        html += '<p style="font-size:11px;color:#d29922">Obstruction (' + cert.obstruction.type + '): ' + cert.obstruction.description + '</p>';
+        if (cert.obstruction.divergentItems?.length > 0) {
+          html += '<ul style="font-size:10px;color:#8b949e">';
+          for (const item of cert.obstruction.divergentItems.slice(0, 5)) {
+            html += '<li>' + item + '</li>';
+          }
+          html += '</ul>';
+        }
+      }
+      html += '</div>';
+    }
+  }
+
+  document.getElementById('coherenceResult').innerHTML = html;
+}
 
 // Initial load
 refreshPods();
