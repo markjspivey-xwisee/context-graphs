@@ -69,7 +69,7 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │   ├── multi-agent/  Team security audit demo + TLA/xAPI/LERS demo
 │   └── pgsl-browser/ PGSL lattice browser + Context Graphs Observatory
 ├── benchmarks/       LongMemEval (89.2% agentic, 92.4% raw) evaluation suite
-└── tests/            315 tests across 13 suites
+└── tests/            324 tests across 14 suites
 ```
 
 ### Design Principles
@@ -92,7 +92,7 @@ git clone https://github.com/markjspivey-xwisee/context-graphs.git
 cd context-graphs
 npm install
 npm run build
-npm test  # 315 tests
+npm test  # 324 tests
 ```
 
 ### Build a Context Descriptor
@@ -516,7 +516,7 @@ Deploys: CSS (Solid server), Dashboard (observation UI), MCP Relay (HTTP bridge)
 ```bash
 npm install
 npm run build        # TypeScript → dist/
-npm test             # 315 tests across 13 suites
+npm test             # 324 tests across 14 suites
 npm run test:watch   # Watch mode
 ```
 
