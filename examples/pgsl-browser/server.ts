@@ -299,6 +299,147 @@ app.get('/api/constraints', (_req, res) => {
   res.json({ constraints: constraintRegistry });
 });
 
+// ── SHACL Integration ──
+// Import SHACL shape definitions as paradigm constraints.
+// Export paradigm constraints as SHACL Turtle.
+
+// Import: accept a SHACL-style shape definition, create paradigm constraint(s)
+app.post('/api/constraints/shacl', (req, res) => {
+  const { targetPattern, targetPosition, properties } = req.body as {
+    targetPattern: string[]; // the syntagmatic pattern this shape targets
+    targetPosition: number;  // which position is the focus
+    properties: Array<{
+      path: string;          // the syntagmatic pattern for the property
+      pathPosition: number;  // which position in the path pattern
+      minCount?: number;
+      maxCount?: number;
+      class?: string;        // value must also appear in this pattern
+      classPosition?: number;
+      hasValue?: string;     // must be this specific value
+      in?: string[];         // must be one of these values
+      not?: string;          // must NOT appear in this pattern
+      notPosition?: number;
+      sparql?: string;       // arbitrary SPARQL constraint
+    }>;
+  };
+
+  if (!targetPattern || targetPosition === undefined || !properties) {
+    res.status(400).json({ error: 'Need targetPattern, targetPosition, properties' });
+    return;
+  }
+
+  const created: ParadigmConstraint[] = [];
+
+  for (const prop of properties) {
+    // sh:class → subset constraint
+    if (prop.class && prop.classPosition !== undefined) {
+      const c: ParadigmConstraint = {
+        id: `shacl:${Date.now()}:${created.length}`,
+        patternA: targetPattern,
+        positionA: targetPosition,
+        patternB: prop.class.split(',').map(s => s.trim()),
+        positionB: prop.classPosition,
+        op: 'subset',
+        minCount: prop.minCount,
+        maxCount: prop.maxCount,
+        createdAt: new Date().toISOString(),
+      };
+      constraintRegistry.push(c);
+      created.push(c);
+    }
+
+    // sh:not → exclude constraint
+    if (prop.not && prop.notPosition !== undefined) {
+      const c: ParadigmConstraint = {
+        id: `shacl:${Date.now()}:${created.length}`,
+        patternA: targetPattern,
+        positionA: targetPosition,
+        patternB: prop.not.split(',').map(s => s.trim()),
+        positionB: prop.notPosition,
+        op: 'exclude',
+        createdAt: new Date().toISOString(),
+      };
+      constraintRegistry.push(c);
+      created.push(c);
+    }
+
+    // sh:sparqlConstraint → SPARQL constraint
+    if (prop.sparql) {
+      const c: ParadigmConstraint = {
+        id: `shacl:${Date.now()}:${created.length}`,
+        patternA: targetPattern,
+        positionA: targetPosition,
+        patternB: [],
+        positionB: 0,
+        op: 'subset',
+        sparql: prop.sparql,
+        minCount: prop.minCount,
+        maxCount: prop.maxCount,
+        createdAt: new Date().toISOString(),
+      };
+      constraintRegistry.push(c);
+      created.push(c);
+    }
+
+    // sh:in → equal constraint with computed paradigm
+    if (prop.in) {
+      // Find URIs for the allowed values
+      const allowedUris = prop.in.map(v => pgsl.atoms.get(v)).filter(Boolean);
+      if (allowedUris.length > 0) {
+        const sparql = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
+SELECT ?candidate WHERE { ?candidate a pgsl:Atom ; pgsl:value ?v . FILTER(${prop.in.map(v => `?v = "${v}"`).join(' || ')}) }`;
+        const c: ParadigmConstraint = {
+          id: `shacl:${Date.now()}:${created.length}`,
+          patternA: targetPattern,
+          positionA: targetPosition,
+          patternB: [],
+          positionB: 0,
+          op: 'subset',
+          sparql,
+          createdAt: new Date().toISOString(),
+        };
+        constraintRegistry.push(c);
+        created.push(c);
+      }
+    }
+  }
+
+  res.json({ created: created.length, constraints: created });
+});
+
+// Export: paradigm constraints as SHACL Turtle
+app.get('/api/constraints/shacl', (_req, res) => {
+  const opToShacl: Record<string, string> = {
+    subset: 'sh:class',
+    intersect: 'sh:and',
+    exclude: 'sh:not',
+    equal: 'sh:equals',
+    union: 'sh:or',
+  };
+
+  let turtle = '@prefix sh: <http://www.w3.org/ns/shacl#> .\n';
+  turtle += '@prefix pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .\n\n';
+
+  for (const c of constraintRegistry) {
+    const shapeName = c.id.replace(/[^a-zA-Z0-9]/g, '_');
+    const patternStr = c.patternA.map((v, i) => i === c.positionA ? '?' : v).join(', ');
+    turtle += `# Constraint: P(${patternStr}) ${c.op} P(${c.patternB.map((v, i) => i === c.positionB ? '?' : v).join(', ')})\n`;
+    turtle += `<urn:constraint:${shapeName}> a sh:NodeShape ;\n`;
+    turtle += `    sh:description "Paradigm constraint: ${c.op}" ;\n`;
+    if (c.sparql) {
+      turtle += `    sh:sparql [\n`;
+      turtle += `        sh:select """${c.sparql}""" ;\n`;
+      turtle += `    ] ;\n`;
+    }
+    if (c.minCount !== undefined) turtle += `    sh:minCount ${c.minCount} ;\n`;
+    if (c.maxCount !== undefined) turtle += `    sh:maxCount ${c.maxCount} ;\n`;
+    turtle += `.\n\n`;
+  }
+
+  res.set('Content-Type', 'text/turtle');
+  res.send(turtle);
+});
+
 // Compute paradigm set for a given pattern + position
 app.post('/api/paradigm', (req, res) => {
   const { pattern, position, sparql } = req.body as { pattern?: string[]; position?: number; sparql?: string };
