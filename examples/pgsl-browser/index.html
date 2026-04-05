@@ -99,14 +99,6 @@
 
     <h2>Constraints</h2>
     <div id="shapeList" style="font-size:10px;margin-bottom:8px"></div>
-    <div id="shapeBuilder" style="margin-bottom:12px;display:none">
-      <div style="font-size:9px;color:#888;margin-bottom:4px">Select a second chain to create a constraint:</div>
-      <div style="font-size:10px;color:#4a4a8a" id="shapeWhenLabel"></div>
-      <div style="font-size:9px;color:#888">requires ↓</div>
-      <div style="font-size:10px;color:#888" id="shapeRequireLabel">click another chain in the graph...</div>
-      <button onclick="cancelShape()" style="background:#8a4a4a;color:#fff;border:none;padding:2px 8px;font-size:9px;border-radius:3px;cursor:pointer;margin-top:4px">Cancel</button>
-    </div>
-    <button id="startShapeBtn" onclick="startShapeMode()" style="background:#4a4a8a;color:#fff;border:none;padding:3px 10px;font-size:10px;border-radius:3px;cursor:pointer;margin-bottom:8px">+ Constrain current chain</button>
 
     <h2>Nodes</h2>
     <ul class="node-list" id="nodeList"></ul>
@@ -128,6 +120,12 @@
     <span style="color:#999">Click a node in the graph to focus</span>
   </div>
   <div class="chain-info" id="chainInfo"></div>
+  <div id="shapeArea" style="display:none;border-top:1px dashed #ccc;margin-top:6px;padding-top:6px">
+    <div id="shapeBuilder"></div>
+  </div>
+  <div id="constrainBtn" style="text-align:center;margin-top:4px">
+    <button onclick="startShapeMode()" style="background:none;border:1px solid #ccc;padding:2px 10px;font-size:9px;border-radius:3px;cursor:pointer;color:#888">+ constrain</button>
+  </div>
 </div>
 
 <script>
@@ -908,9 +906,10 @@ let shapeRequireChain = []; // the second chain being built
 
 function renderShapeBuilder() {
   const builder = document.getElementById('shapeBuilder');
-  const btn = document.getElementById('startShapeBtn');
-  builder.style.display = 'block';
-  btn.style.display = 'none';
+  const area = document.getElementById('shapeArea');
+  const constrainBtn = document.getElementById('constrainBtn');
+  area.style.display = 'block';
+  constrainBtn.style.display = 'none';
 
   if (shapeStep === 1) {
     // Step 1: select which positions are variables
@@ -977,7 +976,7 @@ function shapeAddRequireItem(event) {
   const popup = document.createElement('div');
   popup.className = 'add-popup';
   popup.style.left = event.clientX + 'px';
-  const chainPanel = document.getElementById('shapeBuilder');
+  const chainPanel = document.getElementById('chainPanel');
   popup.style.bottom = (window.innerHeight - chainPanel.getBoundingClientRect().top + 10) + 'px';
 
   const input = document.createElement('input');
@@ -1053,9 +1052,9 @@ function cancelShape() {
   shapeWhenChain = null;
   shapeWhenValues = null;
   shapeVariablePositions = new Set();
-  document.getElementById('shapeBuilder').style.display = 'none';
+  document.getElementById('shapeArea').style.display = 'none';
   document.getElementById('shapeBuilder').innerHTML = '';
-  document.getElementById('startShapeBtn').style.display = 'block';
+  document.getElementById('constrainBtn').style.display = 'block';
 }
 
 async function completeShape(requireChain) {
