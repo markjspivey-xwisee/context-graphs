@@ -735,7 +735,7 @@ function showAddPopup(side, event) {
 
   (async () => {
     try {
-      const actualSide = side.replace('outer-', '');
+      const actualSide = side.replace('outer-', '').replace('require-', '');
       const resp = await fetch('/api/constraints/candidates', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ currentChain: focusChain, side: actualSide }),
@@ -745,7 +745,9 @@ function showAddPopup(side, event) {
         if (data.constrained && data.candidates) {
           shapeConstrained = true;
           shapeCandidateUris = new Set(data.candidates.map(c => c.uri));
-          shapeInfo = data.constraints.map(c => c.shape + ': REQUIRE (' + c.require + ')').join('; ');
+          shapeInfo = data.constraints.join('; ');
+          // Re-render with constraint data
+          renderDropdown(input.value);
         }
       }
     } catch {}
