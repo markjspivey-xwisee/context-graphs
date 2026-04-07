@@ -257,6 +257,49 @@ export type {
   DecoratorResult,
   DecoratorRegistry,
 } from './affordance-decorators.js';
+// Agent framework (AAT, Policy, PROV, Personal Broker)
+export {
+  ObserverAAT, AnalystAAT, ExecutorAAT, ArbiterAAT, ArchivistAAT, FullAccessAAT,
+  createAATRegistry, registerAAT, getAAT, filterAffordancesByAAT, validateAction,
+  createPolicyEngine, addRule, removeRule, evaluate as evaluatePolicy, defaultPolicies,
+  createTraceStore, recordTrace, getTraces, traceToTurtle, wrapWithTracing,
+  createPersonalBroker, startConversation, addMessage, getMemoryStats, setPresence,
+  createAATDecorator,
+} from './agent-framework.js';
+export type {
+  AbstractAgentType, AATRegistry,
+  DeonticMode, PolicyRule, PolicyContext, PolicyDecision, PolicyEngine,
+  ProvTrace, TraceStore, TraceFilter, TracedAffordance,
+  PersonalBroker, Conversation, ConversationMessage, AgentMemory, PresenceStatus,
+} from './agent-framework.js';
+// Infrastructure (Enclaves, Checkpoints, CRDT)
+export {
+  createEnclaveRegistry, createEnclave, forkEnclave, getEnclave, listEnclaves,
+  freezeEnclave, mergeEnclave, abandonEnclave, enclaveStats,
+  createCheckpointStore, createCheckpoint, restoreCheckpoint, getCheckpoint,
+  listCheckpoints, diffCheckpoints, checkpointStats,
+  createCRDTState, incrementClock, mergeClock, happensBefore,
+  createOp, applyOp, getPendingOps, markSynced, crdtStats,
+} from './infrastructure.js';
+export type {
+  Enclave, EnclaveRegistry, MergeReport,
+  Checkpoint, CheckpointState, CheckpointStore, CheckpointDiff,
+  VectorClock, CRDTOperation, CRDTState, ApplyResult,
+} from './infrastructure.js';
+// Discovery (Introspection, Virtual Layer, Metagraph, Marketplace)
+export {
+  createIntrospectionAgent, introspectJson, introspectCsv, introspectRdf, introspectApi, applyIntrospection,
+  createVirtualLayer, registerReference, resolveReference, invalidateCache, virtualLayerStats,
+  generateMetagraph, ingestMetagraph, validateMetagraph, queryMetagraph,
+  createMarketplace, registerListing, removeListing, discoverByCapability, discoverByType,
+  refreshListing, marketplaceToHydra, marketplaceStats,
+} from './discovery.js';
+export type {
+  DataSource, IntrospectionResult, DiscoveredSchema, DiscoveredEntity, DiscoveredRelationship,
+  VirtualReference, VirtualLayerConfig, VirtualLayer,
+  MetagraphDescriptor,
+  MarketplaceListing, MarketplaceOperation, Marketplace,
+} from './discovery.js';
 // Progressive persistence
 export {
   createPersistenceRegistry,
