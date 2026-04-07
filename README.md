@@ -79,7 +79,7 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │   ├── multi-agent/  Team audit + TLA/xAPI/LERS demo + Coherence demo
 │   └── pgsl-browser/ 8-tab observatory (Federation, Descriptors, Trust, Composition, SPARQL, SHACL, Coherence, Decisions)
 ├── benchmarks/       LongMemEval (89.2% agentic, 92.4% raw) evaluation suite
-└── tests/            384 tests across 15 suites
+└── tests/            608 tests across 19 suites
 ```
 
 ### Design Principles
@@ -102,7 +102,7 @@ git clone https://github.com/markjspivey-xwisee/context-graphs.git
 cd context-graphs
 npm install
 npm run build
-npm test  # 384 tests
+npm test  # 608 tests
 ```
 
 ### Build a Context Descriptor
@@ -625,7 +625,7 @@ Deploys: CSS (Solid server), Dashboard (observation UI), MCP Relay (HTTP bridge)
 ```bash
 npm install
 npm run build        # TypeScript → dist/
-npm test             # 384 tests across 15 suites
+npm test             # 608 tests across 19 suites
 npm run test:watch   # Watch mode
 ```
 
@@ -648,6 +648,10 @@ npm run test:watch   # Watch mode
 | `sdk-extractors.test.ts` | 17 | Category theory, semiotic functor |
 | `xapi-conformance.test.ts` | 60 | xAPI profile, IFI priority, result/context structure |
 | `pgsl-coherence.test.ts` | 9 | Coherence verification, coverage, certificates |
+| `agent-framework.test.ts` | 68 | AAT, Policy, PROV tracing, Personal Broker, AAT Decorator |
+| `infrastructure.test.ts` | 47 | Enclaves, Checkpoints, CRDT sync |
+| `discovery.test.ts` | 50 | Introspection, Virtual Layer, Metagraph, Marketplace |
+| `multi-agent-integration.test.ts` | 59 | 8 scenarios: AAT enforcement, enclave merge, CRDT sync, full pipeline |
 
 ---
 
