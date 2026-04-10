@@ -269,7 +269,16 @@ function answer(
     );
 
     if (/not found|not mentioned|not discussed/i.test(dateExtraction)) {
-      return { answer: 'The information provided is not enough to answer this question.', method: 'pgsl-duration-abstain', reasoning: 'Item not found in sessions' };
+      // Double-check: only abstain if PGSL index also shows low relevance
+      const topScore = ranked[0]?.score ?? 0;
+      if (topScore < 2) {
+        return { answer: 'The information provided is not enough to answer this question.', method: 'pgsl-duration-abstain', reasoning: 'Item not found in sessions (confirmed by low index overlap)' };
+      }
+      // PGSL shows relevance but LLM said NOT FOUND — try fallback read
+      const fallbackRead = llm(
+        `${allSorted}\n\n${questionDate ? `Question date: ${questionDate}.` : ''}\n\nQuestion: ${question}\n\nAnswer concisely:`
+      );
+      return { answer: fallbackRead, method: 'pgsl-duration-fallback-read', reasoning: 'Duration abstain overridden by high index relevance' };
     }
 
     const dateMatches = dateExtraction.match(/\d{4}-\d{2}-\d{2}/g) || [];
