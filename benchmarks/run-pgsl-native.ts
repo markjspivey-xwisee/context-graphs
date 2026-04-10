@@ -254,9 +254,14 @@ function answer(
     const questionDateParsed = questionDate ? parseDate(questionDate.split(' ')[0]!.replace(/\//g, '-') ?? '') : null;
 
     // Call 1: Extract the two dates
+    // IMPORTANT: If the question asks about something NOT mentioned in sessions, abstain
     const dateExtraction = llm(
-      `Find the TWO dates this question asks about. Return YYYY-MM-DD for each.\n\nRules:\n- If relative ("a month ago", "last week"), compute from the session date.\n- If "ago" in the question, the second date is the question date: ${questionDate ?? 'unknown'}.\n- If only a month name is given (e.g., "in June"), use YYYY-MM-01.${dateContext}\n\n${allSorted}\n\nQuestion: ${question}\n\nDate 1 (YYYY-MM-DD):\nDate 2 (YYYY-MM-DD):`
+      `Find the TWO dates this question asks about. Return YYYY-MM-DD for each.\n\nRules:\n- If relative ("a month ago", "last week"), compute from the session date.\n- If "ago" in the question, the second date is the question date: ${questionDate ?? 'unknown'}.\n- If only a month name is given (e.g., "in June"), use YYYY-MM-01.\n- If the question mentions something NOT discussed in the sessions (e.g., asks about "iPad" but sessions only mention "iPhone"), say NOT FOUND instead of dates.${dateContext}\n\n${allSorted}\n\nQuestion: ${question}\n\nDate 1 (YYYY-MM-DD or NOT FOUND):\nDate 2 (YYYY-MM-DD or NOT FOUND):`
     );
+
+    if (/not found|not mentioned|not discussed/i.test(dateExtraction)) {
+      return { answer: 'The information provided is not enough to answer this question.', method: 'pgsl-duration-abstain', reasoning: 'Item not found in sessions' };
+    }
 
     const dateMatches = dateExtraction.match(/\d{4}-\d{2}-\d{2}/g) || [];
     // For "ago" questions, force second date to question date
