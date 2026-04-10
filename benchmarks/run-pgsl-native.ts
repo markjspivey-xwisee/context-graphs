@@ -238,6 +238,15 @@ function answer(
     return { answer: finalName, method: 'pgsl-temporal-first', reasoning: 'Single-call which-first' };
   }
 
+  // ── SUM of days/hours (not between two dates, but total across events) ──
+  if (/how many (days|hours).*(?:spend|spent|total|did I.*on)/i.test(question) && !/between|before|after|ago|since|passed/i.test(question)) {
+    const sumAnswer = llm(
+      `${allSorted}\n\nQuestion: ${question}\n\nThis asks for a TOTAL — add up all relevant amounts. List each one with its value, then compute the sum. Give ONLY the final number and unit on the last line:`
+    );
+    const lastLine = sumAnswer.split('\n').filter(l => l.trim().length > 0).pop() ?? sumAnswer;
+    return { answer: lastLine.replace(/\*\*/g, '').trim(), method: 'pgsl-sum-days', reasoning: 'Sum of days/hours across events' };
+  }
+
   // ── TEMPORAL: "how many days/weeks/months" or "how long [did/did it take]" ──
   // Note: "how long have I been working" without two specific events → falls through to general read
   if (/how many (days|weeks|months|years)/i.test(question) || /how long (?:did it take|did I take|had I been.*(?:when|before|after|until))/i.test(question)) {
