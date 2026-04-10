@@ -224,11 +224,17 @@ function answer(
   // ── TEMPORAL: "which first" (two items) ──
   if (/which.*first|which.*before|which.*earlier|which.*start.*first/i.test(question) && !/what was the date|when did/i.test(question)) {
     const verb = question.match(/did I (\w+)/i)?.[1] ?? 'do';
+
+    // Include abstention instruction in the prompt itself
     const whichFirstAnswer = llm(
-      `Read the sessions. Find when the user ${verb} each of the two things asked about.\n\nIMPORTANT:\n- "pre-ordered" or "ordered" ≠ "got" or "received". Match the verb "${verb}" precisely.\n- If a date is relative ("a month ago", "last week", "14 days ago"), compute the actual date from the SESSION date (shown in parentheses).\n- Quote the relevant sentence for each item.\n\n${allSorted}\n\nQuestion: ${question}\n\nFor each item, state: item name → date (with quote). Then which happened first.\nAnswer with ONLY the name on the final line:`
+      `Read the sessions. Find when the user ${verb} each of the two things asked about.\n\nIMPORTANT:\n- "pre-ordered" or "ordered" ≠ "got" or "received". Match the verb "${verb}" precisely.\n- If a date is relative ("a month ago", "last week", "14 days ago"), compute the actual date from the SESSION date (shown in parentheses).\n- If ONE of the two items is NOT mentioned at all in any session, say "The information provided is not enough to answer this question."\n- If the question contains minor inaccuracies (wrong gender, slightly different name), still answer based on the closest match.\n- Quote the relevant sentence for each item.\n\n${allSorted}\n\nQuestion: ${question}\n\nFor each item, state: item name → date (with quote). If an item isn't found, say NOT FOUND.\nThen which happened first (or abstain if one is NOT FOUND).\nAnswer with ONLY the name (or abstention) on the final line:`
     );
     const lines = whichFirstAnswer.split('\n').filter(l => l.trim().length > 0);
     let finalName = lines[lines.length - 1]?.replace(/\*\*/g, '').replace(/^(Answer|Which)[:\s]*/i, '').trim() ?? whichFirstAnswer;
+    // Check if the answer is an abstention
+    if (/not enough|not found|cannot determine|insufficient/i.test(finalName)) {
+      finalName = 'The information provided is not enough to answer this question.';
+    }
     return { answer: finalName, method: 'pgsl-temporal-first', reasoning: 'Single-call which-first' };
   }
 
