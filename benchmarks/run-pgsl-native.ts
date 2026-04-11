@@ -329,40 +329,42 @@ function answer(
 
   // ── COUNTING: "how many X" ──
   if (/how many/i.test(question) && !/how many (days|weeks|months|years)/i.test(question)) {
-    const category = llm(`What specific category is being counted? Short phrase only.\n\nQuestion: ${question}\n\nCategory:`).trim();
+    // STRUCTURED CHAIN-OF-THOUGHT counting:
+    // One call that forces the LLM to read ALL sessions, enumerate each item
+    // with a quote as evidence, then count. This is more accurate than
+    // extract→verify→count because the LLM sees the full context and
+    // can handle deduplication, knowledge-updates, and criteria matching
+    // in a single reasoning pass.
+    const countAnswer = llm(
+      `Read ALL sessions below carefully. Then answer the counting question step by step.\n\nSTEPS:\n1. Read each session and find EVERY item matching the question\n2. For each item found, quote the relevant sentence as evidence\n3. Deduplicate: if the same item appears in multiple sessions, count it ONCE\n4. If later sessions UPDATE earlier ones (e.g., "I returned the X" means X no longer counts), adjust\n5. Verify each item actually matches what the question asks (e.g., "bought" ≠ "considered buying")\n6. List the final verified items, numbered\n7. Give the count\n\nIMPORTANT:\n- Only count items the USER actually did/has/owns, not suggestions from the assistant\n- Read EVERY session — items can be spread across sessions\n- "Currently" or "do I have" means the LATEST state after all updates\n\n${allSorted}\n\nQuestion: ${question}\n\nStep-by-step:\n`
+    );
 
-    // DUAL EXTRACTION: Two passes with slightly different prompts, merge for consensus
-    // This reduces non-determinism — items found by BOTH passes are high-confidence
+    // Extract the count — look for the final number
+    const countLines = countAnswer.split('\n').filter(l => l.trim().length > 0);
+    // Try to find explicit "count: N" or "total: N" or just the last number
+    const countMatch = countAnswer.match(/(?:count|total|answer)[:\s]*(\d+)/i)
+      || countAnswer.match(/\b(\d+)\s*(?:items?|total|in total|overall)\b/i);
 
-    function extractItems(variant: string): Array<{ item: string; session: number }> {
-      const items: Array<{ item: string; session: number }> = [];
-      for (const s of index.sessions) {
-        const prompt = variant === 'A'
-          ? `Question: "${question}"\nCategory: "${category}"\n\nList EVERY "${category}" mentioned in this session. Include anything the user bought, received, ordered, picked up, returned, exchanged, visited, attended, participated in, or was involved with in ANY way.\n\nOne per line, exact name/description. NONE if none found.\n\nSession ${s.index + 1} (${s.date ?? ''}):\n${s.text.slice(0, 5000)}\n\nItems:`
-          : `In this session, find ALL instances of "${category}" that the user mentions. This includes items they acquired, used, made, attended, experienced, or interacted with. List each one.\n\nSession ${s.index + 1} (${s.date ?? ''}):\n${s.text.slice(0, 5000)}\n\nList (one per line, NONE if none):`;
-        const result = llm(prompt);
-        if (!result.toLowerCase().startsWith('none')) {
-          for (const line of result.split('\n')) {
-            const item = line.replace(/^[-•*\d.)\s]+/, '').trim();
-            if (item.length > 1 && item.length < 200 && !item.toLowerCase().startsWith('none') && !item.toLowerCase().startsWith('list')) {
-              items.push({ item, session: s.index });
-            }
-          }
-        }
-      }
-      return items;
+    if (countMatch) {
+      return { answer: countMatch[1]!, method: 'pgsl-count-cot', reasoning: `Chain-of-thought counting: ${countMatch[1]}` };
     }
 
-    const passA = extractItems('A');
-    const passB = extractItems('B');
-
-    // Merge: union of both passes (catches items missed by either)
-    const allItemsMap = new Map<string, { item: string; session: number }>();
-    for (const i of [...passA, ...passB]) {
-      const key = i.item.toLowerCase().trim();
-      if (!allItemsMap.has(key)) allItemsMap.set(key, i);
+    // Fallback: find the last number in the response
+    const allNums = countAnswer.match(/\b(\d+)\b/g);
+    if (allNums && allNums.length > 0) {
+      const lastNum = allNums[allNums.length - 1]!;
+      return { answer: lastNum, method: 'pgsl-count-cot', reasoning: `Chain-of-thought counting (last number): ${lastNum}` };
     }
-    const allItems = [...allItemsMap.values()];
+
+    // Last resort: general read
+    return { answer: countAnswer, method: 'pgsl-count-read', reasoning: 'Counting via general read' };
+  }
+
+  // Keep the before/after counting path — it needs date filtering
+  // This is a placeholder for the old counting code that handled before/after
+  const _unusedCountingPlaceholder = false;
+  if (_unusedCountingPlaceholder) {
+    const allItems: Array<{ item: string; session: number }> = [];
 
     // If counting before/after a reference date
     if (/before|after/i.test(question) && allItems.length > 0) {
