@@ -509,7 +509,13 @@ function answer(
     const prefAnswer = llm(
       `You previously had this conversation with a user. Now they're asking a NEW question (below). Based ONLY on what was discussed in the previous conversation, what SPECIFIC DOMAIN PREFERENCES should guide your response?\n\nFocus on:\n- What specific tools/brands/products/technologies they mentioned using or discussing\n- What specific topics/areas they expressed interest in\n- What level of expertise they demonstrated\n- What they explicitly said they liked or disliked\n- What specific context (their situation, constraints, goals) should shape recommendations\n- What types of recommendations they would NOT want (too generic, wrong domain, wrong level)\n\nDO NOT describe communication style preferences. Focus on CONTENT/DOMAIN preferences.${topicHint}\n\nPrevious conversation:\n${allSorted}\n\nNew question: ${question}\n\nThe user would prefer responses that`
     );
-    const cleaned = prefAnswer.startsWith('The user would prefer') ? prefAnswer : `The user would prefer ${prefAnswer}`;
+    // Clean: ensure it starts with "The user would prefer responses that" and isn't too verbose
+    let cleaned = prefAnswer;
+    // Remove any preamble before the actual preferences
+    cleaned = cleaned.replace(/^(Based on|From|Looking at|In|After|Here are)[^.]*[.,]\s*/i, '');
+    if (!cleaned.toLowerCase().startsWith('the user would prefer')) {
+      cleaned = `The user would prefer responses that ${cleaned}`;
+    }
     return { answer: cleaned, method: 'pgsl-preference', reasoning: 'Preference inference' };
   }
 
