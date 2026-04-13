@@ -1,0 +1,247 @@
+@prefix pgsl:  <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix vann:  <http://purl.org/vocab/vann/> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+
+# ══════════════════════════════════════════════════════════════
+#  PGSL 1.0 SHACL Shapes
+# ══════════════════════════════════════════════════════════════
+#
+#  These shapes validate that a PGSL serialization is structurally
+#  sound:
+#    - Atoms have exactly one value and level=0
+#    - Fragments have level ≥ 1, ≥ 1 item, and a non-empty itemList
+#    - Pullback squares commute (apex, leftConstituent,
+#      rightConstituent, overlap all required and class-typed)
+#    - Constituent morphisms are well-formed source→target arrows
+#    - Every node carries the PROV provenance triples
+#
+#  Shapes are exported from the library at runtime via the
+#  pgslShaclShapes() function in src/pgsl/rdf.ts. This static
+#  file is the authoritative version.
+# ══════════════════════════════════════════════════════════════
+
+<https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl-shapes#>
+    a owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    dct:title "PGSL 1.0 SHACL Shapes" ;
+    dct:description "SHACL validation shapes for PGSL serializations. Enforces atom/fragment invariants, pullback square commutativity, and required PROV-O provenance triples." ;
+    dct:license <https://creativecommons.org/licenses/by/4.0/> ;
+    dct:created "2026-04-13"^^xsd:date ;
+    rdfs:seeAlso <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .
+
+# ══════════════════════════════════════════════════════════════
+#  Atom Shape
+# ══════════════════════════════════════════════════════════════
+
+pgsl:AtomShape a sh:NodeShape ;
+    sh:targetClass pgsl:Atom ;
+    rdfs:comment "An Atom must have exactly one primitive value, level=0, and full PROV provenance." ;
+
+    sh:property [
+        sh:path pgsl:value ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "value" ;
+        sh:description "The primitive value. Required, exactly one." ;
+        sh:message "An Atom must have exactly one pgsl:value."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:level ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:hasValue "0"^^xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "level" ;
+        sh:description "Atoms are level-0 by definition." ;
+        sh:message "An Atom must have pgsl:level = 0."
+    ] ;
+
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "provenance attribution" ;
+        sh:message "Every Atom must carry a prov:wasAttributedTo agent."
+    ] ;
+
+    sh:property [
+        sh:path prov:generatedAtTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:name "provenance timestamp" ;
+        sh:message "Every Atom must carry exactly one prov:generatedAtTime."
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Fragment Shape
+# ══════════════════════════════════════════════════════════════
+
+pgsl:FragmentShape a sh:NodeShape ;
+    sh:targetClass pgsl:Fragment ;
+    rdfs:comment "A Fragment must have level ≥ 1, at least one item, an ordered itemList, and full PROV provenance." ;
+
+    sh:property [
+        sh:path pgsl:level ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minInclusive 1 ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "level ≥ 1" ;
+        sh:message "A Fragment must have pgsl:level ≥ 1."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:height ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minInclusive 0 ;
+        sh:maxCount 1 ;
+        sh:name "height" ;
+        sh:description "Topological depth from the root (optional but at most one)."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:item ;
+        sh:minCount 1 ;
+        sh:class pgsl:Node ;
+        sh:name "items" ;
+        sh:message "A Fragment must contain at least one pgsl:item."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:itemList ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "itemList" ;
+        sh:description "The canonical ordered RDF list of constituents."
+    ] ;
+
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "provenance attribution" ;
+        sh:message "Every Fragment must carry a prov:wasAttributedTo agent."
+    ] ;
+
+    sh:property [
+        sh:path prov:generatedAtTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:name "provenance timestamp" ;
+        sh:message "Every Fragment must carry exactly one prov:generatedAtTime."
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Pullback Square Shape
+# ══════════════════════════════════════════════════════════════
+#
+#  A pullback square has four required corners. We require exactly
+#  one of each because a pullback square is a categorical universal
+#  construction — its components are uniquely determined.
+
+pgsl:PullbackSquareShape a sh:NodeShape ;
+    sh:targetClass pgsl:PullbackSquare ;
+    rdfs:comment "A pullback square encodes the overlapping pair construction. All four corners (apex, left, right, overlap) are required and uniquely determined." ;
+
+    sh:property [
+        sh:path pgsl:apex ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Fragment ;
+        sh:name "apex fragment" ;
+        sh:message "A PullbackSquare must have exactly one apex Fragment."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:leftConstituent ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Fragment ;
+        sh:name "left constituent" ;
+        sh:message "A PullbackSquare must have exactly one leftConstituent."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:rightConstituent ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Fragment ;
+        sh:name "right constituent" ;
+        sh:message "A PullbackSquare must have exactly one rightConstituent."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:overlap ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Node ;
+        sh:name "overlap region" ;
+        sh:message "A PullbackSquare must have exactly one overlap Node."
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Constituent Morphism Shape
+# ══════════════════════════════════════════════════════════════
+
+pgsl:ConstituentMorphismShape a sh:NodeShape ;
+    sh:targetClass pgsl:ConstituentMorphism ;
+    rdfs:comment "A constituent morphism is an arrow source→target where the source is a node included in the target fragment." ;
+
+    sh:property [
+        sh:path pgsl:source ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Node ;
+        sh:name "source" ;
+        sh:message "A ConstituentMorphism must have exactly one source Node."
+    ] ;
+
+    sh:property [
+        sh:path pgsl:target ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class pgsl:Fragment ;
+        sh:name "target" ;
+        sh:message "A ConstituentMorphism must have exactly one target Fragment."
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Lattice Shape
+# ══════════════════════════════════════════════════════════════
+
+pgsl:LatticeShape a sh:NodeShape ;
+    sh:targetClass pgsl:Lattice ;
+    rdfs:comment "A Lattice resource exposes summary statistics for retrieval scoring and SPARQL queries." ;
+
+    sh:property [
+        sh:path pgsl:atomCount ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "atom count"
+    ] ;
+
+    sh:property [
+        sh:path pgsl:fragmentCount ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "fragment count"
+    ] ;
+
+    sh:property [
+        sh:path pgsl:maxLevel ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "max level"
+    ] .

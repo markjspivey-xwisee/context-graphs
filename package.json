@@ -36,6 +36,7 @@
   "files": [
     "dist/",
     "src/",
+    "docs/ns/",
     "README.md",
     "LICENSE"
   ],
