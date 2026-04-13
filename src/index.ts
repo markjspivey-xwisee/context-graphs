@@ -403,6 +403,17 @@ export {
   registerDecorator,
   removeDecorator,
   decorateNode,
+  // Static ontology loaders (Node-only — reads docs/ns/*.ttl)
+  loadOntology,
+  loadFullOntology,
+  loadFullShapes,
+  getOntologyManifest,
+  ONTOLOGY_MANIFEST,
+} from './pgsl/index.js';
+
+export type {
+  OntologyName,
+  OntologyManifestEntry,
 } from './pgsl/index.js';
 
 export type {

@@ -141,6 +141,18 @@ export type {
   AdvancedTemporalResult,
 } from './advanced-temporal.js';
 export { signNode, verifyNodeSignature, ensureBuilt } from './lattice.js';
+// Static ontology loaders (Node-only — reads the authoritative .ttl files in docs/ns/)
+export {
+  loadOntology,
+  loadFullOntology,
+  loadFullShapes,
+  getOntologyManifest,
+  ONTOLOGY_MANIFEST,
+} from './static-ontology.js';
+export type {
+  OntologyName,
+  OntologyManifestEntry,
+} from './static-ontology.js';
 // Coherence verification
 export {
   verifyCoherence,

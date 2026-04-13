@@ -1,0 +1,546 @@
+@prefix cgh:  <https://markjspivey-xwisee.github.io/context-graphs/ns/harness#> .
+@prefix pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+# ══════════════════════════════════════════════════════════════
+#  Context Graphs Harness 1.0 SHACL Shapes
+# ══════════════════════════════════════════════════════════════
+#
+#  Validates harness ontology instances:
+#    - AATs have at least one canPerceive AND one canAct
+#    - Policy rules have a mode + subject + action
+#    - Policy decisions reference at least one matched rule
+#    - PROV traces extend prov:Activity correctly
+#    - Runtime evals have confidence in [0,1] and a recommended action
+#    - Decorated affordances carry decorator id, trust level, confidence
+#    - Personal brokers reference an AAT
+# ══════════════════════════════════════════════════════════════
+
+<https://markjspivey-xwisee.github.io/context-graphs/ns/harness-shapes#>
+    a owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    dct:title "Context Graphs Harness 1.0 SHACL Shapes" ;
+    dct:description "SHACL validation shapes for the harness ontology." ;
+    dct:license <https://creativecommons.org/licenses/by/4.0/> ;
+    dct:created "2026-04-13"^^xsd:date ;
+    rdfs:seeAlso <https://markjspivey-xwisee.github.io/context-graphs/ns/harness#> .
+
+# ══════════════════════════════════════════════════════════════
+#  AAT Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:AbstractAgentTypeShape a sh:NodeShape ;
+    sh:targetClass cgh:AbstractAgentType ;
+    rdfs:comment "An AAT must declare at least one capability and one action it can perform. mustPreserve is optional but recommended." ;
+
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:name "label" ;
+        sh:message "Every AAT must have an rdfs:label."
+    ] ;
+
+    sh:property [
+        sh:path cgh:canPerceive ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:name "canPerceive" ;
+        sh:message "An AAT must declare at least one canPerceive capability."
+    ] ;
+
+    sh:property [
+        sh:path cgh:canAct ;
+        sh:minCount 0 ;
+        sh:datatype xsd:string ;
+        sh:name "canAct" ;
+        sh:description "May be empty for read-only AATs like Observer."
+    ] ;
+
+    sh:property [
+        sh:path cgh:maxConcurrent ;
+        sh:datatype xsd:positiveInteger ;
+        sh:maxCount 1 ;
+        sh:name "maxConcurrent"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Policy Rule Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:PolicyRuleShape a sh:NodeShape ;
+    sh:targetClass cgh:PolicyRule ;
+    rdfs:comment "A policy rule must have a deontic mode, a subject, an action, and a human-readable reason. The target is optional (defaults to '*')." ;
+
+    sh:property [
+        sh:path cgh:mode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class cgh:DeonticMode ;
+        sh:name "mode" ;
+        sh:message "A PolicyRule must have exactly one cgh:mode."
+    ] ;
+
+    sh:property [
+        sh:path cgh:subject ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:name "subject" ;
+        sh:message "A PolicyRule must have exactly one cgh:subject."
+    ] ;
+
+    sh:property [
+        sh:path cgh:action ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:name "action" ;
+        sh:message "A PolicyRule must have exactly one cgh:action."
+    ] ;
+
+    sh:property [
+        sh:path cgh:ruleTarget ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+        sh:name "ruleTarget"
+    ] ;
+
+    sh:property [
+        sh:path cgh:reason ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+        sh:name "reason"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Policy Decision Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:PolicyDecisionShape a sh:NodeShape ;
+    sh:targetClass cgh:PolicyDecision ;
+    rdfs:comment "A policy decision must have allowed (boolean), reason (string), and at least one matched rule (unless allowed=true with no rules). Modeled as a prov:Activity so PROV invariants apply." ;
+
+    sh:property [
+        sh:path cgh:allowed ;
+        sh:datatype xsd:boolean ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "allowed" ;
+        sh:message "A PolicyDecision must have exactly one cgh:allowed."
+    ] ;
+
+    sh:property [
+        sh:path cgh:reason ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "reason" ;
+        sh:message "A PolicyDecision must have exactly one cgh:reason."
+    ] ;
+
+    sh:property [
+        sh:path cgh:matchedRule ;
+        sh:class cgh:PolicyRule ;
+        sh:name "matchedRule"
+    ] ;
+
+    sh:property [
+        sh:path prov:startedAtTime ;
+        sh:datatype xsd:dateTime ;
+        sh:maxCount 1 ;
+        sh:name "startedAtTime"
+    ] ;
+
+    sh:property [
+        sh:path prov:endedAtTime ;
+        sh:datatype xsd:dateTime ;
+        sh:maxCount 1 ;
+        sh:name "endedAtTime"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  PROV Trace Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:ProvTraceShape a sh:NodeShape ;
+    sh:targetClass cgh:ProvTrace ;
+    rdfs:comment "A PROV trace must reference an agent, an AAT, an activity start time, a success flag, and either a generated entity or a used entity." ;
+
+    sh:property [
+        sh:path prov:wasAssociatedWith ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "wasAssociatedWith" ;
+        sh:message "Every ProvTrace must reference at least one prov:Agent via prov:wasAssociatedWith."
+    ] ;
+
+    sh:property [
+        sh:path cgh:agentAAT ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class cgh:AbstractAgentType ;
+        sh:name "agentAAT" ;
+        sh:message "Every ProvTrace must specify the AAT the agent was acting under."
+    ] ;
+
+    sh:property [
+        sh:path prov:startedAtTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:name "startedAtTime" ;
+        sh:message "Every ProvTrace must have prov:startedAtTime."
+    ] ;
+
+    sh:property [
+        sh:path prov:endedAtTime ;
+        sh:datatype xsd:dateTime ;
+        sh:maxCount 1 ;
+        sh:name "endedAtTime"
+    ] ;
+
+    sh:property [
+        sh:path cgh:success ;
+        sh:datatype xsd:boolean ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "success" ;
+        sh:message "Every ProvTrace must have a cgh:success flag."
+    ] ;
+
+    sh:property [
+        sh:path cgh:errorMessage ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+        sh:name "errorMessage"
+    ] ;
+
+    sh:property [
+        sh:path cgh:policyDecision ;
+        sh:class cgh:PolicyDecision ;
+        sh:maxCount 1 ;
+        sh:name "policyDecision"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Runtime Eval Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:RuntimeEvalShape a sh:NodeShape ;
+    sh:targetClass cgh:RuntimeEval ;
+    rdfs:comment "A runtime evaluation must have a confidence in [0,1], a confidence level, structural signals, a recommended action, and an explanation." ;
+
+    sh:property [
+        sh:path cgh:confidence ;
+        sh:datatype xsd:double ;
+        sh:minInclusive "0.0"^^xsd:double ;
+        sh:maxInclusive "1.0"^^xsd:double ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "confidence" ;
+        sh:message "Confidence must be a single double in [0.0, 1.0]."
+    ] ;
+
+    sh:property [
+        sh:path cgh:level ;
+        sh:class cgh:ConfidenceLevel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "level"
+    ] ;
+
+    sh:property [
+        sh:path cgh:signals ;
+        sh:class cgh:StructuralSignals ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "signals"
+    ] ;
+
+    sh:property [
+        sh:path cgh:recommendedAction ;
+        sh:class cgh:EvalAction ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "recommendedAction"
+    ] ;
+
+    sh:property [
+        sh:path cgh:retryStrategy ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+        sh:name "retryStrategy"
+    ] ;
+
+    sh:property [
+        sh:path cgh:explanation ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "explanation"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Structural Signals Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:StructuralSignalsShape a sh:NodeShape ;
+    sh:targetClass cgh:StructuralSignals ;
+    rdfs:comment "Structural signals must include the four required numeric inputs and the question type / strategy / abstention flag." ;
+
+    sh:property [
+        sh:path cgh:sessionsMatched ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:sessionsTotal ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:topRetrievalScore ;
+        sh:datatype xsd:double ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:sharedAtoms ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:questionType ;
+        sh:class cgh:QuestionType ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:strategyUsed ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:isAbstention ;
+        sh:datatype xsd:boolean ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Decorated Affordance Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:DecoratedAffordanceShape a sh:NodeShape ;
+    sh:targetClass cgh:DecoratedAffordance ;
+    rdfs:comment "A decorated affordance must reference its producing decorator and carry trust level + confidence." ;
+
+    sh:property [
+        sh:path cgh:decoratorId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "decoratorId"
+    ] ;
+
+    sh:property [
+        sh:path cgh:decoratorName ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "decoratorName"
+    ] ;
+
+    sh:property [
+        sh:path cgh:trustLevel ;
+        sh:class cgh:TrustLevel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "trustLevel"
+    ] ;
+
+    sh:property [
+        sh:path cgh:confidence ;
+        sh:datatype xsd:double ;
+        sh:minInclusive "0.0"^^xsd:double ;
+        sh:maxInclusive "1.0"^^xsd:double ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "confidence"
+    ] ;
+
+    sh:property [
+        sh:path cgh:rationale ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+        sh:name "rationale"
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Affordance Decorator Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:AffordanceDecoratorShape a sh:NodeShape ;
+    sh:targetClass cgh:AffordanceDecorator ;
+
+    sh:property [
+        sh:path cgh:decoratorId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:domain ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:trustLevel ;
+        sh:class cgh:TrustLevel ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:priority ;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Decision Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:DecisionShape a sh:NodeShape ;
+    sh:targetClass cgh:Decision ;
+    rdfs:comment "A decision must reference an affordance, have a confidence in [0,1], and provide a justification." ;
+
+    sh:property [
+        sh:path cgh:hasAffordance ;
+        sh:class cgh:Affordance ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:confidence ;
+        sh:datatype xsd:double ;
+        sh:minInclusive "0.0"^^xsd:double ;
+        sh:maxInclusive "1.0"^^xsd:double ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:justification ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Decision Result Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:DecisionResultShape a sh:NodeShape ;
+    sh:targetClass cgh:DecisionResult ;
+
+    sh:property [
+        sh:path cgh:strategy ;
+        sh:class cgh:DecisionStrategy ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path cgh:coverage ;
+        sh:datatype xsd:double ;
+        sh:minInclusive "0.0"^^xsd:double ;
+        sh:maxInclusive "1.0"^^xsd:double ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Personal Broker Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:PersonalBrokerShape a sh:NodeShape ;
+    sh:targetClass cgh:PersonalBroker ;
+    rdfs:comment "A personal broker must reference an AAT and a presence status." ;
+
+    sh:property [
+        sh:path cgh:agentAAT ;
+        sh:class cgh:AbstractAgentType ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+
+    sh:property [
+        sh:path cgh:presence ;
+        sh:class cgh:PresenceStatus ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Conversation Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:ConversationShape a sh:NodeShape ;
+    sh:targetClass cgh:Conversation ;
+
+    sh:property [
+        sh:path cgh:participant ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:name "participant" ;
+        sh:message "A conversation must have at least one participant."
+    ] ;
+
+    sh:property [
+        sh:path prov:startedAtTime ;
+        sh:datatype xsd:dateTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+# ══════════════════════════════════════════════════════════════
+#  Conversation Message Shape
+# ══════════════════════════════════════════════════════════════
+
+cgh:ConversationMessageShape a sh:NodeShape ;
+    sh:targetClass cgh:ConversationMessage ;
+
+    sh:property [
+        sh:path prov:wasAttributedTo ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "from"
+    ] ;
+
+    sh:property [
+        sh:path rdf:value ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "content"
+    ] ;
+
+    sh:property [
+        sh:path prov:generatedAtTime ;
+        sh:datatype xsd:dateTime ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "timestamp"
+    ] .
