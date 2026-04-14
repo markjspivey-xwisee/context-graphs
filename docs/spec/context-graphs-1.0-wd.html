@@ -46,54 +46,54 @@
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   th, td { border: 1px solid #ccc; padding: 0.5em 0.75em; text-align: left; font-size: 0.93em; }
   th { background: #E8EAF6; font-weight: 600; }
-  .header-block {
+.header-block {
     background: linear-gradient(135deg, #E8EAF6 0%, #C5CAE9 100%);
     border: 2px solid var(--w3c-blue);
     padding: 1.5em 2em;
     margin-bottom: 2em;
     border-radius: 4px;
   }
-  .header-block h1 { border: none; margin: 0 0 0.3em 0; }
-  .header-block .subtitle { font-size: 1.1em; color: #555; margin: 0.2em 0; }
-  .header-block dl { margin: 0.8em 0 0 0; }
-  .header-block dt { font-weight: 600; color: var(--w3c-dark); display: inline; }
-  .header-block dd { display: inline; margin: 0 1.5em 0 0.3em; }
-  .note, .example, .issue, .advisement, .definition {
+.header-block h1 { border: none; margin: 0 0 0.3em 0; }
+.header-block.subtitle { font-size: 1.1em; color: #555; margin: 0.2em 0; }
+.header-block dl { margin: 0.8em 0 0 0; }
+.header-block dt { font-weight: 600; color: var(--w3c-dark); display: inline; }
+.header-block dd { display: inline; margin: 0 1.5em 0 0.3em; }
+.note,.example,.issue,.advisement,.definition {
     padding: 1em 1.2em;
     margin: 1.2em 0;
     border-radius: 4px;
     border-left: 5px solid;
   }
-  .note { background: var(--note-bg); border-color: var(--note-border); }
-  .example { background: var(--example-bg); border-color: var(--example-border); }
-  .issue { background: var(--issue-bg); border-color: var(--issue-border); }
-  .advisement { background: var(--warn-bg); border-color: var(--warn-border); }
-  .definition { background: var(--def-bg); border-color: var(--def-border); }
-  .note::before { content: "NOTE: "; font-weight: 700; color: var(--note-border); }
-  .example::before { content: "EXAMPLE: "; font-weight: 700; color: var(--example-border); }
-  .issue::before { content: "ISSUE: "; font-weight: 700; color: var(--issue-border); }
-  .advisement::before { content: "IMPORTANT: "; font-weight: 700; color: var(--warn-border); }
-  .definition::before { content: "DEFINITION: "; font-weight: 700; color: var(--def-border); }
-  .rfc2119 { font-variant: small-caps; font-weight: bold; }
-  .toc { background: #fafafa; border: 1px solid #ddd; padding: 1em 1.5em; margin: 1.5em 0; border-radius: 4px; }
-  .toc h2 { border: none; margin: 0 0 0.5em 0; font-size: 1.2em; }
-  .toc h2::before { content: ""; }
-  .toc ol { margin: 0; padding-left: 1.5em; }
-  .toc li { margin: 0.2em 0; }
-  .toc ol ol { padding-left: 1.2em; }
-  .prefix-table td:first-child { font-family: monospace; white-space: nowrap; }
-  .prefix-table td:nth-child(2) { font-family: monospace; font-size: 0.85em; word-break: break-all; }
-  .term { font-weight: 600; font-style: italic; color: var(--w3c-dark); }
-  .conformance-keyword { font-variant: small-caps; }
+.note { background: var(--note-bg); border-color: var(--note-border); }
+.example { background: var(--example-bg); border-color: var(--example-border); }
+.issue { background: var(--issue-bg); border-color: var(--issue-border); }
+.advisement { background: var(--warn-bg); border-color: var(--warn-border); }
+.definition { background: var(--def-bg); border-color: var(--def-border); }
+.note::before { content: "NOTE: "; font-weight: 700; color: var(--note-border); }
+.example::before { content: "EXAMPLE: "; font-weight: 700; color: var(--example-border); }
+.issue::before { content: "ISSUE: "; font-weight: 700; color: var(--issue-border); }
+.advisement::before { content: "IMPORTANT: "; font-weight: 700; color: var(--warn-border); }
+.definition::before { content: "DEFINITION: "; font-weight: 700; color: var(--def-border); }
+.rfc2119 { font-variant: small-caps; font-weight: bold; }
+.toc { background: #fafafa; border: 1px solid #ddd; padding: 1em 1.5em; margin: 1.5em 0; border-radius: 4px; }
+.toc h2 { border: none; margin: 0 0 0.5em 0; font-size: 1.2em; }
+.toc h2::before { content: ""; }
+.toc ol { margin: 0; padding-left: 1.5em; }
+.toc li { margin: 0.2em 0; }
+.toc ol ol { padding-left: 1.2em; }
+.prefix-table td:first-child { font-family: monospace; white-space: nowrap; }
+.prefix-table td:nth-child(2) { font-family: monospace; font-size: 0.85em; word-break: break-all; }
+.term { font-weight: 600; font-style: italic; color: var(--w3c-dark); }
+.conformance-keyword { font-variant: small-caps; }
   dl.spec-terms dt { font-weight: 700; margin-top: 0.8em; }
   dl.spec-terms dd { margin-left: 1.5em; }
-  .figure { text-align: center; margin: 1.5em 0; }
-  .figure img { max-width: 100%; }
-  .figure figcaption { font-style: italic; color: #666; margin-top: 0.5em; }
-  .back-ref { font-size: 0.85em; color: #888; }
+.figure { text-align: center; margin: 1.5em 0; }
+.figure img { max-width: 100%; }
+.figure figcaption { font-style: italic; color: #666; margin-top: 0.5em; }
+.back-ref { font-size: 0.85em; color: #888; }
   hr { border: none; border-top: 2px solid #E0E0E0; margin: 2.5em 0; }
-  .abstract { border: 1px solid #ccc; background: #fafafa; padding: 1em 1.5em; margin: 1em 0; border-radius: 4px; }
-  .status { border: 1px solid #B39DDB; background: #F3E5F5; padding: 1em 1.5em; margin: 1em 0; border-radius: 4px; }
+.abstract { border: 1px solid #ccc; background: #fafafa; padding: 1em 1.5em; margin: 1em 0; border-radius: 4px; }
+.status { border: 1px solid #B39DDB; background: #F3E5F5; padding: 1em 1.5em; margin: 1em 0; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -105,16 +105,16 @@
 <div class="header-block">
   <h1>Context Graphs 1.0</h1>
   <p class="subtitle">A Compositional Framework for Typed Graph Contexts on the Web</p>
-  <p class="subtitle">Foxxi Mediums Inc. — Specification Draft — 17 March 2026</p>
+  <p class="subtitle">Specification Draft — 17 March 2026</p>
   <dl>
     <dt>This version:</dt>
-    <dd><a href="https://spec.foxximediums.com/context-graphs/2026/WD-20260317/">https://spec.foxximediums.com/context-graphs/2026/WD-20260317/</a></dd><br>
+    <dd><a href="https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html/">https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html/</a></dd><br>
     <dt>Latest published version:</dt>
-    <dd><a href="https://spec.foxximediums.com/context-graphs/">https://spec.foxximediums.com/context-graphs/</a></dd><br>
+    <dd><a href="https://markjspivey-xwisee.github.io/context-graphs/spec/">https://markjspivey-xwisee.github.io/context-graphs/spec/</a></dd><br>
     <dt>Author:</dt>
-    <dd>Mark Spivey (<a href="https://foxximediums.com">Foxxi Mediums Inc.</a>) &lt;<a href="mailto:mark.spivey@xwisee.com">mark.spivey@xwisee.com</a>&gt;</dd><br>
+    <dd>Mark Spivey &lt;<a href="mailto:mark.spivey@xwisee.com">mark.spivey@xwisee.com</a>&gt;</dd><br>
     <dt>Repository:</dt>
-    <dd><a href="https://github.com/foxximediums/context-graphs">GitHub foxximediums/context-graphs</a></dd>
+    <dd><a href="https://github.com/markjspivey-xwisee/context-graphs">github.com/markjspivey-xwisee/context-graphs</a></dd>
   </dl>
 </div>
 
@@ -145,7 +145,7 @@
     <em>This section describes the status of this document at the time of its publication.</em>
   </p>
   <p>
-    This document is an independent specification published by Foxxi Mediums Inc. It is written
+    This document is an independent specification published by  It is written
     in the style of a W3C Technical Report and extensively profiles and reuses W3C Recommendations,
     but it is <strong>not</strong> a product of any W3C Working Group and does not carry W3C
     endorsement or Recommendation status. References to W3C specifications throughout this
@@ -158,7 +158,7 @@
   </p>
   <p>
     Comments on this specification are welcome. Please file issues on the
-    <a href="https://github.com/foxximediums/context-graphs/issues">GitHub repository</a>.
+    <a href="https://github.com/markjspivey-xwisee/context-graphs/issues">GitHub repository</a>.
   </p>
 </div>
 
@@ -489,7 +489,7 @@
 
 <pre><code>&lt;urn:cg:descriptor:42&gt; a cg:ContextDescriptor ;
     cg:describes &lt;urn:graph:observations-2026-Q1&gt; ;
-    cg:describes &lt;urn:graph:observations-2026-Q2&gt; .</code></pre>
+    cg:describes &lt;urn:graph:observations-2026-Q2&gt;.</code></pre>
 
 <p>
   A single Context Descriptor <span class="rfc2119">MAY</span> describe multiple Named Graphs
@@ -526,7 +526,7 @@
 <pre><code>&lt;urn:cg:composed:1&gt; a cg:ComposedDescriptor ;
     cg:compositionOp cg:union ;
     cg:operand &lt;urn:cg:descriptor:A&gt; ;
-    cg:operand &lt;urn:cg:descriptor:B&gt; .</code></pre>
+    cg:operand &lt;urn:cg:descriptor:B&gt;.</code></pre>
 
 <h4 id="intersection-op">Intersection (<code>cg:intersection</code>)</h4>
 
@@ -550,7 +550,7 @@
     cg:compositionOp cg:restriction ;
     cg:operand &lt;urn:cg:descriptor:A&gt; ;
     cg:restrictToType cg:Provenance ;
-    cg:restrictToType cg:Temporal .</code></pre>
+    cg:restrictToType cg:Temporal.</code></pre>
 
 <h4 id="override-op">Override (<code>cg:override</code>)</h4>
 
@@ -586,12 +586,12 @@
 &lt;urn:cg:desc:1&gt; a cg:ContextDescriptor ;
     cg:describes &lt;urn:graph:G1&gt; ;
     cg:hasFacet [ a cg:TemporalFacet ;
-        cg:validFrom "2026-01-01T00:00:00Z"^^xsd:dateTime ] .
+        cg:validFrom "2026-01-01T00:00:00Z"^^xsd:dateTime ].
 
 # Triple-level context override (RDF 1.2 triple term)
 &lt;&lt; &lt;urn:sensor:7&gt; &lt;urn:vocab:reading&gt; "42.3"^^xsd:double &gt;&gt;
     cg:hasFacet [ a cg:TemporalFacet ;
-        cg:validFrom "2026-03-15T14:30:00Z"^^xsd:dateTime ] .</code></pre>
+        cg:validFrom "2026-03-15T14:30:00Z"^^xsd:dateTime ].</code></pre>
 
 <p>
   <strong>Inheritance rule:</strong> When a triple within a Named Graph has its own triple-level
@@ -620,7 +620,7 @@
   The Context Graphs vocabulary is identified by the namespace IRI:
 </p>
 
-<pre><code>https://ns.foxximediums.com/context-graphs#</code></pre>
+<pre><code>https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#</code></pre>
 
 <p>
   The conventional prefix is <code>cg:</code>.
@@ -633,7 +633,7 @@
 <table class="prefix-table">
   <thead><tr><th>Prefix</th><th>Namespace IRI</th><th>Specification</th></tr></thead>
   <tbody>
-    <tr><td><code>cg:</code></td><td>https://ns.foxximediums.com/context-graphs#</td><td>This specification</td></tr>
+    <tr><td><code>cg:</code></td><td>https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#</td><td>This specification</td></tr>
     <tr><td><code>rdf:</code></td><td>http://www.w3.org/1999/02/22-rdf-syntax-ns#</td><td>RDF 1.2</td></tr>
     <tr><td><code>rdfs:</code></td><td>http://www.w3.org/2000/01/rdf-schema#</td><td>RDF Schema 1.2</td></tr>
     <tr><td><code>xsd:</code></td><td>http://www.w3.org/2001/XMLSchema#</td><td>XML Schema Datatypes</td></tr>
@@ -789,20 +789,20 @@
 
 <p>The following named individuals are instances of <code>cg:ContextType</code>:</p>
 
-<pre><code>cg:Temporal      a cg:ContextType ; rdfs:label "Temporal"@en .
-cg:Provenance    a cg:ContextType ; rdfs:label "Provenance"@en .
-cg:Agent         a cg:ContextType ; rdfs:label "Agent"@en .
-cg:AccessControl a cg:ContextType ; rdfs:label "Access Control"@en .
-cg:Semiotic      a cg:ContextType ; rdfs:label "Semiotic"@en .
-cg:Trust         a cg:ContextType ; rdfs:label "Trust"@en .
-cg:Federation    a cg:ContextType ; rdfs:label "Federation"@en .</code></pre>
+<pre><code>cg:Temporal      a cg:ContextType ; rdfs:label "Temporal"@en.
+cg:Provenance    a cg:ContextType ; rdfs:label "Provenance"@en.
+cg:Agent         a cg:ContextType ; rdfs:label "Agent"@en.
+cg:AccessControl a cg:ContextType ; rdfs:label "Access Control"@en.
+cg:Semiotic      a cg:ContextType ; rdfs:label "Semiotic"@en.
+cg:Trust         a cg:ContextType ; rdfs:label "Trust"@en.
+cg:Federation    a cg:ContextType ; rdfs:label "Federation"@en.</code></pre>
 
 <h3 id="composition-operators">Composition Operators</h3>
 
-<pre><code>cg:union         a cg:CompositionOperator ; rdfs:label "Union"@en .
-cg:intersection  a cg:CompositionOperator ; rdfs:label "Intersection"@en .
-cg:restriction   a cg:CompositionOperator ; rdfs:label "Restriction"@en .
-cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></pre>
+<pre><code>cg:union         a cg:CompositionOperator ; rdfs:label "Union"@en.
+cg:intersection  a cg:CompositionOperator ; rdfs:label "Intersection"@en.
+cg:restriction   a cg:CompositionOperator ; rdfs:label "Restriction"@en.
+cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en.</code></pre>
 
 <hr>
 
@@ -852,7 +852,7 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
     cg:validUntil "2026-03-31T23:59:59Z"^^xsd:dateTime ;
     cg:temporalResolution "P1D"^^xsd:duration ;
     time:hasBeginning [ a time:Instant ;
-        time:inXSDDateTimeStamp "2026-01-01T00:00:00Z"^^xsd:dateTimeStamp ] .</code></pre>
+        time:inXSDDateTimeStamp "2026-01-01T00:00:00Z"^^xsd:dateTimeStamp ].</code></pre>
 </div>
 
 <h3 id="provenance-facet">Provenance Facet</h3>
@@ -887,7 +887,7 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
         prov:used &lt;https://data.example.org/raw/sensor-dump-20260317.csv&gt;
     ] ;
     prov:wasDerivedFrom &lt;https://data.example.org/raw/sensor-dump-20260317.csv&gt; ;
-    prov:generatedAtTime "2026-03-17T08:42:00Z"^^xsd:dateTime .</code></pre>
+    prov:generatedAtTime "2026-03-17T08:42:00Z"^^xsd:dateTime.</code></pre>
 </div>
 
 <h3 id="agent-facet">Agent Facet</h3>
@@ -915,10 +915,10 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
     cg:assertingAgent [
         a prov:SoftwareAgent, as:Application ;
         rdfs:label "HELA Ingestion Pipeline" ;
-        cg:agentIdentity &lt;did:web:foxximediums.com:hela:ingest&gt;
+        cg:agentIdentity &lt;did:web:example.com:hela:ingest&gt;
     ] ;
     cg:agentRole cg:Author ;
-    cg:onBehalfOf &lt;https://foxximediums.com/#org&gt; .</code></pre>
+    cg:onBehalfOf &lt;https://example.com/#org&gt;.</code></pre>
 </div>
 
 <h3 id="access-facet">Access Control Facet</h3>
@@ -975,7 +975,7 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
     cg:signSystem &lt;http://purl.bioontology.org/ontology/SNOMEDCT/&gt; ;
     cg:modalStatus cg:Asserted ;
     cg:epistemicConfidence "0.92"^^xsd:double ;
-    cg:languageTag "en"^^xsd:language .</code></pre>
+    cg:languageTag "en"^^xsd:language.</code></pre>
 </div>
 
 <div class="note">
@@ -1048,7 +1048,7 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
         a dcat:Distribution ;
         dcat:mediaType "application/trig" ;
         dcat:accessURL &lt;https://pod.example.org/alice/data/observations.trig&gt;
-    ] .</code></pre>
+    ].</code></pre>
 </div>
 
 <hr>
@@ -1066,11 +1066,11 @@ cg:override      a cg:CompositionOperator ; rdfs:label "Override"@en .</code></p
   <span class="rfc2119">MUST</span> implement these shapes.
 </p>
 
-<pre><code>@prefix cg:    &lt;https://ns.foxximediums.com/context-graphs#&gt; .
-@prefix sh:    &lt;http://www.w3.org/ns/shacl#&gt; .
-@prefix xsd:   &lt;http://www.w3.org/2001/XMLSchema#&gt; .
-@prefix prov:  &lt;http://www.w3.org/ns/prov#&gt; .
-@prefix rdf:   &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt; .
+<pre><code>@prefix cg:    &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;.
+@prefix sh:    &lt;http://www.w3.org/ns/shacl#&gt;.
+@prefix xsd:   &lt;http://www.w3.org/2001/XMLSchema#&gt;.
+@prefix prov:  &lt;http://www.w3.org/ns/prov#&gt;.
+@prefix rdf:   &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt;.
 
 # ── Context Descriptor Shape ──────────────────────────────────
 
@@ -1107,12 +1107,12 @@ cg:ContextDescriptorShape a sh:NodeShape ;
         sh:message "validUntil MUST be after validFrom when both are present." ;
         sh:select """
             SELECT $this WHERE {
-                $this cg:validFrom ?from .
-                $this cg:validUntil ?until .
+                $this cg:validFrom ?from.
+                $this cg:validUntil ?until.
                 FILTER (?until &lt;= ?from)
             }
         """ ;
-    ] .
+    ].
 
 # ── Composed Descriptor Shape ─────────────────────────────────
 
@@ -1128,7 +1128,7 @@ cg:ComposedDescriptorShape a sh:NodeShape ;
         sh:path cg:operand ;
         sh:minCount 1 ;
         sh:class cg:ContextDescriptor ;
-    ] .
+    ].
 
 # ── Temporal Facet Shape ──────────────────────────────────────
 
@@ -1148,7 +1148,7 @@ cg:TemporalFacetShape a sh:NodeShape ;
         sh:path cg:temporalResolution ;
         sh:maxCount 1 ;
         sh:datatype xsd:duration ;
-    ] .
+    ].
 
 # ── Provenance Facet Shape ────────────────────────────────────
 
@@ -1162,7 +1162,7 @@ cg:ProvenanceFacetShape a sh:NodeShape ;
         sh:path prov:generatedAtTime ;
         sh:maxCount 1 ;
         sh:datatype xsd:dateTime ;
-    ] .
+    ].
 
 # ── Semiotic Facet Shape ──────────────────────────────────────
 
@@ -1179,7 +1179,7 @@ cg:SemioticFacetShape a sh:NodeShape ;
         sh:datatype xsd:double ;
         sh:minInclusive 0.0 ;
         sh:maxInclusive 1.0 ;
-    ] .
+    ].
 
 # ── Trust Facet Shape ─────────────────────────────────────────
 
@@ -1189,7 +1189,7 @@ cg:TrustFacetShape a sh:NodeShape ;
         sh:path cg:trustLevel ;
         sh:maxCount 1 ;
         sh:in ( cg:SelfAsserted cg:ThirdPartyAttested cg:CryptographicallyVerified ) ;
-    ] .</code></pre>
+    ].</code></pre>
 
 <hr>
 
@@ -1209,7 +1209,7 @@ cg:TrustFacetShape a sh:NodeShape ;
 <pre><code>{
   "@context": {
     "@version": 1.1,
-    "cg": "https://ns.foxximediums.com/context-graphs#",
+    "cg": "https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
@@ -1290,38 +1290,38 @@ cg:TrustFacetShape a sh:NodeShape ;
 
 <h3>Query Pattern: Retrieving Context for a Named Graph</h3>
 
-<pre><code>PREFIX cg:   &lt;https://ns.foxximediums.com/context-graphs#&gt;
+<pre><code>PREFIX cg:   &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;
 PREFIX prov: &lt;http://www.w3.org/ns/prov#&gt;
 
 SELECT ?descriptor ?facetType ?validFrom ?validUntil ?agent
 WHERE {
     ?descriptor a cg:ContextDescriptor ;
         cg:describes &lt;urn:graph:target&gt; ;
-        cg:hasFacet ?facet .
+        cg:hasFacet ?facet.
 
-    ?facet a ?facetType .
+    ?facet a ?facetType.
 
     OPTIONAL { ?facet cg:validFrom ?validFrom }
     OPTIONAL { ?facet cg:validUntil ?validUntil }
     OPTIONAL {
-        ?facet cg:assertingAgent ?agentNode .
-        ?agentNode cg:agentIdentity ?agent .
+        ?facet cg:assertingAgent ?agentNode.
+        ?agentNode cg:agentIdentity ?agent.
     }
 }</code></pre>
 
 <h3>Query Pattern: Filtering Graphs by Temporal Context</h3>
 
-<pre><code>PREFIX cg: &lt;https://ns.foxximediums.com/context-graphs#&gt;
+<pre><code>PREFIX cg: &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;
 
 SELECT ?graph ?content
 WHERE {
     ?desc a cg:ContextDescriptor ;
         cg:describes ?graph ;
-        cg:hasFacet ?tf .
+        cg:hasFacet ?tf.
 
     ?tf a cg:TemporalFacet ;
         cg:validFrom ?from ;
-        cg:validUntil ?until .
+        cg:validUntil ?until.
 
     FILTER (?from &lt;= "2026-03-01T00:00:00Z"^^xsd:dateTime
          &amp;&amp; ?until &gt;= "2026-03-01T00:00:00Z"^^xsd:dateTime)
@@ -1331,17 +1331,17 @@ WHERE {
 
 <h3>Query Pattern: Filtering by Modal Status (Semiotic Facet)</h3>
 
-<pre><code>PREFIX cg: &lt;https://ns.foxximediums.com/context-graphs#&gt;
+<pre><code>PREFIX cg: &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;
 
 # Find all graphs whose content is asserted (not hypothetical or quoted)
 SELECT ?graph
 WHERE {
     ?desc a cg:ContextDescriptor ;
         cg:describes ?graph ;
-        cg:hasFacet ?sf .
+        cg:hasFacet ?sf.
 
     ?sf a cg:SemioticFacet ;
-        cg:modalStatus cg:Asserted .
+        cg:modalStatus cg:Asserted.
 }</code></pre>
 
 <h3>Extension Functions (Informative)</h3>
@@ -1396,7 +1396,7 @@ WHERE {
 </p>
 
 <pre><code>/pod-root/
-  .well-known/
+.well-known/
     context-graphs        ← Context manifest (index of all descriptors)
   data/
     observations/
@@ -1490,13 +1490,13 @@ WHERE {
 
 <h3>Example 1: Sensor Data with Full Context</h3>
 
-<pre><code>@prefix cg:    &lt;https://ns.foxximediums.com/context-graphs#&gt; .
-@prefix prov:  &lt;http://www.w3.org/ns/prov#&gt; .
-@prefix time:  &lt;http://www.w3.org/2006/time#&gt; .
-@prefix xsd:   &lt;http://www.w3.org/2001/XMLSchema#&gt; .
-@prefix dcat:  &lt;http://www.w3.org/ns/dcat#&gt; .
-@prefix as:    &lt;https://www.w3.org/ns/activitystreams#&gt; .
-@prefix ex:    &lt;https://example.org/&gt; .
+<pre><code>@prefix cg:    &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;.
+@prefix prov:  &lt;http://www.w3.org/ns/prov#&gt;.
+@prefix time:  &lt;http://www.w3.org/2006/time#&gt;.
+@prefix xsd:   &lt;http://www.w3.org/2001/XMLSchema#&gt;.
+@prefix dcat:  &lt;http://www.w3.org/ns/dcat#&gt;.
+@prefix as:    &lt;https://www.w3.org/ns/activitystreams#&gt;.
+@prefix ex:    &lt;https://example.org/&gt;.
 
 # ── Context Descriptor ────────────────────────────────────────
 
@@ -1561,20 +1561,20 @@ ex:ctx-sensor-2026Q1 a cg:ContextDescriptor ;
         a cg:TrustFacet ;
         cg:trustLevel cg:SelfAsserted ;
         cg:issuer &lt;did:web:example.org&gt; ;
-    ] .
+    ].
 
 # ── The Described Named Graph ─────────────────────────────────
 
 GRAPH ex:graph-sensor-2026Q1 {
-    ex:sensor-7  ex:temperature  "22.4"^^xsd:double .
-    ex:sensor-7  ex:humidity     "0.65"^^xsd:double .
-    ex:sensor-12 ex:temperature  "19.1"^^xsd:double .
+    ex:sensor-7  ex:temperature  "22.4"^^xsd:double.
+    ex:sensor-7  ex:humidity     "0.65"^^xsd:double.
+    ex:sensor-12 ex:temperature  "19.1"^^xsd:double.
 }</code></pre>
 
 <h3>Example 2: Federated Context Composition</h3>
 
-<pre><code>@prefix cg: &lt;https://ns.foxximediums.com/context-graphs#&gt; .
-@prefix ex: &lt;https://example.org/&gt; .
+<pre><code>@prefix cg: &lt;https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#&gt;.
+@prefix ex: &lt;https://example.org/&gt;.
 
 # Alice's context descriptor (from her Solid Pod)
 ex:ctx-alice a cg:ContextDescriptor ;
@@ -1588,7 +1588,7 @@ ex:ctx-alice a cg:ContextDescriptor ;
         a cg:TrustFacet ;
         cg:trustLevel cg:CryptographicallyVerified ;
         cg:issuer &lt;did:web:alice.example.org&gt; ;
-    ] .
+    ].
 
 # Bob's context descriptor (from his Solid Pod)
 ex:ctx-bob a cg:ContextDescriptor ;
@@ -1602,7 +1602,7 @@ ex:ctx-bob a cg:ContextDescriptor ;
         a cg:TrustFacet ;
         cg:trustLevel cg:ThirdPartyAttested ;
         cg:issuer &lt;did:web:bob.example.org&gt; ;
-    ] .
+    ].
 
 # Composed: intersection reveals shared temporal window and common trust
 ex:ctx-composed a cg:ComposedDescriptor ;
@@ -1615,12 +1615,12 @@ ex:ctx-composed a cg:ComposedDescriptor ;
         a cg:TemporalFacet ;
         cg:validFrom "2026-03-01T00:00:00Z"^^xsd:dateTime ;
         cg:validUntil "2026-06-30T23:59:59Z"^^xsd:dateTime ;
-    ] .</code></pre>
+    ].</code></pre>
 
 <h3>Example 3: JSON-LD Compact Serialization</h3>
 
 <pre><code>{
-  "@context": "https://ns.foxximediums.com/context-graphs/v1",
+  "@context": "https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs/v1",
   "@id": "urn:cg:desc:quickstart-1",
   "@type": "ContextDescriptor",
   "version": 0,
@@ -1744,7 +1744,7 @@ ex:ctx-composed a cg:ComposedDescriptor ;
 
 <footer style="text-align: center; color: #888; font-size: 0.85em; padding: 2em 0;">
   <p>Context Graphs 1.0 &mdash; Specification Draft &mdash; 17 March 2026</p>
-  <p>Copyright &copy; 2026 Mark Spivey / Foxxi Mediums Inc. Published under the
+  <p>Copyright &copy; 2026 Mark Spivey Published under the
   <a href="https://creativecommons.org/licenses/by/4.0/" style="color:#888">CC BY 4.0</a> license.</p>
   <p style="font-size: 0.9em; margin-top: 0.5em;">
     This specification reuses and profiles vocabulary from W3C Recommendations (RDF 1.2, SPARQL 1.2, PROV-O,

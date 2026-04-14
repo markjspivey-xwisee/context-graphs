@@ -1,5 +1,5 @@
 /**
- * Test suite for @foxxi/context-graphs
+ * Test suite for @markjspivey-xwisee/context-graphs
  *
  * Covers: descriptor builder, composition operators, serialization,
  *         validation, and SPARQL pattern generation.
@@ -44,12 +44,12 @@ import type {
 
 function makeSimpleDescriptor(id: string, graph: string): ContextDescriptorData {
   return ContextDescriptor.create(id as IRI)
-    .describes(graph as IRI)
-    .temporal({
+.describes(graph as IRI)
+.temporal({
       validFrom: '2026-01-01T00:00:00Z',
       validUntil: '2026-06-30T23:59:59Z',
     })
-    .build();
+.build();
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -59,9 +59,9 @@ function makeSimpleDescriptor(id: string, graph: string): ContextDescriptorData 
 describe('ContextDescriptor Builder', () => {
   it('creates a minimal valid descriptor', () => {
     const desc = ContextDescriptor.create('urn:cg:test-1' as IRI)
-      .describes('urn:graph:g1' as IRI)
-      .temporal({ validFrom: '2026-01-01T00:00:00Z' })
-      .build();
+.describes('urn:graph:g1' as IRI)
+.temporal({ validFrom: '2026-01-01T00:00:00Z' })
+.build();
 
     expect(desc.id).toBe('urn:cg:test-1');
     expect(desc.describes).toEqual(['urn:graph:g1']);
@@ -71,23 +71,23 @@ describe('ContextDescriptor Builder', () => {
 
   it('supports multiple facets via fluent API', () => {
     const desc = ContextDescriptor.create('urn:cg:test-2' as IRI)
-      .describes('urn:graph:g1' as IRI)
-      .temporal({
+.describes('urn:graph:g1' as IRI)
+.temporal({
         validFrom: '2026-01-01T00:00:00Z',
         validUntil: '2026-12-31T23:59:59Z',
         temporalResolution: 'P1D',
       })
-      .asserted(0.95)
-      .selfAsserted('did:web:context-graphs-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io' as IRI)
-      .generatedBy('urn:agent:etl' as IRI, {
+.asserted(0.95)
+.selfAsserted('did:web:context-graphs-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io' as IRI)
+.generatedBy('urn:agent:etl' as IRI, {
         derivedFrom: ['urn:data:raw.csv' as IRI],
       })
-      .federation({
+.federation({
         origin: 'https://pod.example.org/data' as IRI,
         syncProtocol: 'SolidNotifications',
       })
-      .version(1)
-      .build();
+.version(1)
+.build();
 
     expect(desc.facets).toHaveLength(5); // temporal, semiotic, trust, provenance, federation
     expect(desc.version).toBe(1);
@@ -95,9 +95,9 @@ describe('ContextDescriptor Builder', () => {
 
   it('supports multiple graphs per descriptor', () => {
     const desc = ContextDescriptor.create('urn:cg:multi' as IRI)
-      .describes('urn:graph:a' as IRI, 'urn:graph:b' as IRI, 'urn:graph:c' as IRI)
-      .temporal({ validFrom: '2026-01-01T00:00:00Z' })
-      .build();
+.describes('urn:graph:a' as IRI, 'urn:graph:b' as IRI, 'urn:graph:c' as IRI)
+.temporal({ validFrom: '2026-01-01T00:00:00Z' })
+.build();
 
     expect(desc.describes).toHaveLength(3);
   });
@@ -105,28 +105,28 @@ describe('ContextDescriptor Builder', () => {
   it('throws on empty describes', () => {
     expect(() =>
       ContextDescriptor.create('urn:cg:bad' as IRI)
-        .temporal({ validFrom: '2026-01-01T00:00:00Z' })
-        .build()
+.temporal({ validFrom: '2026-01-01T00:00:00Z' })
+.build()
     ).toThrow('must describe at least one Named Graph');
   });
 
   it('throws on empty facets', () => {
     expect(() =>
       ContextDescriptor.create('urn:cg:bad' as IRI)
-        .describes('urn:graph:g1' as IRI)
-        .build()
+.describes('urn:graph:g1' as IRI)
+.build()
     ).toThrow('must have at least one facet');
   });
 
   it('validates epistemicConfidence range', () => {
     expect(() =>
       ContextDescriptor.create('urn:cg:bad' as IRI)
-        .describes('urn:graph:g1' as IRI)
-        .semiotic({ epistemicConfidence: 1.5 })
+.describes('urn:graph:g1' as IRI)
+.semiotic({ epistemicConfidence: 1.5 })
     ).toThrow('must be in [0.0, 1.0]');
   });
 
-  it('reconstructs from data via .from()', () => {
+  it('reconstructs from data via.from()', () => {
     const original = makeSimpleDescriptor('urn:cg:orig', 'urn:graph:g1');
     const rebuilt = ContextDescriptor.from(original);
     expect(rebuilt.id).toBe(original.id);
@@ -135,9 +135,9 @@ describe('ContextDescriptor Builder', () => {
 
   it('introspection methods work', () => {
     const builder = ContextDescriptor.create('urn:cg:intro' as IRI)
-      .describes('urn:graph:g1' as IRI)
-      .temporal({ validFrom: '2026-01-01T00:00:00Z' })
-      .asserted(0.9);
+.describes('urn:graph:g1' as IRI)
+.temporal({ validFrom: '2026-01-01T00:00:00Z' })
+.asserted(0.9);
 
     expect(builder.hasFacetType('Temporal')).toBe(true);
     expect(builder.hasFacetType('Trust')).toBe(false);
@@ -436,16 +436,16 @@ describe('JSON-LD Serialization', () => {
 
   it('round-trips through fromJsonLd', () => {
     const desc = ContextDescriptor.create('urn:cg:roundtrip' as IRI)
-      .describes('urn:graph:g1' as IRI)
-      .temporal({
+.describes('urn:graph:g1' as IRI)
+.temporal({
         validFrom: '2026-01-01T00:00:00Z',
         validUntil: '2026-06-30T23:59:59Z',
       })
-      .semiotic({
+.semiotic({
         modalStatus: 'Asserted',
         epistemicConfidence: 0.9,
       })
-      .build();
+.build();
 
     const json = toJsonLd(desc);
     const parsed = fromJsonLd(json);
@@ -469,9 +469,9 @@ describe('JSON-LD Serialization', () => {
 describe('Namespaces', () => {
   it('expand resolves prefixed names', () => {
     expect(expand('cg:ContextDescriptor'))
-      .toBe('https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#ContextDescriptor');
+.toBe('https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#ContextDescriptor');
     expect(expand('prov:Entity'))
-      .toBe('http://www.w3.org/ns/prov#Entity');
+.toBe('http://www.w3.org/ns/prov#Entity');
   });
 
   it('compact produces prefixed names', () => {

@@ -1,8 +1,8 @@
 {
-  "name": "@foxxi/context-graphs",
+  "name": "@markjspivey-xwisee/context-graphs",
   "version": "0.2.0",
   "description": "Reference implementation of Context Graphs 1.0 — a compositional framework for typed graph contexts over RDF 1.2 Named Graphs, with PGSL substrate, harness ontology, and runtime evaluation",
-  "author": "Mark Spivey <mark.spivey@xwisee.com> (https://foxximediums.com)",
+  "author": "Mark Spivey <mark.spivey@xwisee.com>",
   "license": "CC-BY-4.0",
   "type": "module",
   "publishConfig": {

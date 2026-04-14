@@ -21,7 +21,7 @@ import {
   createPGSL, embedInPGSL, latticeStats, pgslResolve,
   verifyCoherence, computeCoverage, getCertificates,
   sparqlQueryPGSL,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import {
   extractObservations,
@@ -34,7 +34,7 @@ import {
   generateMetagraph, ingestMetagraph,
 } from '../../src/pgsl/discovery.js';
 
-import type { IRI, PGSLInstance } from '@foxxi/context-graphs';
+import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
@@ -281,7 +281,7 @@ async function main() {
     }
 
     // Find shared chains (exact syntagmatic agreement = shared meaning)
-    const allChains = new Set([...chainsInA, ...chainsInB, ...chainsInC]);
+    const allChains = new Set([...chainsInA,...chainsInB,...chainsInC]);
     const sharedChains = [...allChains].filter(c =>
       (chainsInA.includes(c) ? 1 : 0) + (chainsInB.includes(c) ? 1 : 0) + (chainsInC.includes(c) ? 1 : 0) >= 2
     );

@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   publish-library:
-    name: Publish @foxxi/context-graphs
+    name: Publish @markjspivey-xwisee/context-graphs
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -88,14 +88,14 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### @foxxi/context-graphs" >> $GITHUB_STEP_SUMMARY
+          echo "### @markjspivey-xwisee/context-graphs" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Dry run:** ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **npm:** https://www.npmjs.com/package/@foxxi/context-graphs" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm:** https://www.npmjs.com/package/@markjspivey-xwisee/context-graphs" >> $GITHUB_STEP_SUMMARY
 
   publish-mcp-server:
-    name: Publish @foxxi/context-graphs-mcp
+    name: Publish @markjspivey-xwisee/context-graphs-mcp
     runs-on: ubuntu-latest
     needs: publish-library
     steps:
@@ -116,16 +116,16 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           LIB_VERSION="${{ needs.publish-library.outputs.version }}"
-          echo "Waiting for @foxxi/context-graphs@$LIB_VERSION on npm..."
+          echo "Waiting for @markjspivey-xwisee/context-graphs@$LIB_VERSION on npm..."
           for i in {1..30}; do
-            if npm view "@foxxi/context-graphs@$LIB_VERSION" version >/dev/null 2>&1; then
-              echo "✓ @foxxi/context-graphs@$LIB_VERSION is available"
+            if npm view "@markjspivey-xwisee/context-graphs@$LIB_VERSION" version >/dev/null 2>&1; then
+              echo "✓ @markjspivey-xwisee/context-graphs@$LIB_VERSION is available"
               exit 0
             fi
             echo "  attempt $i/30 — not yet, sleeping 10s"
             sleep 10
           done
-          echo "✗ @foxxi/context-graphs@$LIB_VERSION did not appear within 5 minutes"
+          echo "✗ @markjspivey-xwisee/context-graphs@$LIB_VERSION did not appear within 5 minutes"
           exit 1
 
       # For dry-runs (or local-source builds), install the library from the
@@ -137,7 +137,7 @@ jobs:
           npm install
           npm run build
           npm pack
-          mv foxxi-context-graphs-*.tgz mcp-server/lib.tgz
+          mv *.tgz mcp-server/lib.tgz
           cd mcp-server
           npm install ./lib.tgz --no-save
 
@@ -176,10 +176,10 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### @foxxi/context-graphs-mcp" >> $GITHUB_STEP_SUMMARY
+          echo "### @markjspivey-xwisee/context-graphs-mcp" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Library dep:** @foxxi/context-graphs@${{ needs.publish-library.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Library dep:** @markjspivey-xwisee/context-graphs@${{ needs.publish-library.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Dry run:** ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **npm:** https://www.npmjs.com/package/@foxxi/context-graphs-mcp" >> $GITHUB_STEP_SUMMARY
-          echo "- **Use it:** \`npx -y @foxxi/context-graphs-mcp\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm:** https://www.npmjs.com/package/@markjspivey-xwisee/context-graphs-mcp" >> $GITHUB_STEP_SUMMARY
+          echo "- **Use it:** \`npx -y @markjspivey-xwisee/context-graphs-mcp\`" >> $GITHUB_STEP_SUMMARY

@@ -28,7 +28,7 @@ import {
   verifyCoherence, computeCoverage, getCertificates,
   createWallet, signDescriptor, createDelegation,
   union, intersection,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import {
   ObserverAAT, AnalystAAT, ExecutorAAT, FullAccessAAT,
@@ -56,7 +56,7 @@ import {
   decide as decideFromObservations,
 } from '../../src/pgsl/decision-functor.js';
 
-import type { IRI, PGSLInstance, FetchFn } from '@foxxi/context-graphs';
+import type { IRI, PGSLInstance, FetchFn } from '@markjspivey-xwisee/context-graphs';
 
 // ── Config ─────────────────────────────────────────────
 
@@ -246,16 +246,16 @@ async function main() {
 
   // Publish to pod
   const scannerDesc = ContextDescriptor.create(`urn:cg:scanner:findings-${Date.now()}` as IRI)
-    .describes('urn:graph:scanner:security-findings' as IRI)
-    .temporal({ validFrom: new Date().toISOString() })
-    .provenance({ wasGeneratedBy: { agent: scanner.did as IRI }, wasAttributedTo: scanner.did as IRI, generatedAtTime: new Date().toISOString() })
-    .agent(scanner.did as IRI, 'Scanner')
-    .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.90 })
-    .trust({ trustLevel: 'SelfAsserted', issuer: scanner.did as IRI })
-    .federation({ origin: scanner.podUrl as IRI, storageEndpoint: scanner.podUrl as IRI, syncProtocol: 'SolidNotifications' })
-    .version(1).build();
+.describes('urn:graph:scanner:security-findings' as IRI)
+.temporal({ validFrom: new Date().toISOString() })
+.provenance({ wasGeneratedBy: { agent: scanner.did as IRI }, wasAttributedTo: scanner.did as IRI, generatedAtTime: new Date().toISOString() })
+.agent(scanner.did as IRI, 'Scanner')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.90 })
+.trust({ trustLevel: 'SelfAsserted', issuer: scanner.did as IRI })
+.federation({ origin: scanner.podUrl as IRI, storageEndpoint: scanner.podUrl as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
-  const scannerGraph = `<urn:finding:1> <urn:severity> "critical" . <urn:finding:1> <urn:module> "auth-module" .`;
+  const scannerGraph = `<urn:finding:1> <urn:severity> "critical". <urn:finding:1> <urn:module> "auth-module".`;
   const scanPub = await publish(scannerDesc, scannerGraph, scanner.podUrl, { fetch: solidFetch });
   log('scanner', `Published to pod: ${scanPub.descriptorUrl}`);
 
@@ -291,16 +291,16 @@ async function main() {
 
   // Publish assessments to analyst pod
   const analystDesc = ContextDescriptor.create(`urn:cg:analyst:assessments-${Date.now()}` as IRI)
-    .describes('urn:graph:analyst:risk-assessments' as IRI)
-    .temporal({ validFrom: new Date().toISOString() })
-    .provenance({ wasGeneratedBy: { agent: analyst.did as IRI }, wasAttributedTo: analyst.did as IRI, generatedAtTime: new Date().toISOString(), sources: [scannerDesc.id] })
-    .agent(analyst.did as IRI, 'Analyst')
-    .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.85 })
-    .trust({ trustLevel: 'ThirdPartyAttested', issuer: analyst.did as IRI })
-    .federation({ origin: analyst.podUrl as IRI, storageEndpoint: analyst.podUrl as IRI, syncProtocol: 'SolidNotifications' })
-    .version(1).build();
+.describes('urn:graph:analyst:risk-assessments' as IRI)
+.temporal({ validFrom: new Date().toISOString() })
+.provenance({ wasGeneratedBy: { agent: analyst.did as IRI }, wasAttributedTo: analyst.did as IRI, generatedAtTime: new Date().toISOString(), sources: [scannerDesc.id] })
+.agent(analyst.did as IRI, 'Analyst')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.85 })
+.trust({ trustLevel: 'ThirdPartyAttested', issuer: analyst.did as IRI })
+.federation({ origin: analyst.podUrl as IRI, storageEndpoint: analyst.podUrl as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
-  const analystGraph = `<urn:assessment:1> <urn:risk-level> "critical" . <urn:assessment:1> <urn:recommendation> "parameterize-queries" .`;
+  const analystGraph = `<urn:assessment:1> <urn:risk-level> "critical". <urn:assessment:1> <urn:recommendation> "parameterize-queries".`;
   const analystPub = await publish(analystDesc, analystGraph, analyst.podUrl, { fetch: solidFetch });
   log('analyst', `Published to pod: ${analystPub.descriptorUrl}`);
 
@@ -378,16 +378,16 @@ async function main() {
 
   // Publish lead's decision
   const leadDesc = ContextDescriptor.create(`urn:cg:lead:decision-${Date.now()}` as IRI)
-    .describes('urn:graph:lead:remediation-plan' as IRI)
-    .temporal({ validFrom: new Date().toISOString() })
-    .provenance({ wasGeneratedBy: { agent: lead.did as IRI }, wasAttributedTo: lead.did as IRI, generatedAtTime: new Date().toISOString(), sources: [scannerDesc.id, analystDesc.id] })
-    .agent(lead.did as IRI, 'Lead')
-    .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.95 })
-    .trust({ trustLevel: 'CryptographicallyVerified', issuer: lead.did as IRI })
-    .federation({ origin: lead.podUrl as IRI, storageEndpoint: lead.podUrl as IRI, syncProtocol: 'SolidNotifications' })
-    .version(1).build();
+.describes('urn:graph:lead:remediation-plan' as IRI)
+.temporal({ validFrom: new Date().toISOString() })
+.provenance({ wasGeneratedBy: { agent: lead.did as IRI }, wasAttributedTo: lead.did as IRI, generatedAtTime: new Date().toISOString(), sources: [scannerDesc.id, analystDesc.id] })
+.agent(lead.did as IRI, 'Lead')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.95 })
+.trust({ trustLevel: 'CryptographicallyVerified', issuer: lead.did as IRI })
+.federation({ origin: lead.podUrl as IRI, storageEndpoint: lead.podUrl as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
-  const leadGraph = `<urn:plan:1> <urn:priority> "critical" . <urn:plan:1> <urn:action> "parameterize-queries" .`;
+  const leadGraph = `<urn:plan:1> <urn:priority> "critical". <urn:plan:1> <urn:action> "parameterize-queries".`;
   const leadPub = await publish(leadDesc, leadGraph, lead.podUrl, { fetch: solidFetch });
   log('lead', `Published remediation plan: ${leadPub.descriptorUrl}`);
 
@@ -471,7 +471,7 @@ async function main() {
 
   // PROV summary
   const allTraces = [
-    ...getTraces(scanner.traceStore),
+...getTraces(scanner.traceStore),
   ];
   log('prov', `Total PROV traces: ${allTraces.length}`);
 

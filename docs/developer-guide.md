@@ -10,7 +10,7 @@
 ### Installation
 
 ```bash
-git clone https://github.com/foxximediums/context-graphs.git
+git clone https://github.com/markjspivey-xwisee/context-graphs.git
 cd context-graphs
 npm install
 npm run build
@@ -61,7 +61,7 @@ PORT=5000 CLEAN=1 npx tsx examples/pgsl-browser/server.ts
 Atoms are the ground-level units of meaning, content-addressed by short, human-readable names. Each atom gets a deterministic URN based on its value:
 
 ```typescript
-import { createPGSL, mintAtom, pgslResolve } from '@foxxi/context-graphs';
+import { createPGSL, mintAtom, pgslResolve } from '@markjspivey-xwisee/context-graphs';
 
 const pgsl = createPGSL({
   wasAttributedTo: 'urn:agent:my-agent',
@@ -80,7 +80,7 @@ Atoms are level-0 nodes. They are content-addressed: the same string always prod
 Chains are typed relationships between atoms (or other fragments). They represent syntagmatic structure — the sequential ordering of signs in context:
 
 ```typescript
-import { embedInPGSL } from '@foxxi/context-graphs';
+import { embedInPGSL } from '@markjspivey-xwisee/context-graphs';
 
 // Embed a natural-language statement; the system tokenizes and creates
 // atoms + a fragment chain automatically
@@ -94,7 +94,7 @@ Under the hood, this creates atoms for each token and a level-1 fragment that ch
 Fragments are composed chains at higher levels of the lattice. A level-1 fragment chains atoms; a level-2 fragment chains level-1 fragments, and so on. This recursive composition is the core structural principle:
 
 ```typescript
-import { ingest, latticeStats } from '@foxxi/context-graphs';
+import { ingest, latticeStats } from '@markjspivey-xwisee/context-graphs';
 
 // Ingest multiple statements — the lattice automatically builds
 // higher-level fragments where structural overlap occurs
@@ -139,17 +139,17 @@ Paradigm constraints relate two paradigm sets via algebraic operations:
 Context Descriptors annotate Named Graphs with 9 typed facets. Every piece of knowledge gets rich metadata:
 
 ```typescript
-import { ContextDescriptor, validate, toTurtle } from '@foxxi/context-graphs';
+import { ContextDescriptor, validate, toTurtle } from '@markjspivey-xwisee/context-graphs';
 
 const desc = ContextDescriptor.create('urn:cg:my-context')
-  .describes('urn:graph:observations-2026-Q1')
-  .temporal({
+.describes('urn:graph:observations-2026-Q1')
+.temporal({
     validFrom: '2026-01-01T00:00:00Z',
     validUntil: '2026-03-31T23:59:59Z',
   })
-  .asserted(0.95)
-  .selfAsserted('did:web:identity.example.com')
-  .build();
+.asserted(0.95)
+.selfAsserted('did:web:identity.example.com')
+.build();
 
 const result = validate(desc);
 console.log(result.conforms); // true
@@ -175,7 +175,7 @@ The 9 facet types:
 Context Descriptors compose algebraically via four operators that form a bounded lattice:
 
 ```typescript
-import { union, intersection, restriction, override } from '@foxxi/context-graphs';
+import { union, intersection, restriction, override } from '@markjspivey-xwisee/context-graphs';
 
 // Union: merge two descriptors (widest temporal range, highest trust, etc.)
 const merged = union(descA, descB);
@@ -214,7 +214,7 @@ Built-in AATs define capability profiles:
 import {
   createAATRegistry, registerAAT, ObserverAAT, AnalystAAT,
   validateAction
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 const registry = createAATRegistry();
 registerAAT(registry, ObserverAAT);
@@ -272,21 +272,21 @@ Feed content into the PGSL lattice. The system tokenizes, builds atoms, chains, 
 Write context-annotated knowledge to a Solid pod:
 
 ```typescript
-import { publish, ContextDescriptor, toTurtle } from '@foxxi/context-graphs';
+import { publish, ContextDescriptor, toTurtle } from '@markjspivey-xwisee/context-graphs';
 
 const desc = ContextDescriptor.create('urn:cg:obs-1')
-  .describes('urn:graph:chen-training')
-  .temporal({ validFrom: '2026-03-15T00:00:00Z' })
-  .asserted(0.92)
-  .selfAsserted('did:web:lrs.example.com')
-  .build();
+.describes('urn:graph:chen-training')
+.temporal({ validFrom: '2026-03-15T00:00:00Z' })
+.asserted(0.92)
+.selfAsserted('did:web:lrs.example.com')
+.build();
 
 const turtle = toTurtle(desc);
 
 await publish(
   'http://localhost:3456/markj/',
   desc,
-  '<urn:graph:chen-training> { <urn:chen> <urn:completed> <urn:ils-approach> . }',
+  '<urn:graph:chen-training> { <urn:chen> <urn:completed> <urn:ils-approach>. }',
   { fetch: authenticatedFetch }
 );
 ```
@@ -296,7 +296,7 @@ await publish(
 Discover descriptors across the federation:
 
 ```typescript
-import { discover } from '@foxxi/context-graphs';
+import { discover } from '@markjspivey-xwisee/context-graphs';
 
 const entries = await discover('http://localhost:3456/other-pod/', undefined, {
   fetch: solidFetch,
@@ -466,7 +466,7 @@ Also available as a JSON API:
 
 ```
 POST /api/sparql
-{ "query": "PREFIX pgsl: <https://...> SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 20" }
+{ "query": "PREFIX pgsl: <https://...> SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value. } LIMIT 20" }
 ```
 
 Response:
@@ -656,7 +656,7 @@ Or on failure:
 The built-in xAPI ingestion profile transforms xAPI statements into PGSL chains. Each statement becomes a multi-atom chain with actor, verb, object, result, and timestamp:
 
 ```typescript
-import { ingestWithProfile, getProfile } from '@foxxi/context-graphs';
+import { ingestWithProfile, getProfile } from '@markjspivey-xwisee/context-graphs';
 
 const xapiStatement = {
   actor: { name: 'Chen', mbox: 'mailto:chen@example.com' },
@@ -683,7 +683,7 @@ Via the API:
 POST /api/chain
 {
   "profile": "xapi",
-  "data": { ... xAPI statement ... }
+  "data": {... xAPI statement... }
 }
 ```
 
@@ -738,7 +738,7 @@ Decorators are applied automatically when exploring nodes via `/api/node/{uri}`.
 ### Writing a Custom Decorator
 
 ```typescript
-import { createDefaultRegistry, decorateNode } from '@foxxi/context-graphs';
+import { createDefaultRegistry, decorateNode } from '@markjspivey-xwisee/context-graphs';
 
 const registry = createDefaultRegistry();
 
@@ -775,7 +775,7 @@ Context Graphs uses Solid (Social Linked Data) pods as the persistence and ident
 - **Manifests**: indexes of all descriptors on the pod
 
 ```typescript
-import { discover, publish } from '@foxxi/context-graphs';
+import { discover, publish } from '@markjspivey-xwisee/context-graphs';
 
 // Discover all descriptors on a pod
 const entries = await discover('http://localhost:3456/alice/');
@@ -821,7 +821,7 @@ These operators form a bounded lattice with well-defined merge semantics per fac
 A multi-agent security audit where Scanner, Analyst, and Lead collaborate:
 
 ```typescript
-import { createPGSL, ingest, embedInPGSL } from '@foxxi/context-graphs';
+import { createPGSL, ingest, embedInPGSL } from '@markjspivey-xwisee/context-graphs';
 
 // Agent 1: Scanner — ingests raw findings
 const pgsl = createPGSL({
@@ -896,7 +896,7 @@ This creates a fixed-point: the lattice containing accurate descriptions of itse
 For programmatic access, use the high-level SDK:
 
 ```typescript
-import { ContextGraphsSDK } from '@foxxi/context-graphs';
+import { ContextGraphsSDK } from '@markjspivey-xwisee/context-graphs';
 
 const cg = new ContextGraphsSDK({
   podUrl: 'http://localhost:3456/alice/',

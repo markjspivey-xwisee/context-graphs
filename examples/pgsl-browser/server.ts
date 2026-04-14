@@ -72,7 +72,7 @@ import {
   systemToTurtle,
   systemToJsonLd,
   getCertificates,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import {
   ObserverAAT, AnalystAAT, ExecutorAAT, ArbiterAAT, ArchivistAAT, FullAccessAAT,
@@ -99,7 +99,7 @@ const xapiProfile = getProfile('xapi')!;
 import type {
   IRI, PGSLInstance, TokenGranularity, ContextDescriptorData, ManifestEntry,
   Wallet, WalletDelegation, SignedDescriptor,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env['PORT'] ?? '5000');
@@ -108,7 +108,7 @@ const POD_NAME = process.env['POD_NAME'] ?? 'markj';
 const POD_URL = `${CSS_URL}${POD_NAME}/`;
 const CLEAN = process.env['CLEAN'] === '1';
 const KNOWN_PODS = (process.env['KNOWN_PODS'] ?? '')
-  .split(',').map(s => s.trim()).filter(Boolean);
+.split(',').map(s => s.trim()).filter(Boolean);
 
 // The PGSL lattice — derived from pod content, not a separate store
 let pgsl: PGSLInstance = createPGSL({
@@ -188,9 +188,9 @@ async function rebuildFromPod() {
           const graphContent = await graphResp.text();
           // Extract meaningful lines
           const lines = graphContent.split('\n')
-            .filter(l => l.trim().length > 0 && !l.trim().startsWith('@prefix') && !l.trim().startsWith('GRAPH'))
-            .map(l => l.trim().replace(/[<>"^@]/g, '').replace(/\s+/g, ' ').trim())
-            .filter(l => l.length > 5 && l.length < 200);
+.filter(l => l.trim().length > 0 && !l.trim().startsWith('@prefix') && !l.trim().startsWith('GRAPH'))
+.map(l => l.trim().replace(/[<>"^@]/g, '').replace(/\s+/g, ' ').trim())
+.filter(l => l.length > 5 && l.length < 200);
 
           for (const line of lines.slice(0, 10)) {
             embedInPGSL(pgsl, line);
@@ -473,7 +473,7 @@ app.post('/api/constraints/shacl', (req, res) => {
       const allowedUris = prop.in.map(v => pgsl.atoms.get(v)).filter(Boolean);
       if (allowedUris.length > 0) {
         const sparql = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
-SELECT ?candidate WHERE { ?candidate a pgsl:Atom ; pgsl:value ?v . FILTER(${prop.in.map(v => `?v = "${v}"`).join(' || ')}) }`;
+SELECT ?candidate WHERE { ?candidate a pgsl:Atom ; pgsl:value ?v. FILTER(${prop.in.map(v => `?v = "${v}"`).join(' || ')}) }`;
         const c: ParadigmConstraint = {
           id: `shacl:${Date.now()}:${created.length}`,
           patternA: targetPattern,
@@ -503,8 +503,8 @@ app.get('/api/constraints/shacl', (_req, res) => {
     union: 'sh:or',
   };
 
-  let turtle = '@prefix sh: <http://www.w3.org/ns/shacl#> .\n';
-  turtle += '@prefix pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .\n\n';
+  let turtle = '@prefix sh: <http://www.w3.org/ns/shacl#>.\n';
+  turtle += '@prefix pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>.\n\n';
 
   for (const c of constraintRegistry) {
     const shapeName = c.id.replace(/[^a-zA-Z0-9]/g, '_');
@@ -849,8 +849,8 @@ app.get('/api/node/*', (req, res) => {
     kind: node.kind,
     level: node.level,
     hash: nodeHash,
-    ...(node.kind === 'Atom' ? { value: node.value } : {}),
-    ...(node.kind === 'Fragment' ? { height: node.height } : {}),
+...(node.kind === 'Atom' ? { value: node.value } : {}),
+...(node.kind === 'Fragment' ? { height: node.height } : {}),
     provenance: node.provenance,
   };
 
@@ -1006,11 +1006,11 @@ app.get('/api/node/*', (req, res) => {
   // ── Response ──────────────────────────────────────────
 
   res.json({
-    ...self,
+...self,
     _structure: structure,
     _context: {
       containers,
-      annotations: annotations.map(a => ({ ...a, parentResolved: pgslResolve(pgsl, a.parentUri) })),
+      annotations: annotations.map(a => ({...a, parentResolved: pgslResolve(pgsl, a.parentUri) })),
     },
     _paradigm: {
       sourceOptions,
@@ -1021,8 +1021,8 @@ app.get('/api/node/*', (req, res) => {
     _suggestions: suggestions.length > 0 ? suggestions : undefined,
     _links: {
       self: { href: `/node/${encodeURIComponent(nodeUri)}`, rel: 'self' },
-      ...(containers.length > 0 ? { up: containers.map(c => ({ href: c.href, rel: 'container', resolved: c.resolved })) } : {}),
-      ...(structure.items ? { down: structure.items.map((i: any) => ({ href: i.href, rel: 'item', resolved: i.resolved })) } : {}),
+...(containers.length > 0 ? { up: containers.map(c => ({ href: c.href, rel: 'container', resolved: c.resolved })) } : {}),
+...(structure.items ? { down: structure.items.map((i: any) => ({ href: i.href, rel: 'item', resolved: i.resolved })) } : {}),
     },
   });
 });
@@ -1482,7 +1482,7 @@ app.post('/api/focus', (req, res) => {
     left: [...leftNeighbors.values()].sort((a, b) => b.count - a.count),
     right: [...rightNeighbors.values()].sort((a, b) => b.count - a.count),
     containingFragments: containingFragments.sort((a, b) => b.level - a.level).slice(0, 20),
-    annotations: annotations.map(a => ({ ...a, parentResolved: pgslResolve(pgsl, a.parentUri) })),
+    annotations: annotations.map(a => ({...a, parentResolved: pgslResolve(pgsl, a.parentUri) })),
   });
 });
 
@@ -1518,7 +1518,7 @@ app.get('/observatory', (_req, res) => {
 
 app.get('/api/pods', async (_req, res) => {
   // Discover from all known pods
-  const allPods = [POD_URL, ...KNOWN_PODS].filter(Boolean);
+  const allPods = [POD_URL,...KNOWN_PODS].filter(Boolean);
   for (const podUrl of allPods) {
     if (podRegistry.has(podUrl)) continue;
     try {
@@ -1610,7 +1610,7 @@ app.post('/api/compose', async (req, res) => {
 
   // Build minimal descriptor data from manifest entries for composition
   const descA = ContextDescriptor.create(entryA.descriptorUrl.replace('.ttl', '') as IRI)
-    .describes(entryA.describes[0] as IRI);
+.describes(entryA.describes[0] as IRI);
   if (entryA.validFrom) descA.temporal({ validFrom: entryA.validFrom, validUntil: entryA.validUntil });
   for (const ft of entryA.facetTypes) {
     if (ft === 'Semiotic') descA.asserted(0.95);
@@ -1619,7 +1619,7 @@ app.post('/api/compose', async (req, res) => {
   const builtA = descA.version(1).build();
 
   const descB = ContextDescriptor.create(entryB.descriptorUrl.replace('.ttl', '') as IRI)
-    .describes(entryB.describes[0] as IRI);
+.describes(entryB.describes[0] as IRI);
   if (entryB.validFrom) descB.temporal({ validFrom: entryB.validFrom, validUntil: entryB.validUntil });
   for (const ft of entryB.facetTypes) {
     if (ft === 'Semiotic') descB.asserted(0.88);
@@ -1638,7 +1638,7 @@ app.post('/api/compose', async (req, res) => {
 
   res.json({
     operator,
-    facets: composed.facets.map(f => ({ type: f.type, ...f })),
+    facets: composed.facets.map(f => ({ type: f.type,...f })),
     facetCount: composed.facets.length,
     compositionOp: composed.compositionOp,
     turtle: toTurtle(composed),
@@ -1785,7 +1785,7 @@ import {
   computeDecisionAffordances,
   selectStrategy,
   decideFromObservations,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 app.post('/api/coherence/check', (req, res) => {
   const { agents } = req.body as { agents?: string[] };
@@ -1935,8 +1935,8 @@ app.get('/api/activity', (_req, res) => {
 // AAT Endpoints
 app.get('/api/aat', (_req, res) => {
   const aats = ['observer', 'analyst', 'executor', 'arbiter', 'archivist', 'full-access']
-    .map(id => getAAT(aatRegistry, `aat:${id}`))
-    .filter(Boolean);
+.map(id => getAAT(aatRegistry, `aat:${id}`))
+.filter(Boolean);
   res.json({ aats });
 });
 
@@ -1955,7 +1955,7 @@ app.get('/api/policy', (_req, res) => {
 
 app.post('/api/policy', (req, res) => {
   const rule = req.body;
-  addRule(policyEngine, { ...rule, id: `rule:${Date.now()}` });
+  addRule(policyEngine, {...rule, id: `rule:${Date.now()}` });
   res.json({ added: true, total: policyEngine.rules.length });
 });
 
@@ -2011,11 +2011,11 @@ app.get('/api/checkpoints', (_req, res) => {
 
 // Marketplace Endpoints
 app.get('/api/marketplace', (_req, res) => {
-  res.json({ ...marketplaceStats(marketplace), listings: [...marketplace.listings.values()] });
+  res.json({...marketplaceStats(marketplace), listings: [...marketplace.listings.values()] });
 });
 
 app.post('/api/marketplace', (req, res) => {
-  const listing = { ...req.body, id: req.body.id ?? `listing:${Date.now()}`, registeredAt: new Date().toISOString() };
+  const listing = {...req.body, id: req.body.id ?? `listing:${Date.now()}`, registeredAt: new Date().toISOString() };
   registerListing(marketplace, listing);
   res.json({ registered: true, id: listing.id });
 });
@@ -2091,7 +2091,7 @@ const LEARNER_INFO: Record<string, { name: string; rank: string; did: string }> 
 
 function xapiToRdf(learner: string, stmts: typeof XAPI_DATA['chen']): string {
   const info = LEARNER_INFO[learner]!;
-  const lines = ['@prefix xapi: <https://w3id.org/xapi/ontology#> .', '@prefix verb: <https://w3id.org/xapi/adl/verbs/> .', '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .', ''];
+  const lines = ['@prefix xapi: <https://w3id.org/xapi/ontology#>.', '@prefix verb: <https://w3id.org/xapi/adl/verbs/>.', '@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.', ''];
   stmts.forEach((s, i) => {
     lines.push(`<urn:xapi:${learner}:${String(i + 1).padStart(3, '0')}> a xapi:Statement ;`);
     lines.push(`    xapi:actor <${info.did}> ;`);
@@ -2099,7 +2099,7 @@ function xapiToRdf(learner: string, stmts: typeof XAPI_DATA['chen']): string {
     lines.push(`    xapi:object <urn:activity:${s.activity}> ;`);
     lines.push(`    xapi:timestamp "${s.timestamp}"^^xsd:dateTime ;`);
     lines.push(`    <https://w3id.org/xapi/ontology#result/score> "${s.score}"^^xsd:integer ;`);
-    lines.push(`    <https://w3id.org/xapi/ontology#result/success> "${s.success}"^^xsd:boolean .`);
+    lines.push(`    <https://w3id.org/xapi/ontology#result/success> "${s.success}"^^xsd:boolean.`);
     lines.push('');
   });
   return lines.join('\n');
@@ -2191,14 +2191,14 @@ app.post('/api/demo/run', async (_req, res) => {
         // Build descriptor
         const descId = `urn:cg:lrs:${learner}-session-2026-03` as IRI;
         const desc = ContextDescriptor.create(descId)
-          .describes(`urn:graph:lrs:${learner}-xapi` as IRI)
-          .temporal({ validFrom: stmts[0]!.timestamp, validUntil: stmts[stmts.length - 1]!.timestamp })
-          .provenance({ wasGeneratedBy: { agent: 'urn:system:lrs:adl-conformant' as IRI, startedAt: stmts[0]!.timestamp, endedAt: stmts[stmts.length - 1]!.timestamp }, wasAttributedTo: 'did:web:lrs.training.airforce.mil' as IRI, generatedAtTime: stmts[stmts.length - 1]!.timestamp })
-          .agent('did:web:lrs.training.airforce.mil' as IRI, 'LRS')
-          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.99 })
-          .trust({ trustLevel: 'SelfAsserted', issuer: 'did:web:lrs.training.airforce.mil' as IRI })
-          .federation({ origin: `${cssUrl}lrs/` as IRI, storageEndpoint: `${cssUrl}lrs/` as IRI, syncProtocol: 'SolidNotifications' })
-          .version(1).build();
+.describes(`urn:graph:lrs:${learner}-xapi` as IRI)
+.temporal({ validFrom: stmts[0]!.timestamp, validUntil: stmts[stmts.length - 1]!.timestamp })
+.provenance({ wasGeneratedBy: { agent: 'urn:system:lrs:adl-conformant' as IRI, startedAt: stmts[0]!.timestamp, endedAt: stmts[stmts.length - 1]!.timestamp }, wasAttributedTo: 'did:web:lrs.training.airforce.mil' as IRI, generatedAtTime: stmts[stmts.length - 1]!.timestamp })
+.agent('did:web:lrs.training.airforce.mil' as IRI, 'LRS')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.99 })
+.trust({ trustLevel: 'SelfAsserted', issuer: 'did:web:lrs.training.airforce.mil' as IRI })
+.federation({ origin: `${cssUrl}lrs/` as IRI, storageEndpoint: `${cssUrl}lrs/` as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
         // Sign with ECDSA
         const turtle = toTurtle(desc);
@@ -2239,7 +2239,7 @@ app.post('/api/demo/run', async (_req, res) => {
       // SPARQL: query which learners completed which activities
       const store = materializeTriples(pgsl);
       const sparqlQuery = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
-SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
+SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value. } LIMIT 30`;
       const sparqlResult = executeSparqlString(store, sparqlQuery);
       logActivity('Competency', 'sparql', `SPARQL: Found ${sparqlResult.bindings.length} atoms in lattice`);
 
@@ -2298,18 +2298,18 @@ SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
 
         logActivity('Competency', 'assess', `${info.name}: ${completed.length}/${stmts.length} passed, avg ${avgScore} → ${level}`);
 
-        const compGraph = `@prefix comp: <https://example.org/competency#> .\n<urn:competency:${learner}> a comp:CompetencyAssertion ; comp:learner <${info.did}> ; comp:level "${level}" ; comp:score "${avgScore}" .`;
+        const compGraph = `@prefix comp: <https://example.org/competency#>.\n<urn:competency:${learner}> a comp:CompetencyAssertion ; comp:learner <${info.did}> ; comp:level "${level}" ; comp:score "${avgScore}".`;
 
         const descId = `urn:cg:competency:${learner}-assessment-2026-03` as IRI;
         const desc = ContextDescriptor.create(descId)
-          .describes(`urn:graph:competency:${learner}-assertions` as IRI)
-          .temporal({ validFrom: '2026-03-17T09:00:00Z', validUntil: '2026-09-17T09:00:00Z' })
-          .provenance({ wasGeneratedBy: { agent: 'urn:system:competency-manager' as IRI, startedAt: '2026-03-17T09:00:00Z', endedAt: '2026-03-17T09:05:00Z' }, wasAttributedTo: 'did:web:competency.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T09:05:00Z', sources: [`urn:cg:lrs:${learner}-session-2026-03` as IRI] })
-          .agent('did:web:competency.training.airforce.mil' as IRI, 'Assessor')
-          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.92 })
-          .trust({ trustLevel: 'ThirdPartyAttested', issuer: 'did:web:competency.training.airforce.mil' as IRI })
-          .federation({ origin: `${cssUrl}competency/` as IRI, storageEndpoint: `${cssUrl}competency/` as IRI, syncProtocol: 'SolidNotifications' })
-          .version(1).build();
+.describes(`urn:graph:competency:${learner}-assertions` as IRI)
+.temporal({ validFrom: '2026-03-17T09:00:00Z', validUntil: '2026-09-17T09:00:00Z' })
+.provenance({ wasGeneratedBy: { agent: 'urn:system:competency-manager' as IRI, startedAt: '2026-03-17T09:00:00Z', endedAt: '2026-03-17T09:05:00Z' }, wasAttributedTo: 'did:web:competency.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T09:05:00Z', sources: [`urn:cg:lrs:${learner}-session-2026-03` as IRI] })
+.agent('did:web:competency.training.airforce.mil' as IRI, 'Assessor')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.92 })
+.trust({ trustLevel: 'ThirdPartyAttested', issuer: 'did:web:competency.training.airforce.mil' as IRI })
+.federation({ origin: `${cssUrl}competency/` as IRI, storageEndpoint: `${cssUrl}competency/` as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
         const turtle = toTurtle(desc);
         const signed = await signDescriptor(descId, turtle, demoState.wallets['competency']!);
@@ -2355,18 +2355,18 @@ SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
         }
 
         // Build LERS credential
-        const credGraph = `@prefix vc: <https://www.w3.org/2018/credentials#> .\n@prefix lers: <https://purl.org/lers/ns#> .\n<urn:lers:${learner}-instrument-2026> a vc:VerifiableCredential, lers:LearningEmploymentRecord ; vc:issuer <did:web:credential.training.airforce.mil> ; vc:issuanceDate "2026-03-17T10:00:00Z" ; vc:credentialSubject [ lers:learner <${info.did}> ; lers:achievement [ lers:level "${avgScore >= 90 ? 'Advanced' : 'Proficient'}" ; lers:framework "USAF Instrument Rating v3" ] ] .`;
+        const credGraph = `@prefix vc: <https://www.w3.org/2018/credentials#>.\n@prefix lers: <https://purl.org/lers/ns#>.\n<urn:lers:${learner}-instrument-2026> a vc:VerifiableCredential, lers:LearningEmploymentRecord ; vc:issuer <did:web:credential.training.airforce.mil> ; vc:issuanceDate "2026-03-17T10:00:00Z" ; vc:credentialSubject [ lers:learner <${info.did}> ; lers:achievement [ lers:level "${avgScore >= 90 ? 'Advanced' : 'Proficient'}" ; lers:framework "USAF Instrument Rating v3" ] ].`;
 
         const credDescId = `urn:cg:credential:${learner}-instrument-2026` as IRI;
         const credDesc = ContextDescriptor.create(credDescId)
-          .describes(`urn:graph:credential:${learner}-lers` as IRI)
-          .temporal({ validFrom: '2026-03-17T10:00:00Z', validUntil: '2027-03-17T10:00:00Z' })
-          .provenance({ wasGeneratedBy: { agent: 'urn:system:credential-issuer' as IRI, startedAt: '2026-03-17T10:00:00Z', endedAt: '2026-03-17T10:00:05Z' }, wasAttributedTo: 'did:web:credential.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T10:00:05Z', sources: [lrsDescId, compDescId] })
-          .agent('did:web:credential.training.airforce.mil' as IRI, 'Issuer')
-          .semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.98, groundTruth: true })
-          .trust({ trustLevel: 'CryptographicallyVerified', issuer: 'did:web:credential.training.airforce.mil' as IRI })
-          .federation({ origin: `${cssUrl}credential/` as IRI, storageEndpoint: `${cssUrl}credential/` as IRI, syncProtocol: 'SolidNotifications' })
-          .version(1).build();
+.describes(`urn:graph:credential:${learner}-lers` as IRI)
+.temporal({ validFrom: '2026-03-17T10:00:00Z', validUntil: '2027-03-17T10:00:00Z' })
+.provenance({ wasGeneratedBy: { agent: 'urn:system:credential-issuer' as IRI, startedAt: '2026-03-17T10:00:00Z', endedAt: '2026-03-17T10:00:05Z' }, wasAttributedTo: 'did:web:credential.training.airforce.mil' as IRI, generatedAtTime: '2026-03-17T10:00:05Z', sources: [lrsDescId, compDescId] })
+.agent('did:web:credential.training.airforce.mil' as IRI, 'Issuer')
+.semiotic({ modalStatus: 'Asserted', epistemicConfidence: 0.98, groundTruth: true })
+.trust({ trustLevel: 'CryptographicallyVerified', issuer: 'did:web:credential.training.airforce.mil' as IRI })
+.federation({ origin: `${cssUrl}credential/` as IRI, storageEndpoint: `${cssUrl}credential/` as IRI, syncProtocol: 'SolidNotifications' })
+.version(1).build();
 
         const turtle = toTurtle(credDesc);
         const signed = await signDescriptor(credDescId, turtle, demoState.wallets['credential']!);
@@ -2418,7 +2418,7 @@ SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
         // Publish to own pod
         const credDesc = demoState.descriptors[credDescId];
         if (credDesc) {
-          const credGraph = `<urn:lers:${learner}> a <https://www.w3.org/2018/credentials#VerifiableCredential> .`;
+          const credGraph = `<urn:lers:${learner}> a <https://www.w3.org/2018/credentials#VerifiableCredential>.`;
           await publish(credDesc, credGraph, `${cssUrl}${learner}/`, { fetch: solidFetch });
           logActivity(firstName, 'publish', `Published verified credential to personal pod: ${learner}/`);
         }
@@ -2459,7 +2459,7 @@ SELECT ?atom ?value WHERE { ?atom a pgsl:Atom ; pgsl:value ?value . } LIMIT 30`;
       // SPARQL: cohort overlap
       const store = materializeTriples(pgsl);
       const overlapQuery = `PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
-SELECT (COUNT(DISTINCT ?atom) AS ?sharedAtoms) WHERE { ?atom a pgsl:Atom . }`;
+SELECT (COUNT(DISTINCT ?atom) AS ?sharedAtoms) WHERE { ?atom a pgsl:Atom. }`;
       const overlapResult = executeSparqlString(store, overlapQuery);
       const atomCount = overlapResult.bindings[0]?.get('?sharedAtoms')?.replace(/"/g, '') ?? '0';
       logActivity('Verifier', 'sparql', `Cohort SPARQL: ${atomCount} shared atoms across 3 learners (content-addressed dedup)`);

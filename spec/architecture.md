@@ -4,12 +4,12 @@
 
 **Latest version:** This document
 
-**Editors:** Mark Spivey / Foxxi Mediums Inc.
+**Editors:** Mark Spivey
 
 **Abstract:** This document is the single source of truth for the architecture
 of Context Graphs 1.0 --- a compositional framework for typed graph contexts
 over RDF 1.2 Named Graphs. It describes the complete system as implemented in
-the `@foxxi/context-graphs` reference implementation: a zero-dependency
+the `@markjspivey-xwisee/context-graphs` reference implementation: a zero-dependency
 TypeScript library (ESM, Node 20+) totaling 22,636 lines across 66 modules.
 
 **Status:** Draft. Intended for discussion within the W3C Context Graphs
@@ -98,7 +98,7 @@ The system is grounded in Peircean triadic semiotics:
    memory (tier 0) and promotes monotonically through 5 tiers.
 
 8. **Discriminated union pattern.** All 9 facet types use
-   `{ type: 'Temporal' | 'Provenance' | ... }` for exhaustive switch
+   `{ type: 'Temporal' | 'Provenance' |... }` for exhaustive switch
    matching. TypeScript compiler enforces completeness.
 
 9. **W3C vocabulary reuse.** 23+ standard namespaces. No novel vocabulary
@@ -190,14 +190,14 @@ Typed metadata that wraps named graphs with structured, composable context.
 
 ```
 ContextDescriptor.create(id)
-  .describes(graphIRI)
-  .temporal({ validFrom, validTo })
-  .delegatedBy(owner, agent)
-  .asserted(confidence)
-  .selfAsserted(issuerDID)
-  .federation({ origin, storageEndpoint, syncProtocol })
-  .version(n)
-  .build()
+.describes(graphIRI)
+.temporal({ validFrom, validTo })
+.delegatedBy(owner, agent)
+.asserted(confidence)
+.selfAsserted(issuerDID)
+.federation({ origin, storageEndpoint, syncProtocol })
+.version(n)
+.build()
 ```
 
 **Validation:** Programmatic SHACL-equivalent. `validate(descriptor)` returns
@@ -316,7 +316,7 @@ axis of the Saussurean framework, applied to PGSL.
 
 **Definitions:**
 
-- **Syntagmatic pattern:** S = (p_0, p_1, ..., p_n) where each p_i is a
+- **Syntagmatic pattern:** S = (p_0, p_1,..., p_n) where each p_i is a
   concrete atom or wildcard `?`.
 - **Paradigm set:** P(S, i) = { a in Atoms | exists chain C matching S
   with C[i] = a }. Emerges from usage, not declaration.

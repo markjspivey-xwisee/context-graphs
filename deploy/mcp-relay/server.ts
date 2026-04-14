@@ -38,7 +38,7 @@ import {
   pinToIpfs,
   cryptoComputeCid,
   toTurtle,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import type {
   IRI,
@@ -51,7 +51,7 @@ import type {
   Subscription,
   ContextChangeEvent,
   ManifestEntry,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 // ── Config ──────────────────────────────────────────────────
 
@@ -171,24 +171,24 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
   });
 
   const builder = ContextDescriptor.create(descId)
-    .describes((args.graph_iri as string) as IRI)
-    .temporal({ validFrom: (args.valid_from as string) ?? now, validUntil: args.valid_until as string })
-    .delegatedBy(ownerWebId as IRI, agentId as IRI, { endedAt: now })
-    .semiotic({
+.describes((args.graph_iri as string) as IRI)
+.temporal({ validFrom: (args.valid_from as string) ?? now, validUntil: args.valid_until as string })
+.delegatedBy(ownerWebId as IRI, agentId as IRI, { endedAt: now })
+.semiotic({
       modalStatus: ((args.modal_status as string) ?? 'Asserted') as 'Asserted' | 'Hypothetical',
       epistemicConfidence: (args.confidence as number) ?? 0.85,
       groundTruth: ((args.modal_status as string) ?? 'Asserted') === 'Asserted',
     })
-    .trust({
+.trust({
       trustLevel: 'SelfAsserted',
       issuer: ownerWebId as IRI,
     })
-    .federation({
+.federation({
       origin: podUrl as IRI,
       storageEndpoint: podUrl as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1);
+.version(1);
 
   const descriptor = builder.build();
   const validation = validate(descriptor);
@@ -521,7 +521,7 @@ app.get('/x402/price/:podName', (req, res) => {
     res.status(402).json({
       paymentRequired: true,
       pod: podUrl,
-      ...price,
+...price,
       x402: {
         version: '1',
         accepts: [{ network: 'ethereum', token: price.currency, amount: price.amount, address: price.address }],
@@ -562,7 +562,7 @@ app.post('/tool/:name', async (req, res) => {
   }
 
   try {
-    const result = await tool.handler({ ...req.body, _req: req });
+    const result = await tool.handler({...req.body, _req: req });
     res.json(JSON.parse(result));
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

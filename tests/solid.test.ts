@@ -1,5 +1,5 @@
 /**
- * Test suite for @foxxi/context-graphs/solid
+ * Test suite for @markjspivey-xwisee/context-graphs/solid
  *
  * Covers: publish, discover, subscribe — all with mocked HTTP/WebSocket.
  */
@@ -38,19 +38,19 @@ function mockResponse(
 /** Build a simple descriptor for testing. */
 function testDescriptor(id = 'urn:cg:test-solid') {
   return ContextDescriptor.create(id as IRI)
-    .describes('urn:graph:g1' as IRI)
-    .temporal({
+.describes('urn:graph:g1' as IRI)
+.temporal({
       validFrom: '2026-01-01T00:00:00Z',
       validUntil: '2026-06-30T23:59:59Z',
     })
-    .selfAsserted('did:web:alice.example' as IRI)
-    .build();
+.selfAsserted('did:web:alice.example' as IRI)
+.build();
 }
 
 // ── Sample manifest ─────────────────────────────────────────
 
-const SAMPLE_MANIFEST = `@prefix cg: <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+const SAMPLE_MANIFEST = `@prefix cg: <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <https://alice.pod/context-graphs/desc-1.ttl> a cg:ManifestEntry ;
     cg:describes <urn:graph:g1> ;
@@ -58,14 +58,14 @@ const SAMPLE_MANIFEST = `@prefix cg: <https://markjspivey-xwisee.github.io/conte
     cg:hasFacetType cg:Trust ;
     cg:trustLevel cg:SelfAsserted ;
     cg:validFrom "2026-01-01T00:00:00Z"^^xsd:dateTime ;
-    cg:validUntil "2026-06-30T23:59:59Z"^^xsd:dateTime .
+    cg:validUntil "2026-06-30T23:59:59Z"^^xsd:dateTime.
 
 <https://alice.pod/context-graphs/desc-2.ttl> a cg:ManifestEntry ;
     cg:describes <urn:graph:g2> ;
     cg:hasFacetType cg:Semiotic ;
     cg:modalStatus cg:Asserted ;
     cg:validFrom "2026-07-01T00:00:00Z"^^xsd:dateTime ;
-    cg:validUntil "2026-12-31T23:59:59Z"^^xsd:dateTime .
+    cg:validUntil "2026-12-31T23:59:59Z"^^xsd:dateTime.
 `;
 
 // ═════════════════════════════════════════════════════════════
@@ -90,13 +90,13 @@ describe('parseManifest', () => {
 
   it('returns empty array for empty manifest', () => {
     expect(parseManifest('')).toEqual([]);
-    expect(parseManifest('@prefix cg: <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#> .')).toEqual([]);
+    expect(parseManifest('@prefix cg: <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#>.')).toEqual([]);
   });
 
   it('handles entries without temporal bounds', () => {
     const turtle = `<https://pod/d.ttl> a cg:ManifestEntry ;
     cg:describes <urn:graph:x> ;
-    cg:hasFacetType cg:Agent .`;
+    cg:hasFacetType cg:Agent.`;
 
     const entries = parseManifest(turtle);
     expect(entries).toHaveLength(1);
@@ -134,7 +134,7 @@ describe('publish', () => {
     }) as unknown as typeof globalThis.fetch;
 
     const desc = testDescriptor();
-    const graphContent = '<urn:s> <urn:p> <urn:o> .';
+    const graphContent = '<urn:s> <urn:p> <urn:o>.';
 
     const result = await publish(desc, graphContent, 'https://alice.pod/', {
       fetch: mockFetch,
@@ -353,7 +353,7 @@ describe('subscribe', () => {
       if (callIndex === 2) {
         if (opts?.descFail) return mockResponse('', { status: 501, ok: false });
         return mockResponse(
-          '<https://alice.pod/.notifications/WebSocketChannel2023/> a <http://www.w3.org/ns/solid/notifications#WebSocketChannel2023> .',
+          '<https://alice.pod/.notifications/WebSocketChannel2023/> a <http://www.w3.org/ns/solid/notifications#WebSocketChannel2023>.',
         );
       }
 

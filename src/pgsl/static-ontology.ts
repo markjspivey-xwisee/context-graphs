@@ -18,7 +18,7 @@
  *
  * These static files are the canonical, versioned, ontology-engineered
  * definitions. The functions in this module load them at runtime
- * (Node only — browser consumers should bundle the .ttl files
+ * (Node only — browser consumers should bundle the.ttl files
  * themselves via their build tool).
  *
  * The older `pgslOwlOntology()` / `pgslShaclShapes()` generators in
@@ -61,7 +61,7 @@ function resolveNsDir(): string {
  *
  * @example
  * ```ts
- * import { loadOntology } from '@foxxi/context-graphs';
+ * import { loadOntology } from '@markjspivey-xwisee/context-graphs';
  *
  * const pgslTtl = loadOntology('pgsl');
  * const harnessTtl = loadOntology('harness');

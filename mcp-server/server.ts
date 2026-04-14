@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @foxxi/context-graphs-mcp v0.4.1
+ * @markjspivey-xwisee/context-graphs-mcp v0.4.1
  *
  * MCP server for federated context-annotated knowledge graphs.
  *
@@ -89,7 +89,7 @@ import {
   daysBetween,
   countUnique,
   shouldAbstain,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import type {
   IRI,
@@ -104,7 +104,7 @@ import type {
   ManifestEntry,
   PGSLInstance,
   NodeProvenance,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import { PodRegistry, type KnownPod } from './pod-registry.js';
 
@@ -367,28 +367,28 @@ async function toolPublishContext(args: {
   const now = new Date().toISOString();
 
   const builder = ContextDescriptor.create(descId)
-    .describes(args.graph_iri as IRI)
-    .temporal({
+.describes(args.graph_iri as IRI)
+.temporal({
       validFrom: args.valid_from ?? now,
       validUntil: args.valid_until,
     })
-    .delegatedBy(MY_OWNER_WEBID, MY_AGENT_ID, { endedAt: now })
-    .semiotic({
+.delegatedBy(MY_OWNER_WEBID, MY_AGENT_ID, { endedAt: now })
+.semiotic({
       modalStatus: (args.modal_status as 'Asserted' | 'Hypothetical') ?? 'Asserted',
       epistemicConfidence: args.confidence ?? 0.85,
       groundTruth: (args.modal_status ?? 'Asserted') === 'Asserted',
     })
-    .trust({
+.trust({
       trustLevel: 'SelfAsserted',
       issuer: MY_OWNER_WEBID,
       verifiableCredential: `${podUrl}credentials/${encodeURIComponent(MY_AGENT_ID)}.jsonld` as IRI,
     })
-    .federation({
+.federation({
       origin: podUrl as IRI,
       storageEndpoint: podUrl as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1);
+.version(1);
 
   const descriptor = builder.build();
   const validation = validate(descriptor);
@@ -810,7 +810,7 @@ async function toolSubscribeAll(_args: Record<string, never>): Promise<string> {
 
   return [
     `Subscribe all: ${subscribed} new, ${skipped} already subscribed, ${failed} failed`,
-    ...results,
+...results,
   ].join('\n');
 }
 
@@ -918,7 +918,7 @@ async function toolResolveWebfinger(args: { resource: string }): Promise<string>
     result.podUrl ? `  Pod URL: ${result.podUrl} (added to registry)` : '  Pod URL: not found in JRD links',
     result.webId ? `  WebID: ${result.webId}` : '',
     `  Links: ${result.links.length}`,
-    ...result.links.map(l => `    ${l.rel} -> ${l.href}`),
+...result.links.map(l => `    ${l.rel} -> ${l.href}`),
   ].filter(Boolean).join('\n');
 }
 
@@ -1164,7 +1164,7 @@ async function toolLinkWallet(args: {
 }
 
 async function toolCheckBalance(args: { address?: string }): Promise<string> {
-  const { checkBalance, getChainConfig } = await import('@foxxi/context-graphs');
+  const { checkBalance, getChainConfig } = await import('@markjspivey-xwisee/context-graphs');
   const chain = getChainConfig();
 
   if (chain.mode === 'local') {
@@ -1285,7 +1285,7 @@ async function toolPgslIngest(args: {
   // Always write PGSL stats to the pod so the dashboard can observe
   try {
     await ensureCSS();
-    const statsJson = JSON.stringify({ ...stats, lastIngested: resolved, lastTopUri: topUri, updatedAt: new Date().toISOString() });
+    const statsJson = JSON.stringify({...stats, lastIngested: resolved, lastTopUri: topUri, updatedAt: new Date().toISOString() });
     await solidFetch(`${HOME_POD}pgsl-stats.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1348,7 +1348,7 @@ async function toolPgslLatticeStatus(_args: Record<string, never>): Promise<stri
     `  Fragments: ${stats.fragments}`,
     `  Max level: ${stats.maxLevel}`,
     `  By level:`,
-    ...Object.entries(stats.levels).map(([k, v]) => `    L${k}: ${v} nodes`),
+...Object.entries(stats.levels).map(([k, v]) => `    L${k}: ${v} nodes`),
   ];
   return lines.join('\n');
 }
@@ -1373,7 +1373,7 @@ async function toolPgslToTurtle(_args: Record<string, never>): Promise<string> {
 // ── MCP Server ──────────────────────────────────────────────
 
 const mcpServer = new Server(
-  { name: '@foxxi/context-graphs-mcp', version: '0.4.0' },
+  { name: '@markjspivey-xwisee/context-graphs-mcp', version: '0.4.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 
