@@ -1,4 +1,4 @@
-# @markjspivey-xwisee/context-graphs
+# @interego/context-graphs
 
 Reference implementation of **[Context Graphs 1.0](https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html)** — a compositional framework for typed graph contexts over RDF 1.2 Named Graphs.
 
@@ -35,7 +35,7 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 ## Architecture
 
 ```
-@markjspivey-xwisee/context-graphs
+@interego/context-graphs
 ├── src/
 │   ├── model/        Core types, ContextDescriptor builder, composition operators,
 │   │                 delegation, category theory (presheaf, naturality, lattice laws),
@@ -112,7 +112,7 @@ Add this to your MCP client config:
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
+      "args": ["-y", "@interego/context-graphs-mcp"]
     }
   }
 }
@@ -125,7 +125,7 @@ Restart your client. You can now say things like *"publish this graph to my pod 
 ### 🧑‍💻 I'm a developer building a TypeScript app
 
 ```bash
-npm install @markjspivey-xwisee/context-graphs
+npm install @interego/context-graphs
 ```
 
 ```typescript
@@ -135,7 +135,7 @@ import {
   embedInPGSL,
   loadOntology,        // load any of the four canonical.ttl ontologies
   computeConfidence,   // runtime eval over PGSL signals
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 // 1. Build a context descriptor (the typed-context layer)
 const desc = ContextDescriptor.create('urn:cg:my-analysis:1')
@@ -185,7 +185,7 @@ npm test  # 642 tests across 20 files
 
 # Build the MCP server too
 cd mcp-server
-npm install ../markjspivey-xwisee-context-graphs-*.tgz --no-save
+npm install ../interego-context-graphs-*.tgz --no-save
 npm run build
 
 # Deploy to your own Azure (one-time)
@@ -201,8 +201,8 @@ CI auto-deploys to Azure Container Apps on every push to `master` ([workflow](.g
 ### Build a Context Descriptor
 
 ```typescript
-import { ContextDescriptor, validate, toTurtle } from '@markjspivey-xwisee/context-graphs';
-import type { IRI } from '@markjspivey-xwisee/context-graphs';
+import { ContextDescriptor, validate, toTurtle } from '@interego/context-graphs';
+import type { IRI } from '@interego/context-graphs';
 
 const descriptor = ContextDescriptor.create('urn:cg:my-analysis:1' as IRI)
 .describes('urn:graph:project:arch-v1' as IRI)
@@ -229,7 +229,7 @@ console.log(toTurtle(descriptor));
 ### Publish to a Solid Pod
 
 ```typescript
-import { publish, discover, subscribe } from '@markjspivey-xwisee/context-graphs';
+import { publish, discover, subscribe } from '@interego/context-graphs';
 
 const result = await publish(descriptor, graphTurtle, 'https://pod.example.com/alice/');
 // → { descriptorUrl, graphUrl, manifestUrl }
@@ -248,7 +248,7 @@ const sub = await subscribe('https://pod.example.com/bob/', (event) => {
 ### Compose Descriptors
 
 ```typescript
-import { union, intersection, restriction } from '@markjspivey-xwisee/context-graphs';
+import { union, intersection, restriction } from '@interego/context-graphs';
 
 const merged = union(descriptorA, descriptorB);
 const common = intersection(descriptorA, descriptorB);
@@ -262,7 +262,7 @@ const trustOnly = restriction(merged, ['Trust', 'Semiotic']);
 The content substrate. Deterministic hierarchical data structure representing sequential data as a lattice of overlapping sub-structures with content-addressed canonical URIs.
 
 ```typescript
-import { createPGSL, embedInPGSL, pgslResolve, latticeMeet } from '@markjspivey-xwisee/context-graphs';
+import { createPGSL, embedInPGSL, pgslResolve, latticeMeet } from '@interego/context-graphs';
 
 const pgsl = createPGSL({ wasAttributedTo: 'did:web:alice', generatedAtTime: new Date().toISOString() });
 
@@ -290,7 +290,7 @@ PGSL provides:
 ### SPARQL Engine
 
 ```typescript
-import { sparqlQueryPGSL, materializeTriples, executeSparqlString } from '@markjspivey-xwisee/context-graphs';
+import { sparqlQueryPGSL, materializeTriples, executeSparqlString } from '@interego/context-graphs';
 
 // Execute SPARQL against the PGSL lattice
 const result = sparqlQueryPGSL(pgsl, `
@@ -305,7 +305,7 @@ console.log(result.bindings.length); // number of matching atoms
 ### SHACL Validation
 
 ```typescript
-import { validateAllPGSL, validateDomainShapes } from '@markjspivey-xwisee/context-graphs';
+import { validateAllPGSL, validateDomainShapes } from '@interego/context-graphs';
 
 // Validate lattice with all 3 layers (core + structural + domain)
 const result = validateAllPGSL(pgsl);
@@ -324,7 +324,7 @@ const result = validateDomainShapes(pgsl, [{
 Usage-based semantic agreement between agents. Two agents share a SIGN (atom) but only share MEANING if they USE it in the same syntagmatic contexts.
 
 ```typescript
-import { createPGSL, embedInPGSL, verifyCoherence, computeCoverage } from '@markjspivey-xwisee/context-graphs';
+import { createPGSL, embedInPGSL, verifyCoherence, computeCoverage } from '@interego/context-graphs';
 
 const pgslA = createPGSL({ wasAttributedTo: 'agent-a', generatedAtTime: new Date().toISOString() });
 const pgslB = createPGSL({ wasAttributedTo: 'agent-b', generatedAtTime: new Date().toISOString() });
@@ -359,7 +359,7 @@ Structural rules on what can fill positions in chains. The paradigm set P(S, i) 
 Natural transformation from observation presheaves to action categories: Observe → Orient → Decide → Act.
 
 ```typescript
-import { extractObservations, decide } from '@markjspivey-xwisee/context-graphs';
+import { extractObservations, decide } from '@interego/context-graphs';
 
 const obs = extractObservations(pgsl, 'agent-a', certificates);
 const result = decide(pgsl, 'agent-a', certificates);
@@ -380,7 +380,7 @@ Five-tier persistence with URI invariance — same content hash across all tiers
 | 4 | Blockchain | Permanent | On-chain hash verification |
 
 ```typescript
-import { createPersistenceRegistry, recordPersistence, promoteToIpfs } from '@markjspivey-xwisee/context-graphs';
+import { createPersistenceRegistry, recordPersistence, promoteToIpfs } from '@interego/context-graphs';
 
 const registry = createPersistenceRegistry();
 recordPersistence(registry, atomUri, 0, { promotedBy: 'agent-a' });
@@ -408,7 +408,7 @@ Tested with Comunica SPARQL engine — standard RDF tooling interoperability con
 ### Ingestion Profiles
 
 ```typescript
-import { ingestWithProfile } from '@markjspivey-xwisee/context-graphs';
+import { ingestWithProfile } from '@interego/context-graphs';
 
 // xAPI profile: preserves actor/verb/object/result nesting
 const uri = ingestWithProfile(pgsl, 'xapi', {
@@ -432,7 +432,7 @@ const credUri = ingestWithProfile(pgsl, 'lers', {
 });
 
 // Custom profiles: register your own
-import { registerProfile } from '@markjspivey-xwisee/context-graphs';
+import { registerProfile } from '@interego/context-graphs';
 registerProfile({
   name: 'fhir',
   description: 'FHIR observation: patient/encounter/observation nesting',
@@ -516,7 +516,7 @@ Integrates 8 theoretical frameworks for autonomous agent decision-making:
 | **Stigmergy** | Affordance landscape tracking across pods | `StigmergicField` |
 
 ```typescript
-import { computeAffordances, computeCognitiveStrategy } from '@markjspivey-xwisee/context-graphs';
+import { computeAffordances, computeCognitiveStrategy } from '@interego/context-graphs';
 
 // What can this agent do with this descriptor?
 const affordances = computeAffordances(agentProfile, descriptor);
@@ -532,7 +532,7 @@ const strategy = computeCognitiveStrategy('How many days between X and Y?');
 ## Causality — Pearl's SCM Framework
 
 ```typescript
-import { buildSCM, doIntervention, isDSeparated, evaluateCounterfactual } from '@markjspivey-xwisee/context-graphs';
+import { buildSCM, doIntervention, isDSeparated, evaluateCounterfactual } from '@interego/context-graphs';
 
 const scm = buildSCM({
   variables: [{ name: 'X' }, { name: 'Y' }, { name: 'Z' }],
@@ -557,7 +557,7 @@ All real. No mocks.
 ### E2E Encryption (NaCl)
 
 ```typescript
-import { generateKeyPair, createEncryptedEnvelope, openEncryptedEnvelope } from '@markjspivey-xwisee/context-graphs';
+import { generateKeyPair, createEncryptedEnvelope, openEncryptedEnvelope } from '@interego/context-graphs';
 
 const owner = generateKeyPair();  // X25519
 const agent = generateKeyPair();
@@ -568,7 +568,7 @@ const decrypted = openEncryptedEnvelope(envelope, agent); // only authorized age
 ### Zero-Knowledge Proofs
 
 ```typescript
-import { proveConfidenceAboveThreshold, proveDelegationMembership, proveTemporalOrdering } from '@markjspivey-xwisee/context-graphs';
+import { proveConfidenceAboveThreshold, proveDelegationMembership, proveTemporalOrdering } from '@interego/context-graphs';
 
 // Prove confidence > 0.8 without revealing exact value
 const { proof } = proveConfidenceAboveThreshold(0.95, 0.8);
@@ -583,7 +583,7 @@ const temporalProof = proveTemporalOrdering(myTimestamp, deadline);
 ### Wallets & SIWE
 
 ```typescript
-import { createWallet, createDelegation, signDescriptor, verifySiweSignature } from '@markjspivey-xwisee/context-graphs';
+import { createWallet, createDelegation, signDescriptor, verifySiweSignature } from '@interego/context-graphs';
 
 const humanWallet = await createWallet('human', 'Alice');  // real secp256k1
 const agentWallet = await createWallet('agent', 'Claude');
@@ -594,7 +594,7 @@ const signed = await signDescriptor(descriptorId, turtle, agentWallet); // real 
 ### IPFS Pinning
 
 ```typescript
-import { pinDescriptor, computeCid } from '@markjspivey-xwisee/context-graphs';
+import { pinDescriptor, computeCid } from '@interego/context-graphs';
 
 const cid = computeCid(turtleContent);  // real SHA-256 CID
 const anchor = await pinDescriptor(descriptorId, turtle, { provider: 'pinata', apiKey: '...' });

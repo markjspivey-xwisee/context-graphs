@@ -42,13 +42,13 @@ import {
   sparqlQueryPGSL,
   sparqlFragmentsContaining,
   validateAllPGSL,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import type {
   IRI,
   ContextDescriptorData,
   FetchFn,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 

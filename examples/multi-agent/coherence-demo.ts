@@ -41,9 +41,9 @@ import {
   validateAllPGSL,
   mintAtom,
   ingest,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
-import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, PGSLInstance } from '@interego/context-graphs';
 
 // ── Colors & Logging ───────────────────────────────────────
 

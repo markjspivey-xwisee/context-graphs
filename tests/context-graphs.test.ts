@@ -1,5 +1,5 @@
 /**
- * Test suite for @markjspivey-xwisee/context-graphs
+ * Test suite for @interego/context-graphs
  *
  * Covers: descriptor builder, composition operators, serialization,
  *         validation, and SPARQL pattern generation.

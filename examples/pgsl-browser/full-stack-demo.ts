@@ -41,14 +41,14 @@ import {
   // Decision Functor (Layer 5)
   extractObservations,
   selectStrategy,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import {
   computeAffordances as computeDecisionAffordances,
   decide as decideFromObservations,
 } from '../../src/pgsl/decision-functor.js';
 
-import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, PGSLInstance } from '@interego/context-graphs';
 
 // ── Browser API ─────────────────────────────────────────
 

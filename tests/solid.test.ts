@@ -1,5 +1,5 @@
 /**
- * Test suite for @markjspivey-xwisee/context-graphs/solid
+ * Test suite for @interego/context-graphs/solid
  *
  * Covers: publish, discover, subscribe — all with mocked HTTP/WebSocket.
  */

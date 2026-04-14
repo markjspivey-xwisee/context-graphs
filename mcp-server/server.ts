@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @markjspivey-xwisee/context-graphs-mcp v0.4.1
+ * @interego/context-graphs-mcp v0.4.1
  *
  * MCP server for federated context-annotated knowledge graphs.
  *
@@ -89,7 +89,7 @@ import {
   daysBetween,
   countUnique,
   shouldAbstain,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import type {
   IRI,
@@ -104,7 +104,7 @@ import type {
   ManifestEntry,
   PGSLInstance,
   NodeProvenance,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import { PodRegistry, type KnownPod } from './pod-registry.js';
 
@@ -1164,7 +1164,7 @@ async function toolLinkWallet(args: {
 }
 
 async function toolCheckBalance(args: { address?: string }): Promise<string> {
-  const { checkBalance, getChainConfig } = await import('@markjspivey-xwisee/context-graphs');
+  const { checkBalance, getChainConfig } = await import('@interego/context-graphs');
   const chain = getChainConfig();
 
   if (chain.mode === 'local') {
@@ -1373,7 +1373,7 @@ async function toolPgslToTurtle(_args: Record<string, never>): Promise<string> {
 // ── MCP Server ──────────────────────────────────────────────
 
 const mcpServer = new Server(
-  { name: '@markjspivey-xwisee/context-graphs-mcp', version: '0.4.0' },
+  { name: '@interego/context-graphs-mcp', version: '0.4.0' },
   { capabilities: { tools: {}, resources: {} } },
 );
 

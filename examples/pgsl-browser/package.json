@@ -1,12 +1,12 @@
 {
-  "name": "@markjspivey-xwisee/pgsl-browser",
+  "name": "@interego/pgsl-browser",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "start": "tsx server.ts"
   },
   "dependencies": {
-    "@markjspivey-xwisee/context-graphs": "file:../../",
+    "@interego/context-graphs": "file:../../",
     "express": "^4.21.0",
     "tsx": "^4.0.0"
   },

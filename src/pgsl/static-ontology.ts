@@ -61,7 +61,7 @@ function resolveNsDir(): string {
  *
  * @example
  * ```ts
- * import { loadOntology } from '@markjspivey-xwisee/context-graphs';
+ * import { loadOntology } from '@interego/context-graphs';
  *
  * const pgslTtl = loadOntology('pgsl');
  * const harnessTtl = loadOntology('harness');

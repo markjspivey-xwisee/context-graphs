@@ -21,7 +21,7 @@ import {
   createPGSL, embedInPGSL, latticeStats, pgslResolve,
   verifyCoherence, computeCoverage, getCertificates,
   sparqlQueryPGSL,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import {
   extractObservations,
@@ -34,7 +34,7 @@ import {
   generateMetagraph, ingestMetagraph,
 } from '../../src/pgsl/discovery.js';
 
-import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, PGSLInstance } from '@interego/context-graphs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
