@@ -9,7 +9,7 @@
 **Abstract:** This document is the single source of truth for the architecture
 of Context Graphs 1.0 --- a compositional framework for typed graph contexts
 over RDF 1.2 Named Graphs. It describes the complete system as implemented in
-the `@markjspivey-xwisee/context-graphs` reference implementation: a zero-dependency
+the `@interego/context-graphs` reference implementation: a zero-dependency
 TypeScript library (ESM, Node 20+) totaling 22,636 lines across 66 modules.
 
 **Status:** Draft. Intended for discussion within the W3C Context Graphs

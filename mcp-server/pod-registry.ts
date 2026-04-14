@@ -6,7 +6,7 @@
  * WebFinger-resolved pods. Manages per-pod subscription lifecycle.
  */
 
-import type { IRI, Subscription } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, Subscription } from '@interego/context-graphs';
 
 export type DiscoverySource = 'config' | 'directory' | 'webfinger' | 'manual';
 

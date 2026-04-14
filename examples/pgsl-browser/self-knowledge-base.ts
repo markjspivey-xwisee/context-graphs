@@ -39,9 +39,9 @@ import {
   validate,
   intersection,
   union,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
-import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, PGSLInstance } from '@interego/context-graphs';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, extname, basename } from 'node:path';
 

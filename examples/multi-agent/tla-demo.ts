@@ -48,9 +48,9 @@ import {
   sparqlQueryPGSL,
   sparqlFragmentsContaining,
   validateAllPGSL,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
-import type { IRI, FetchFn } from '@markjspivey-xwisee/context-graphs';
+import type { IRI, FetchFn } from '@interego/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 

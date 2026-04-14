@@ -1,4 +1,4 @@
-# CLAUDE.md — @markjspivey-xwisee/context-graphs
+# CLAUDE.md — @interego/context-graphs
 
 ## What is this project?
 

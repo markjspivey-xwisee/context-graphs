@@ -33,7 +33,7 @@ import {
   publish,
   discover,
   subscribe,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import type {
   IRI,
@@ -42,7 +42,7 @@ import type {
   ContextChangeEvent,
   FetchFn,
   WebSocketConstructor,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 

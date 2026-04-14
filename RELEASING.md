@@ -2,8 +2,8 @@
 
 This document describes how to publish new versions of the two npm packages in this repo:
 
-- **`@markjspivey-xwisee/context-graphs`** — the TypeScript library (root `package.json`)
-- **`@markjspivey-xwisee/context-graphs-mcp`** — the MCP server for AI agents (`mcp-server/package.json`)
+- **`@interego/context-graphs`** — the TypeScript library (root `package.json`)
+- **`@interego/context-graphs-mcp`** — the MCP server for AI agents (`mcp-server/package.json`)
 
 Publishing happens automatically in CI on git tag push. You should never run `npm publish` from your local machine.
 
@@ -13,12 +13,12 @@ You need to create an npm token and store it as a GitHub repo secret. This is th
 
 ### 1. Create an npm Granular Access Token
 
-1. Sign in at [npmjs.com](https://www.npmjs.com/) (must have write access to the `@markjspivey-xwisee` personal scope — by default every npm user can publish to their own `@<username>` scope)
+1. Sign in at [npmjs.com](https://www.npmjs.com/) (must have write access to the `@interego` personal scope — by default every npm user can publish to their own `@<username>` scope)
 2. Go to **Profile → Access Tokens → Generate New Token → Granular Access Token**
 3. Settings:
    - **Token name:** `context-graphs-github-actions`
    - **Expiration:** your call (90 days for safety, 1 year for convenience)
-   - **Packages and scopes:** select `@markjspivey-xwisee/context-graphs` and `@markjspivey-xwisee/context-graphs-mcp`
+   - **Packages and scopes:** select `@interego/context-graphs` and `@interego/context-graphs-mcp`
    - **Permissions:** `Read and write`
    - **Allowed IPv4 ranges:** leave empty (GitHub Actions runners use dynamic IPs)
 4. Click **Generate Token** and copy it (starts with `npm_…`)
@@ -40,7 +40,7 @@ You can verify it's set with `gh secret list` — you should see `NPM_TOKEN` alo
 #
 #    Edit package.json              → "version": "0.3.0"
 #    Edit mcp-server/package.json   → "version": "0.5.0"
-#                                  → "@markjspivey-xwisee/context-graphs": "^0.3.0"
+#                                  → "@interego/context-graphs": "^0.3.0"
 #
 #    The MCP server's library dep range MUST match the new library version
 #    or the published mcp-server tarball won't install for users.
@@ -106,7 +106,7 @@ Avoid this path when possible — the CI flow is reproducible, audited, and uses
 
 ## What gets published
 
-### `@markjspivey-xwisee/context-graphs` tarball contents
+### `@interego/context-graphs` tarball contents
 
 (controlled by `"files"` in root `package.json`)
 
@@ -116,7 +116,7 @@ Avoid this path when possible — the CI flow is reproducible, audited, and uses
 - `README.md`
 - `LICENSE`
 
-### `@markjspivey-xwisee/context-graphs-mcp` tarball contents
+### `@interego/context-graphs-mcp` tarball contents
 
 (controlled by `"files"` in `mcp-server/package.json`)
 
@@ -138,13 +138,13 @@ The library and the MCP server can have **independent versions** — they do not
 
 ## Troubleshooting
 
-### "@markjspivey-xwisee/context-graphs@X.Y.Z is not in this registry"
+### "@interego/context-graphs@X.Y.Z is not in this registry"
 
-The `publish-mcp-server` job waits up to 5 minutes for the library to propagate. If it times out, the npm registry was unusually slow or the library publish failed. Re-run the workflow with `gh run rerun <run-id>` once the library shows up at `npm view @markjspivey-xwisee/context-graphs`.
+The `publish-mcp-server` job waits up to 5 minutes for the library to propagate. If it times out, the npm registry was unusually slow or the library publish failed. Re-run the workflow with `gh run rerun <run-id>` once the library shows up at `npm view @interego/context-graphs`.
 
 ### "403 Forbidden" on publish
 
-Either the `NPM_TOKEN` secret is missing/expired, or it doesn't have write access to the `@markjspivey-xwisee` scope. Regenerate the token (see one-time setup above) and `gh secret set NPM_TOKEN` again.
+Either the `NPM_TOKEN` secret is missing/expired, or it doesn't have write access to the `@interego` scope. Regenerate the token (see one-time setup above) and `gh secret set NPM_TOKEN` again.
 
 ### "tag v0.X.Y already exists"
 

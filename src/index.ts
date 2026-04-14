@@ -1,5 +1,5 @@
 /**
- * @markjspivey-xwisee/context-graphs
+ * @interego/context-graphs
  *
  * Reference implementation of Context Graphs 1.0 — a compositional
  * framework for typed graph contexts over RDF 1.2 Named Graphs.
@@ -10,7 +10,7 @@
  *
  * @example
  * ```ts
- * import { ContextDescriptor, toTurtle, validate } from '@markjspivey-xwisee/context-graphs';
+ * import { ContextDescriptor, toTurtle, validate } from '@interego/context-graphs';
  *
  * const desc = ContextDescriptor.create('urn:cg:my-context')
  *.describes('urn:graph:observations-2026-Q1')

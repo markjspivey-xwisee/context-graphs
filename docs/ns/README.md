@@ -67,7 +67,7 @@ Every file in this directory follows these principles:
 
 ## Runtime access
 
-The library ships the Turtle files with the npm package (see `"files"` in `package.json`) and exposes loaders from `@markjspivey-xwisee/context-graphs`:
+The library ships the Turtle files with the npm package (see `"files"` in `package.json`) and exposes loaders from `@interego/context-graphs`:
 
 ```ts
 import {
@@ -75,7 +75,7 @@ import {
   loadFullOntology,
   loadFullShapes,
   ONTOLOGY_MANIFEST,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 // Load one named ontology file as a Turtle string
 const pgslTtl = loadOntology('pgsl');

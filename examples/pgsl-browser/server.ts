@@ -72,7 +72,7 @@ import {
   systemToTurtle,
   systemToJsonLd,
   getCertificates,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 import {
   ObserverAAT, AnalystAAT, ExecutorAAT, ArbiterAAT, ArchivistAAT, FullAccessAAT,
@@ -99,7 +99,7 @@ const xapiProfile = getProfile('xapi')!;
 import type {
   IRI, PGSLInstance, TokenGranularity, ContextDescriptorData, ManifestEntry,
   Wallet, WalletDelegation, SignedDescriptor,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env['PORT'] ?? '5000');
@@ -1785,7 +1785,7 @@ import {
   computeDecisionAffordances,
   selectStrategy,
   decideFromObservations,
-} from '@markjspivey-xwisee/context-graphs';
+} from '@interego/context-graphs';
 
 app.post('/api/coherence/check', (req, res) => {
   const { agents } = req.body as { agents?: string[] };

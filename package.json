@@ -1,5 +1,5 @@
 {
-  "name": "@markjspivey-xwisee/context-graphs",
+  "name": "@interego/context-graphs",
   "version": "0.2.0",
   "description": "Reference implementation of Context Graphs 1.0 — a compositional framework for typed graph contexts over RDF 1.2 Named Graphs, with PGSL substrate, harness ontology, and runtime evaluation",
   "author": "Mark Spivey <mark.spivey@xwisee.com>",

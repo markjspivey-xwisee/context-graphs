@@ -1,4 +1,4 @@
-# @markjspivey-xwisee/context-graphs-mcp
+# @interego/context-graphs-mcp
 
 **MCP server for [Context Graphs](https://github.com/markjspivey-xwisee/context-graphs)** — exposes 28 tools for publishing, discovering, composing, and reasoning over typed knowledge graphs through Solid pods. Compatible with Claude Code, Claude Desktop, Cursor, Windsurf, Cline, and any other MCP client.
 
@@ -6,13 +6,13 @@
 
 ```bash
 # No install needed — npx fetches it on demand
-npx -y @markjspivey-xwisee/context-graphs-mcp
+npx -y @interego/context-graphs-mcp
 ```
 
 Or pin it globally:
 
 ```bash
-npm install -g @markjspivey-xwisee/context-graphs-mcp
+npm install -g @interego/context-graphs-mcp
 context-graphs-mcp
 ```
 
@@ -27,7 +27,7 @@ Edit `~/.claude.json` (or your project's `.claude/mcp.json`):
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
+      "args": ["-y", "@interego/context-graphs-mcp"]
     }
   }
 }
@@ -44,7 +44,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
+      "args": ["-y", "@interego/context-graphs-mcp"]
     }
   }
 }
@@ -59,7 +59,7 @@ Add to `.cursor/mcp.json` in your workspace:
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
+      "args": ["-y", "@interego/context-graphs-mcp"]
     }
   }
 }
@@ -74,7 +74,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
+      "args": ["-y", "@interego/context-graphs-mcp"]
     }
   }
 }
@@ -119,7 +119,7 @@ CG_OWNER=https://id.example.com/agent/profile#me \
 CG_AGENT=urn:agent:claude-code:my-laptop \
 CG_HOME_POD=https://pod.example.com/agent/ \
 CG_KNOWN_PODS=https://bob.example.com/,https://alice.example.com/ \
-npx -y @markjspivey-xwisee/context-graphs-mcp
+npx -y @interego/context-graphs-mcp
 ```
 
 | Variable | Default | Purpose |
@@ -138,11 +138,11 @@ cd context-graphs
 # Build the library first
 npm install
 npm run build
-npm pack   # creates markjspivey-xwisee-context-graphs-0.2.0.tgz
+npm pack   # creates interego-context-graphs-0.2.0.tgz
 
 # Then build the MCP server against the local library
 cd mcp-server
-npm install ../markjspivey-xwisee-context-graphs-*.tgz --no-save
+npm install ../interego-context-graphs-*.tgz --no-save
 npm install   # picks up the rest of the deps
 npm run build
 node dist/server.js
