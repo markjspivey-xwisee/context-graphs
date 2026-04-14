@@ -48,9 +48,9 @@ import {
   sparqlQueryPGSL,
   sparqlFragmentsContaining,
   validateAllPGSL,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
-import type { IRI, FetchFn } from '@foxxi/context-graphs';
+import type { IRI, FetchFn } from '@markjspivey-xwisee/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 
@@ -144,12 +144,12 @@ async function agentLRS() {
 
   // xAPI statements serialized as RDF (per xAPI ontology + ADL vocabulary)
   const xapiGraph = `
-@prefix xapi: <https://w3id.org/xapi/ontology#> .
-@prefix verb: <https://w3id.org/xapi/adl/verbs/> .
-@prefix act: <https://w3id.org/xapi/acrossx/activities/> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix result: <https://w3id.org/xapi/ontology#result/> .
+@prefix xapi: <https://w3id.org/xapi/ontology#>.
+@prefix verb: <https://w3id.org/xapi/adl/verbs/>.
+@prefix act: <https://w3id.org/xapi/acrossx/activities/>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
+@prefix result: <https://w3id.org/xapi/ontology#result/>.
 
 <urn:xapi:stmt:001> a xapi:Statement ;
     xapi:actor <did:web:learner.airforce.mil:chen.sarah> ;
@@ -163,7 +163,7 @@ async function agentLRS() {
         xapi:platform "T-38C Flight Simulator v4.2" ;
         xapi:instructor <did:web:instructor.airforce.mil:jones.michael> ;
         xapi:registration "urn:reg:chen-ils-2026-03"
-    ] .
+    ].
 
 <urn:xapi:stmt:002> a xapi:Statement ;
     xapi:actor <did:web:learner.airforce.mil:chen.sarah> ;
@@ -176,7 +176,7 @@ async function agentLRS() {
     xapi:context [
         xapi:platform "T-38C Flight Simulator v4.2" ;
         xapi:instructor <did:web:instructor.airforce.mil:jones.michael>
-    ] .
+    ].
 
 <urn:xapi:stmt:003> a xapi:Statement ;
     xapi:actor <did:web:learner.airforce.mil:chen.sarah> ;
@@ -189,7 +189,7 @@ async function agentLRS() {
     xapi:context [
         xapi:platform "T-38C Flight Simulator v4.2" ;
         xapi:instructor <did:web:instructor.airforce.mil:jones.michael>
-    ] .
+    ].
 
 <urn:xapi:stmt:004> a xapi:Statement ;
     xapi:actor <did:web:learner.airforce.mil:chen.sarah> ;
@@ -202,7 +202,7 @@ async function agentLRS() {
     xapi:context [
         xapi:platform "T-38C Flight Simulator v4.2" ;
         xapi:instructor <did:web:instructor.airforce.mil:jones.michael>
-    ] .
+    ].
 
 <urn:xapi:stmt:005> a xapi:Statement ;
     xapi:actor <did:web:learner.airforce.mil:chen.sarah> ;
@@ -215,7 +215,7 @@ async function agentLRS() {
     xapi:context [
         xapi:platform "T-38C Flight Simulator v4.2" ;
         xapi:instructor <did:web:instructor.airforce.mil:jones.michael>
-    ] .
+    ].
 `.trim();
 
   log('LRS', '5 xAPI statements received:');
@@ -226,13 +226,13 @@ async function agentLRS() {
   log('LRS', '  stmt:005 — completed Emergency Missed Approach retry (score: 91)');
 
   const descriptor = ContextDescriptor.create('urn:cg:lrs:xapi-session-2026-03-15' as IRI)
-    .describes('urn:graph:lrs:flight-sim-statements' as IRI)
-    .temporal({
+.describes('urn:graph:lrs:flight-sim-statements' as IRI)
+.temporal({
       validFrom: '2026-03-15T14:30:00Z',
       validUntil: '2026-03-17T08:30:00Z',
       temporalResolution: 'PT1M',
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:system:lrs:adl-conformant' as IRI,
         startedAt: '2026-03-15T14:30:00Z',
@@ -241,27 +241,27 @@ async function agentLRS() {
       wasAttributedTo: 'did:web:lrs.training.airforce.mil' as IRI,
       generatedAtTime: '2026-03-17T08:30:00Z',
     })
-    .agent('did:web:lrs.training.airforce.mil' as IRI, 'LRS')
-    .semiotic({
+.agent('did:web:lrs.training.airforce.mil' as IRI, 'LRS')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.99,   // Machine-recorded, highly reliable
       groundTruth: false,          // Not human-verified
     })
-    .trust({
+.trust({
       trustLevel: 'SelfAsserted',  // LRS self-reports xAPI conformance
       issuer: 'did:web:lrs.training.airforce.mil' as IRI,
     })
-    .accessControl([{
+.accessControl([{
       agent: 'did:web:competency.training.airforce.mil' as IRI,
       mode: ['Read'],
     }])
-    .federation({
+.federation({
       origin: LRS_POD as IRI,
       storageEndpoint: LRS_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(descriptor);
   log('LRS', `Descriptor valid: ${vResult.conforms} (${descriptor.facets.length} facets)`);
@@ -305,10 +305,10 @@ async function agentCompetency(lrsDescriptor: any) {
   log('Competency', '  Overall: 4/4 competencies at Proficient or above');
 
   const competencyGraph = `
-@prefix comp: <https://example.org/competency#> .
-@prefix t3: <https://adlnet.gov/tla/t3#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix comp: <https://example.org/competency#>.
+@prefix t3: <https://adlnet.gov/tla/t3#>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <urn:competency:chen-sarah:instrument-landing> a comp:CompetencyAssertion ;
     comp:learner <did:web:learner.airforce.mil:chen.sarah> ;
@@ -317,7 +317,7 @@ async function agentCompetency(lrsDescriptor: any) {
     comp:score "92"^^xsd:integer ;
     comp:evidenceCount 1 ;
     comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime ;
-    comp:framework "USAF Instrument Rating Competency Framework v3" .
+    comp:framework "USAF Instrument Rating Competency Framework v3".
 
 <urn:competency:chen-sarah:vor-navigation> a comp:CompetencyAssertion ;
     comp:learner <did:web:learner.airforce.mil:chen.sarah> ;
@@ -325,7 +325,7 @@ async function agentCompetency(lrsDescriptor: any) {
     comp:level "Proficient" ;
     comp:score "88"^^xsd:integer ;
     comp:evidenceCount 1 ;
-    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime .
+    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime.
 
 <urn:competency:chen-sarah:gps-navigation> a comp:CompetencyAssertion ;
     comp:learner <did:web:learner.airforce.mil:chen.sarah> ;
@@ -333,7 +333,7 @@ async function agentCompetency(lrsDescriptor: any) {
     comp:level "Advanced" ;
     comp:score "95"^^xsd:integer ;
     comp:evidenceCount 1 ;
-    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime .
+    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime.
 
 <urn:competency:chen-sarah:emergency-procedures> a comp:CompetencyAssertion ;
     comp:learner <did:web:learner.airforce.mil:chen.sarah> ;
@@ -342,16 +342,16 @@ async function agentCompetency(lrsDescriptor: any) {
     comp:score "91"^^xsd:integer ;
     comp:evidenceCount 2 ;
     comp:progression "Developing → Proficient (retry passed)" ;
-    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime .
+    comp:assessedAt "2026-03-17T09:00:00Z"^^xsd:dateTime.
 `.trim();
 
   const descriptor = ContextDescriptor.create('urn:cg:competency:chen-sarah-assessment-2026-03' as IRI)
-    .describes('urn:graph:competency:chen-sarah-assertions' as IRI)
-    .temporal({
+.describes('urn:graph:competency:chen-sarah-assertions' as IRI)
+.temporal({
       validFrom: '2026-03-17T09:00:00Z',
       validUntil: '2026-09-17T09:00:00Z',  // 6 month validity
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:system:competency-manager:tla-conformant' as IRI,
         startedAt: '2026-03-17T09:00:00Z',
@@ -361,27 +361,27 @@ async function agentCompetency(lrsDescriptor: any) {
       generatedAtTime: '2026-03-17T09:05:00Z',
       sources: ['urn:cg:lrs:xapi-session-2026-03-15' as IRI],
     })
-    .agent('did:web:competency.training.airforce.mil' as IRI, 'Assessor')
-    .semiotic({
+.agent('did:web:competency.training.airforce.mil' as IRI, 'Assessor')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.92,
       groundTruth: false,          // Algorithm-assessed, not instructor-verified
     })
-    .trust({
+.trust({
       trustLevel: 'ThirdPartyAttested',  // Competency framework attestation
       issuer: 'did:web:competency.training.airforce.mil' as IRI,
     })
-    .accessControl([{
+.accessControl([{
       agent: 'did:web:credential.training.airforce.mil' as IRI,
       mode: ['Read'],
     }])
-    .federation({
+.federation({
       origin: COMPETENCY_POD as IRI,
       storageEndpoint: COMPETENCY_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(descriptor);
   log('Competency', `Descriptor valid: ${vResult.conforms}`);
@@ -426,11 +426,11 @@ async function agentCredential(lrsDesc: any, compDesc: any) {
   banner('Issuing IEEE LERS Credential');
 
   const lersGraph = `
-@prefix vc: <https://www.w3.org/2018/credentials#> .
-@prefix lers: <https://purl.org/lers/ns#> .
-@prefix comp: <https://example.org/competency#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix vc: <https://www.w3.org/2018/credentials#>.
+@prefix lers: <https://purl.org/lers/ns#>.
+@prefix comp: <https://example.org/competency#>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <urn:lers:credential:chen-sarah-instrument-rating-2026> a vc:VerifiableCredential, lers:LearningEmploymentRecord ;
     vc:issuer <did:web:credential.training.airforce.mil> ;
@@ -455,7 +455,7 @@ async function agentCredential(lrsDesc: any, compDesc: any) {
             lers:averageScore "91.6"^^xsd:decimal ;
             lers:completionRate "1.0"^^xsd:decimal
         ]
-    ] .
+    ].
 `.trim();
 
   log('Credential', 'IEEE LERS Credential:');
@@ -468,12 +468,12 @@ async function agentCredential(lrsDesc: any, compDesc: any) {
   log('Credential', '  Valid: 2026-03-17 to 2027-03-17 (1 year)');
 
   const descriptor = ContextDescriptor.create('urn:cg:credential:chen-sarah-instrument-2026' as IRI)
-    .describes('urn:graph:credential:chen-sarah-lers' as IRI)
-    .temporal({
+.describes('urn:graph:credential:chen-sarah-lers' as IRI)
+.temporal({
       validFrom: '2026-03-17T10:00:00Z',
       validUntil: '2027-03-17T10:00:00Z',  // 1 year credential validity
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:system:credential-issuer:ieee-lers' as IRI,
         startedAt: '2026-03-17T10:00:00Z',
@@ -486,17 +486,17 @@ async function agentCredential(lrsDesc: any, compDesc: any) {
         'urn:cg:competency:chen-sarah-assessment-2026-03' as IRI,
       ],
     })
-    .agent('did:web:credential.training.airforce.mil' as IRI, 'Issuer')
-    .semiotic({
+.agent('did:web:credential.training.airforce.mil' as IRI, 'Issuer')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.98,
       groundTruth: true,           // Signed credential = ground truth
     })
-    .trust({
+.trust({
       trustLevel: 'CryptographicallyVerified',
       issuer: 'did:web:credential.training.airforce.mil' as IRI,
     })
-    .accessControl([
+.accessControl([
       {
         agent: 'did:web:learner.airforce.mil:chen.sarah' as IRI,
         mode: ['Read'],  // Learner can read their own credential
@@ -506,13 +506,13 @@ async function agentCredential(lrsDesc: any, compDesc: any) {
         mode: ['Read'],  // External verifiers can read
       },
     ])
-    .federation({
+.federation({
       origin: CREDENTIAL_POD as IRI,
       storageEndpoint: CREDENTIAL_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(descriptor);
   log('Credential', `Descriptor valid: ${vResult.conforms} (${descriptor.facets.length} facets)`);

@@ -1,9 +1,9 @@
 Creative Commons Attribution 4.0 International (CC BY 4.0)
 
-Copyright (c) 2026 Mark Spivey / Foxxi Mediums Inc.
+Copyright (c) 2026 Mark Spivey <mark.spivey@xwisee.com>
 
 This work — including the Context Graphs 1.0 specification, the
-@foxxi/context-graphs reference implementation, the @foxxi/context-graphs-mcp
+@markjspivey-xwisee/context-graphs reference implementation, the @markjspivey-xwisee/context-graphs-mcp
 MCP server, the OWL/RDFS/SHACL ontology files in docs/ns/, and all related
 documentation — is licensed under the Creative Commons Attribution 4.0
 International License.
@@ -16,10 +16,10 @@ You are free to:
 
 Under the following terms:
 
-  • Attribution — You must give appropriate credit to Mark Spivey /
-    Foxxi Mediums Inc., provide a link to the license, and indicate
-    if changes were made. You may do so in any reasonable manner, but
-    not in any way that suggests the licensor endorses you or your use.
+  • Attribution — You must give appropriate credit to Mark Spivey,
+    provide a link to the license, and indicate if changes were made.
+    You may do so in any reasonable manner, but not in any way that
+    suggests the licensor endorses you or your use.
 
   • No additional restrictions — You may not apply legal terms or
     technological measures that legally restrict others from doing
@@ -39,7 +39,6 @@ Notices:
 For the full legal text, see:
 https://creativecommons.org/licenses/by/4.0/legalcode
 
-Author:    Mark Spivey <mark.spivey@xwisee.com>
-Publisher: Foxxi Mediums Inc. (https://foxximediums.com)
-Project:   https://github.com/markjspivey-xwisee/context-graphs
-Spec:      https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html
+Author:  Mark Spivey <mark.spivey@xwisee.com>
+Project: https://github.com/markjspivey-xwisee/context-graphs
+Spec:    https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html

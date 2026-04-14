@@ -1,10 +1,10 @@
-# @foxxi/context-graphs
+# @markjspivey-xwisee/context-graphs
 
 Reference implementation of **[Context Graphs 1.0](https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html)** — a compositional framework for typed graph contexts over RDF 1.2 Named Graphs.
 
 Context Graphs gives autonomous AI agents the infrastructure to publish, discover, compose, and reason over knowledge graphs with full provenance, trust, temporal validity, semiotic metadata, causal models, and cryptographic verification — federated across decentralized Solid pods.
 
-**Author:** Mark Spivey / [Foxxi Mediums Inc.](https://foxximediums.com)
+**Author:** Mark Spivey
 **License:** CC-BY-4.0
 **W3C Community Group:** [Context Graph CG](https://www.w3.org/community/context-graph/) (launching March 2026)
 
@@ -35,7 +35,7 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 ## Architecture
 
 ```
-@foxxi/context-graphs
+@markjspivey-xwisee/context-graphs
 ├── src/
 │   ├── model/        Core types, ContextDescriptor builder, composition operators,
 │   │                 delegation, category theory (presheaf, naturality, lattice laws),
@@ -85,7 +85,7 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 ### Design Principles
 
 - **Zero runtime dependencies for the core.** Validation is programmatic. SHACL shapes exported as Turtle strings.
-- **Discriminated union pattern.** All 9+ facet types use `{ type: 'Temporal' | 'Provenance' | ... }` for exhaustive switch matching.
+- **Discriminated union pattern.** All 9+ facet types use `{ type: 'Temporal' | 'Provenance' |... }` for exhaustive switch matching.
 - **Composition is algebraic.** Four operators form a bounded lattice with category-theoretic proofs (presheaf naturality, idempotence, commutativity, associativity, absorption).
 - **Semiotic foundation.** Descriptors are Peircean signs. The Sign functor phi/psi forms an adjunction between the descriptor category and the semiotic category. The Semiotic Field Functor maps to SAT.
 - **PGSL substrate.** Content is canonically addressed via the Poly-Granular Sequence Lattice — deterministic, structurally shared, with categorical pullback construction.
@@ -107,12 +107,12 @@ Add this to your MCP client config:
 
 ```jsonc
 // Claude Code: ~/.claude.json   |   Claude Desktop: claude_desktop_config.json
-// Cursor: .cursor/mcp.json      |   Windsurf: ~/.codeium/windsurf/mcp_config.json
+// Cursor:.cursor/mcp.json      |   Windsurf: ~/.codeium/windsurf/mcp_config.json
 {
   "mcpServers": {
     "context-graphs": {
       "command": "npx",
-      "args": ["-y", "@foxxi/context-graphs-mcp"]
+      "args": ["-y", "@markjspivey-xwisee/context-graphs-mcp"]
     }
   }
 }
@@ -125,7 +125,7 @@ Restart your client. You can now say things like *"publish this graph to my pod 
 ### 🧑‍💻 I'm a developer building a TypeScript app
 
 ```bash
-npm install @foxxi/context-graphs
+npm install @markjspivey-xwisee/context-graphs
 ```
 
 ```typescript
@@ -133,16 +133,16 @@ import {
   ContextDescriptor,
   createPGSL,
   embedInPGSL,
-  loadOntology,        // load any of the four canonical .ttl ontologies
+  loadOntology,        // load any of the four canonical.ttl ontologies
   computeConfidence,   // runtime eval over PGSL signals
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 // 1. Build a context descriptor (the typed-context layer)
 const desc = ContextDescriptor.create('urn:cg:my-analysis:1')
-  .describes('urn:graph:my-data')
-  .temporal({ validFrom: '2026-04-13T00:00:00Z' })
-  .asserted(0.92)
-  .build();
+.describes('urn:graph:my-data')
+.temporal({ validFrom: '2026-04-13T00:00:00Z' })
+.asserted(0.92)
+.build();
 
 // 2. Use the PGSL substrate
 const pgsl = createPGSL({ wasAttributedTo: 'urn:my-app', generatedAtTime: new Date().toISOString() });
@@ -185,7 +185,7 @@ npm test  # 642 tests across 20 files
 
 # Build the MCP server too
 cd mcp-server
-npm install ../foxxi-context-graphs-*.tgz --no-save  # or set up workspaces
+npm install ../markjspivey-xwisee-context-graphs-*.tgz --no-save
 npm run build
 
 # Deploy to your own Azure (one-time)
@@ -201,25 +201,25 @@ CI auto-deploys to Azure Container Apps on every push to `master` ([workflow](.g
 ### Build a Context Descriptor
 
 ```typescript
-import { ContextDescriptor, validate, toTurtle } from '@foxxi/context-graphs';
-import type { IRI } from '@foxxi/context-graphs';
+import { ContextDescriptor, validate, toTurtle } from '@markjspivey-xwisee/context-graphs';
+import type { IRI } from '@markjspivey-xwisee/context-graphs';
 
 const descriptor = ContextDescriptor.create('urn:cg:my-analysis:1' as IRI)
-  .describes('urn:graph:project:arch-v1' as IRI)
-  .temporal({ validFrom: '2026-03-20T00:00:00Z' })
-  .delegatedBy(
+.describes('urn:graph:project:arch-v1' as IRI)
+.temporal({ validFrom: '2026-03-20T00:00:00Z' })
+.delegatedBy(
     'https://id.example.com/alice/profile#me' as IRI,  // owner (human)
     'urn:agent:anthropic:claude-code:vscode' as IRI,    // agent (AI)
   )
-  .asserted(0.92)
-  .selfAsserted('did:web:alice.example' as IRI)
-  .federation({
+.asserted(0.92)
+.selfAsserted('did:web:alice.example' as IRI)
+.federation({
     origin: 'https://pod.example.com/alice/' as IRI,
     storageEndpoint: 'https://pod.example.com/alice/' as IRI,
     syncProtocol: 'SolidNotifications',
   })
-  .version(1)
-  .build();
+.version(1)
+.build();
 
 const result = validate(descriptor);
 console.log(result.conforms); // true
@@ -229,7 +229,7 @@ console.log(toTurtle(descriptor));
 ### Publish to a Solid Pod
 
 ```typescript
-import { publish, discover, subscribe } from '@foxxi/context-graphs';
+import { publish, discover, subscribe } from '@markjspivey-xwisee/context-graphs';
 
 const result = await publish(descriptor, graphTurtle, 'https://pod.example.com/alice/');
 // → { descriptorUrl, graphUrl, manifestUrl }
@@ -248,7 +248,7 @@ const sub = await subscribe('https://pod.example.com/bob/', (event) => {
 ### Compose Descriptors
 
 ```typescript
-import { union, intersection, restriction } from '@foxxi/context-graphs';
+import { union, intersection, restriction } from '@markjspivey-xwisee/context-graphs';
 
 const merged = union(descriptorA, descriptorB);
 const common = intersection(descriptorA, descriptorB);
@@ -262,7 +262,7 @@ const trustOnly = restriction(merged, ['Trust', 'Semiotic']);
 The content substrate. Deterministic hierarchical data structure representing sequential data as a lattice of overlapping sub-structures with content-addressed canonical URIs.
 
 ```typescript
-import { createPGSL, embedInPGSL, pgslResolve, latticeMeet } from '@foxxi/context-graphs';
+import { createPGSL, embedInPGSL, pgslResolve, latticeMeet } from '@markjspivey-xwisee/context-graphs';
 
 const pgsl = createPGSL({ wasAttributedTo: 'did:web:alice', generatedAtTime: new Date().toISOString() });
 
@@ -290,13 +290,13 @@ PGSL provides:
 ### SPARQL Engine
 
 ```typescript
-import { sparqlQueryPGSL, materializeTriples, executeSparqlString } from '@foxxi/context-graphs';
+import { sparqlQueryPGSL, materializeTriples, executeSparqlString } from '@markjspivey-xwisee/context-graphs';
 
 // Execute SPARQL against the PGSL lattice
 const result = sparqlQueryPGSL(pgsl, `
   PREFIX pgsl: <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>
   SELECT ?atom ?value WHERE {
-    ?atom a pgsl:Atom ; pgsl:value ?value .
+    ?atom a pgsl:Atom ; pgsl:value ?value.
   } LIMIT 10
 `);
 console.log(result.bindings.length); // number of matching atoms
@@ -305,7 +305,7 @@ console.log(result.bindings.length); // number of matching atoms
 ### SHACL Validation
 
 ```typescript
-import { validateAllPGSL, validateDomainShapes } from '@foxxi/context-graphs';
+import { validateAllPGSL, validateDomainShapes } from '@markjspivey-xwisee/context-graphs';
 
 // Validate lattice with all 3 layers (core + structural + domain)
 const result = validateAllPGSL(pgsl);
@@ -324,7 +324,7 @@ const result = validateDomainShapes(pgsl, [{
 Usage-based semantic agreement between agents. Two agents share a SIGN (atom) but only share MEANING if they USE it in the same syntagmatic contexts.
 
 ```typescript
-import { createPGSL, embedInPGSL, verifyCoherence, computeCoverage } from '@foxxi/context-graphs';
+import { createPGSL, embedInPGSL, verifyCoherence, computeCoverage } from '@markjspivey-xwisee/context-graphs';
 
 const pgslA = createPGSL({ wasAttributedTo: 'agent-a', generatedAtTime: new Date().toISOString() });
 const pgslB = createPGSL({ wasAttributedTo: 'agent-b', generatedAtTime: new Date().toISOString() });
@@ -359,7 +359,7 @@ Structural rules on what can fill positions in chains. The paradigm set P(S, i) 
 Natural transformation from observation presheaves to action categories: Observe → Orient → Decide → Act.
 
 ```typescript
-import { extractObservations, decide } from '@foxxi/context-graphs';
+import { extractObservations, decide } from '@markjspivey-xwisee/context-graphs';
 
 const obs = extractObservations(pgsl, 'agent-a', certificates);
 const result = decide(pgsl, 'agent-a', certificates);
@@ -380,7 +380,7 @@ Five-tier persistence with URI invariance — same content hash across all tiers
 | 4 | Blockchain | Permanent | On-chain hash verification |
 
 ```typescript
-import { createPersistenceRegistry, recordPersistence, promoteToIpfs } from '@foxxi/context-graphs';
+import { createPersistenceRegistry, recordPersistence, promoteToIpfs } from '@markjspivey-xwisee/context-graphs';
 
 const registry = createPersistenceRegistry();
 recordPersistence(registry, atomUri, 0, { promotedBy: 'agent-a' });
@@ -408,7 +408,7 @@ Tested with Comunica SPARQL engine — standard RDF tooling interoperability con
 ### Ingestion Profiles
 
 ```typescript
-import { ingestWithProfile } from '@foxxi/context-graphs';
+import { ingestWithProfile } from '@markjspivey-xwisee/context-graphs';
 
 // xAPI profile: preserves actor/verb/object/result nesting
 const uri = ingestWithProfile(pgsl, 'xapi', {
@@ -432,7 +432,7 @@ const credUri = ingestWithProfile(pgsl, 'lers', {
 });
 
 // Custom profiles: register your own
-import { registerProfile } from '@foxxi/context-graphs';
+import { registerProfile } from '@markjspivey-xwisee/context-graphs';
 registerProfile({
   name: 'fhir',
   description: 'FHIR observation: patient/encounter/observation nesting',
@@ -516,7 +516,7 @@ Integrates 8 theoretical frameworks for autonomous agent decision-making:
 | **Stigmergy** | Affordance landscape tracking across pods | `StigmergicField` |
 
 ```typescript
-import { computeAffordances, computeCognitiveStrategy } from '@foxxi/context-graphs';
+import { computeAffordances, computeCognitiveStrategy } from '@markjspivey-xwisee/context-graphs';
 
 // What can this agent do with this descriptor?
 const affordances = computeAffordances(agentProfile, descriptor);
@@ -524,7 +524,7 @@ const affordances = computeAffordances(agentProfile, descriptor);
 
 // What cognitive strategy should answer this question?
 const strategy = computeCognitiveStrategy('How many days between X and Y?');
-// → { strategy: 'temporal-twopass', computationType: 'date-arithmetic', ... }
+// → { strategy: 'temporal-twopass', computationType: 'date-arithmetic',... }
 ```
 
 ---
@@ -532,7 +532,7 @@ const strategy = computeCognitiveStrategy('How many days between X and Y?');
 ## Causality — Pearl's SCM Framework
 
 ```typescript
-import { buildSCM, doIntervention, isDSeparated, evaluateCounterfactual } from '@foxxi/context-graphs';
+import { buildSCM, doIntervention, isDSeparated, evaluateCounterfactual } from '@markjspivey-xwisee/context-graphs';
 
 const scm = buildSCM({
   variables: [{ name: 'X' }, { name: 'Y' }, { name: 'Z' }],
@@ -557,7 +557,7 @@ All real. No mocks.
 ### E2E Encryption (NaCl)
 
 ```typescript
-import { generateKeyPair, createEncryptedEnvelope, openEncryptedEnvelope } from '@foxxi/context-graphs';
+import { generateKeyPair, createEncryptedEnvelope, openEncryptedEnvelope } from '@markjspivey-xwisee/context-graphs';
 
 const owner = generateKeyPair();  // X25519
 const agent = generateKeyPair();
@@ -568,7 +568,7 @@ const decrypted = openEncryptedEnvelope(envelope, agent); // only authorized age
 ### Zero-Knowledge Proofs
 
 ```typescript
-import { proveConfidenceAboveThreshold, proveDelegationMembership, proveTemporalOrdering } from '@foxxi/context-graphs';
+import { proveConfidenceAboveThreshold, proveDelegationMembership, proveTemporalOrdering } from '@markjspivey-xwisee/context-graphs';
 
 // Prove confidence > 0.8 without revealing exact value
 const { proof } = proveConfidenceAboveThreshold(0.95, 0.8);
@@ -583,7 +583,7 @@ const temporalProof = proveTemporalOrdering(myTimestamp, deadline);
 ### Wallets & SIWE
 
 ```typescript
-import { createWallet, createDelegation, signDescriptor, verifySiweSignature } from '@foxxi/context-graphs';
+import { createWallet, createDelegation, signDescriptor, verifySiweSignature } from '@markjspivey-xwisee/context-graphs';
 
 const humanWallet = await createWallet('human', 'Alice');  // real secp256k1
 const agentWallet = await createWallet('agent', 'Claude');
@@ -594,7 +594,7 @@ const signed = await signDescriptor(descriptorId, turtle, agentWallet); // real 
 ### IPFS Pinning
 
 ```typescript
-import { pinDescriptor, computeCid } from '@foxxi/context-graphs';
+import { pinDescriptor, computeCid } from '@markjspivey-xwisee/context-graphs';
 
 const cid = computeCid(turtleContent);  // real SHA-256 CID
 const anchor = await pinDescriptor(descriptorId, turtle, { provider: 'pinata', apiKey: '...' });
@@ -759,13 +759,13 @@ npm run test:watch   # Watch mode
 
 ---
 
-## Related Projects
+## Related Concepts
 
-Part of the Foxxi Mediums knowledge infrastructure:
+This library is designed to compose with several adjacent theoretical frameworks:
 
-- **[@foxxi/hela-store](https://github.com/foxximediums/hela-store)** — HELA's topos-theoretic xAPI stack (presheaf category E = Set^(C_xAPI^op))
-- **SAT (Semiotic Agent Topos)** — The Semiotic Facet maps directly to SAT's Semiotic Field Functor (Sigma)
-- **PGSL (Poly-Granular Sequence Lattice)** — Abstract data type for canonical sequence addressing
+- **HELA** — a topos-theoretic xAPI stack using the presheaf category ℰ = Set^(𝒞_xAPI^op)
+- **SAT (Semiotic Agent Topos)** — the Semiotic Facet maps directly to SAT's Semiotic Field Functor (Σ)
+- **PGSL (Poly-Granular Sequence Lattice)** — the substrate layer included in this repo; abstract data type for canonical sequence addressing
 
 ---
 

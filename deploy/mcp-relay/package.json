@@ -1,5 +1,5 @@
 {
-  "name": "@foxxi/context-graphs-mcp-relay",
+  "name": "@markjspivey-xwisee/context-graphs-mcp-relay",
   "version": "0.1.0",
   "description": "Cloud-hosted MCP relay — HTTP/SSE bridge for remote AI agents to access Context Graphs tools",
   "type": "module",
@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@foxxi/context-graphs": "file:../../",
+    "@markjspivey-xwisee/context-graphs": "file:../../",
     "ws": "^8.19.0",
     "tsx": "^4.0.0",
     "express": "^4.21.0"

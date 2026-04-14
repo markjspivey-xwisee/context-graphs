@@ -1,8 +1,8 @@
 {
-  "name": "@foxxi/context-graphs-mcp",
+  "name": "@markjspivey-xwisee/context-graphs-mcp",
   "version": "0.4.1",
   "description": "MCP server for Context Graphs — gives AI coding agents the ability to publish, discover, and compose context-annotated knowledge graphs through Solid pods",
-  "author": "Mark Spivey <mark.spivey@xwisee.com> (https://foxximediums.com)",
+  "author": "Mark Spivey <mark.spivey@xwisee.com>",
   "license": "CC-BY-4.0",
   "type": "module",
   "main": "./dist/server.js",
@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@foxxi/context-graphs": "^0.2.0",
+    "@markjspivey-xwisee/context-graphs": "^0.2.0",
     "ws": "^8.19.0",
     "zod": "^3.23.0"
   },

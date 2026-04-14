@@ -1,8 +1,8 @@
-# CLAUDE.md — @foxxi/context-graphs
+# CLAUDE.md — @markjspivey-xwisee/context-graphs
 
 ## What is this project?
 
-Reference implementation of **Context Graphs 1.0**, a specification by Mark Spivey / Foxxi Mediums Inc. that defines a compositional framework for typed graph contexts over RDF 1.2 Named Graphs.
+Reference implementation of **Context Graphs 1.0**, a specification by Mark Spivey that defines a compositional framework for typed graph contexts over RDF 1.2 Named Graphs.
 
 **Spec:** `context-graphs-1.0-wd.html` (co-located or at https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html)
 
@@ -21,16 +21,16 @@ src/
 ### Key design decisions
 
 - **Zero runtime dependencies.** Validation is implemented programmatically (no SHACL engine needed). SHACL shapes are exported as Turtle strings for use with external engines.
-- **Discriminated union pattern.** All seven facet types use `{ type: 'Temporal' | 'Provenance' | ... }` for exhaustive switch matching.
+- **Discriminated union pattern.** All seven facet types use `{ type: 'Temporal' | 'Provenance' |... }` for exhaustive switch matching.
 - **Composition is algebraic.** The four operators (union, intersection, restriction, override) form a bounded lattice. Each facet type defines its own merge semantics per the spec.
 - **W3C vocabulary reuse.** Every namespace constant, class IRI, and property IRI is typed and exported. The `expand()`/`compact()` helpers handle prefix ↔ full IRI conversion.
 
-### Related Foxxi Mediums projects
+### Related concepts
 
-This library is designed to compose with:
-- **@foxxi/hela-store** — HELA's topos-theoretic xAPI stack (presheaf category ℰ = Set^(𝒞_xAPI^op))
-- **SAT (Semiotic Agent Topos)** — The Semiotic Facet maps directly to SAT's Semiotic Field Functor (Σ)
-- **HyprCat × HyprAgent** — Federation Facet aligns with the three-world federation model
+This library is designed to compose with several adjacent frameworks:
+- **HELA** — topos-theoretic xAPI stack (presheaf category ℰ = Set^(𝒞_xAPI^op))
+- **SAT (Semiotic Agent Topos)** — the Semiotic Facet maps directly to SAT's Semiotic Field Functor (Σ)
+- **HyprCat × HyprAgent** — the Federation Facet aligns with the three-world federation model
 
 ## Commands
 

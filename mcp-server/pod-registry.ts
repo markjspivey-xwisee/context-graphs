@@ -6,7 +6,7 @@
  * WebFinger-resolved pods. Manages per-pod subscription lifecycle.
  */
 
-import type { IRI, Subscription } from '@foxxi/context-graphs';
+import type { IRI, Subscription } from '@markjspivey-xwisee/context-graphs';
 
 export type DiscoverySource = 'config' | 'directory' | 'webfinger' | 'manual';
 
@@ -48,7 +48,7 @@ export class PodRegistry {
 
     if (existing) {
       this.pods.set(url, {
-        ...existing,
+...existing,
         label: pod.label ?? existing.label,
         owner: pod.owner ?? existing.owner,
         isHome: existing.isHome || pod.isHome,
@@ -58,7 +58,7 @@ export class PodRegistry {
         lastSeen: existing.lastSeen,
       });
     } else {
-      this.pods.set(url, { ...pod, url });
+      this.pods.set(url, {...pod, url });
     }
   }
 

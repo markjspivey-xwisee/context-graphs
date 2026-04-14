@@ -7,8 +7,8 @@
  * codebase that nobody explicitly documented.
  */
 
-import { createPGSL, embedInPGSL, latticeStats, pgslResolve } from '@foxxi/context-graphs';
-import type { IRI } from '@foxxi/context-graphs';
+import { createPGSL, embedInPGSL, latticeStats, pgslResolve } from '@markjspivey-xwisee/context-graphs';
+import type { IRI } from '@markjspivey-xwisee/context-graphs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 

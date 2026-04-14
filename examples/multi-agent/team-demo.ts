@@ -42,13 +42,13 @@ import {
   sparqlQueryPGSL,
   sparqlFragmentsContaining,
   validateAllPGSL,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import type {
   IRI,
   ContextDescriptorData,
   FetchFn,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 
@@ -148,9 +148,9 @@ async function agentScanner(): Promise<ContextDescriptorData> {
   log('Scanner', 'Running automated security scan...');
 
   const scanResults = `
-@prefix sec: <https://example.org/security#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sec: <https://example.org/security#>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <urn:scan:finding-001> a sec:Vulnerability ;
     schema:name "SQL Injection in User Service" ;
@@ -158,7 +158,7 @@ async function agentScanner(): Promise<ContextDescriptorData> {
     sec:cvss "9.8"^^xsd:decimal ;
     sec:affectedComponent <urn:arch:user-service> ;
     sec:vector "Network" ;
-    sec:remediation "Parameterize all SQL queries in /api/users endpoint" .
+    sec:remediation "Parameterize all SQL queries in /api/users endpoint".
 
 <urn:scan:finding-002> a sec:Vulnerability ;
     schema:name "Outdated Redis Version" ;
@@ -166,7 +166,7 @@ async function agentScanner(): Promise<ContextDescriptorData> {
     sec:cvss "7.5"^^xsd:decimal ;
     sec:affectedComponent <urn:arch:redis-session-store> ;
     sec:vector "Network" ;
-    sec:remediation "Upgrade Redis from 6.2 to 7.2" .
+    sec:remediation "Upgrade Redis from 6.2 to 7.2".
 
 <urn:scan:finding-003> a sec:Vulnerability ;
     schema:name "Missing Rate Limiting on API Gateway" ;
@@ -174,24 +174,24 @@ async function agentScanner(): Promise<ContextDescriptorData> {
     sec:cvss "5.3"^^xsd:decimal ;
     sec:affectedComponent <urn:arch:api-gateway> ;
     sec:vector "Network" ;
-    sec:remediation "Add rate limiting middleware (100 req/min per IP)" .
+    sec:remediation "Add rate limiting middleware (100 req/min per IP)".
 
 <urn:scan:finding-004> a sec:Informational ;
     schema:name "TLS 1.2 Still Enabled" ;
     sec:severity "Low" ;
     sec:affectedComponent <urn:arch:api-gateway> ;
-    sec:remediation "Consider disabling TLS 1.2, enforce TLS 1.3 only" .
+    sec:remediation "Consider disabling TLS 1.2, enforce TLS 1.3 only".
 `.trim();
 
   // Scanner's context: automated tool output, high confidence on detection, asserted
   const descriptor = ContextDescriptor.create('urn:cg:scanner:scan-2026-03-15' as IRI)
-    .describes('urn:graph:scanner:vulnerability-report' as IRI)
-    .temporal({
+.describes('urn:graph:scanner:vulnerability-report' as IRI)
+.temporal({
       validFrom: '2026-03-15T02:00:00Z',
       validUntil: '2026-04-15T02:00:00Z',  // Scan valid for 30 days
       temporalResolution: 'P1D',
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:agent:scanner:nessus-integration' as IRI,
         startedAt: '2026-03-15T02:00:00Z',
@@ -200,27 +200,27 @@ async function agentScanner(): Promise<ContextDescriptorData> {
       wasAttributedTo: 'did:web:scanner.security.internal' as IRI,
       generatedAtTime: '2026-03-15T02:15:33Z',
     })
-    .agent('did:web:scanner.security.internal' as IRI, 'Scanner')
-    .semiotic({
+.agent('did:web:scanner.security.internal' as IRI, 'Scanner')
+.semiotic({
       modalStatus: 'Asserted',      // Machine-generated, high confidence
       epistemicConfidence: 0.95,
       groundTruth: false,            // Not verified by human yet
     })
-    .trust({
+.trust({
       trustLevel: 'ThirdPartyAttested',  // Nessus attestation
       issuer: 'did:web:scanner.security.internal' as IRI,
     })
-    .accessControl([{
+.accessControl([{
       agentClass: 'http://xmlns.com/foaf/0.1/Agent' as IRI,
       mode: ['Read'],
     }])
-    .federation({
+.federation({
       origin: SCANNER_POD as IRI,
       storageEndpoint: SCANNER_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(descriptor);
   log('Scanner', `Scan descriptor valid: ${vResult.conforms} (${descriptor.facets.length} facets)`);
@@ -263,9 +263,9 @@ async function agentAnalyst(scannerDesc: ContextDescriptorData): Promise<Context
   log('Analyst', '  NEW: finding-005 — Hardcoded API key in auth-service config');
 
   const analysisResults = `
-@prefix sec: <https://example.org/security#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sec: <https://example.org/security#>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <urn:analysis:finding-001> a sec:VerifiedVulnerability ;
     schema:name "SQL Injection in User Service" ;
@@ -275,7 +275,7 @@ async function agentAnalyst(scannerDesc: ContextDescriptorData): Promise<Context
     sec:verifiedBy "did:web:analyst.security.internal" ;
     sec:exploitDifficulty "Low" ;
     sec:businessImpact "Data breach — all user PII at risk" ;
-    sec:priorityRank 1 .
+    sec:priorityRank 1.
 
 <urn:analysis:finding-002-revised> a sec:VerifiedVulnerability ;
     schema:name "Outdated Redis Version" ;
@@ -283,7 +283,7 @@ async function agentAnalyst(scannerDesc: ContextDescriptorData): Promise<Context
     sec:cvss "5.0"^^xsd:decimal ;
     sec:status "Downgraded" ;
     sec:reason "Internal network only, no external exposure" ;
-    sec:priorityRank 3 .
+    sec:priorityRank 3.
 
 <urn:analysis:finding-005> a sec:VerifiedVulnerability ;
     schema:name "Hardcoded API Key in Auth Service" ;
@@ -292,16 +292,16 @@ async function agentAnalyst(scannerDesc: ContextDescriptorData): Promise<Context
     sec:status "New — discovered during code review" ;
     sec:affectedComponent <urn:arch:auth-service> ;
     sec:remediation "Rotate key, move to HashiCorp Vault" ;
-    sec:priorityRank 2 .
+    sec:priorityRank 2.
 `.trim();
 
   const descriptor = ContextDescriptor.create('urn:cg:analyst:triage-2026-03-16' as IRI)
-    .describes('urn:graph:analyst:triage-report' as IRI)
-    .temporal({
+.describes('urn:graph:analyst:triage-report' as IRI)
+.temporal({
       validFrom: '2026-03-16T09:00:00Z',
       validUntil: '2026-04-30T23:59:59Z',
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:agent:claude-code:analyst-instance' as IRI,
         startedAt: '2026-03-16T09:00:00Z',
@@ -310,27 +310,27 @@ async function agentAnalyst(scannerDesc: ContextDescriptorData): Promise<Context
       wasAttributedTo: 'did:web:analyst.security.internal' as IRI,
       generatedAtTime: '2026-03-16T11:45:00Z',
     })
-    .agent('did:web:analyst.security.internal' as IRI, 'Analyst')
-    .semiotic({
+.agent('did:web:analyst.security.internal' as IRI, 'Analyst')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.88,      // Slightly lower — human judgment involved
       groundTruth: true,              // Verified by human
     })
-    .trust({
+.trust({
       trustLevel: 'CryptographicallyVerified',  // Analyst's verification signature
       issuer: 'did:web:analyst.security.internal' as IRI,
     })
-    .accessControl([{
+.accessControl([{
       agent: 'did:web:analyst.security.internal' as IRI,
       mode: ['Read', 'Write'],
     }])
-    .federation({
+.federation({
       origin: ANALYST_POD as IRI,
       storageEndpoint: ANALYST_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(descriptor);
   log('Analyst', `Analysis descriptor valid: ${vResult.conforms}`);
@@ -446,9 +446,9 @@ async function agentLead(
   banner('Lead: Publishing Remediation Plan');
 
   const remediationPlan = `
-@prefix sec: <https://example.org/security#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix sec: <https://example.org/security#>.
+@prefix schema: <https://schema.org/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
 
 <urn:plan:sprint-2026-03> a sec:RemediationPlan ;
     schema:name "Security Sprint — March 2026" ;
@@ -457,7 +457,7 @@ async function agentLead(
     sec:criticalCount 1 ;
     sec:highCount 1 ;
     sec:mediumCount 2 ;
-    sec:lowCount 1 .
+    sec:lowCount 1.
 
 <urn:plan:task-001> a sec:RemediationTask ;
     schema:name "Fix SQL Injection" ;
@@ -465,7 +465,7 @@ async function agentLead(
     sec:priority 1 ;
     sec:assignee "backend-team" ;
     sec:deadline "2026-03-20"^^xsd:date ;
-    sec:status "In Progress" .
+    sec:status "In Progress".
 
 <urn:plan:task-002> a sec:RemediationTask ;
     schema:name "Rotate Hardcoded API Key" ;
@@ -473,7 +473,7 @@ async function agentLead(
     sec:priority 2 ;
     sec:assignee "devops-team" ;
     sec:deadline "2026-03-22"^^xsd:date ;
-    sec:status "Planned" .
+    sec:status "Planned".
 
 <urn:plan:task-003> a sec:RemediationTask ;
     schema:name "Add Rate Limiting + Upgrade Redis" ;
@@ -481,17 +481,17 @@ async function agentLead(
     sec:priority 3 ;
     sec:assignee "platform-team" ;
     sec:deadline "2026-03-29"^^xsd:date ;
-    sec:status "Planned" .
+    sec:status "Planned".
 `.trim();
 
   // Lead's context: authoritative, supersedes both inputs, highest trust
   const leadDescriptor = ContextDescriptor.create('urn:cg:lead:remediation-2026-03' as IRI)
-    .describes('urn:graph:lead:remediation-plan' as IRI)
-    .temporal({
+.describes('urn:graph:lead:remediation-plan' as IRI)
+.temporal({
       validFrom: '2026-03-16T14:00:00Z',
       validUntil: '2026-03-31T23:59:59Z',
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:agent:claude-code:lead-instance' as IRI,
         startedAt: '2026-03-16T14:00:00Z',
@@ -504,27 +504,27 @@ async function agentLead(
         'urn:cg:analyst:triage-2026-03-16' as IRI,
       ],
     })
-    .agent('did:web:lead.security.internal' as IRI, 'Lead')
-    .semiotic({
+.agent('did:web:lead.security.internal' as IRI, 'Lead')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.98,
       groundTruth: true,
     })
-    .trust({
+.trust({
       trustLevel: 'CryptographicallyVerified',
       issuer: 'did:web:lead.security.internal' as IRI,
     })
-    .accessControl([{
+.accessControl([{
       agent: 'did:web:lead.security.internal' as IRI,
       mode: ['Read', 'Write', 'Append', 'Control'],
     }])
-    .federation({
+.federation({
       origin: LEAD_POD as IRI,
       storageEndpoint: LEAD_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   const vResult = validate(leadDescriptor);
   log('Lead', `Remediation plan valid: ${vResult.conforms}`);

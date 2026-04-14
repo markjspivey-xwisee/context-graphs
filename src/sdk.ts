@@ -4,7 +4,7 @@
  *
  * Usage:
  * ```ts
- * import { ContextGraphs } from '@foxxi/context-graphs';
+ * import { ContextGraphs } from '@markjspivey-xwisee/context-graphs';
  *
  * const cg = new ContextGraphs({ podUrl: 'https://css.example.com/alice/', token: 'cg_...' });
  * await cg.publish('urn:graph:my-data', turtleContent, { confidence: 0.95 });
@@ -112,7 +112,7 @@ export class ContextGraphsSDK {
       ownerWebId: `${config.podUrl}profile#me`,
       ownerName: 'SDK User',
       ipfs: { provider: 'local' },
-      ...config,
+...config,
       podUrl: config.podUrl.endsWith('/') ? config.podUrl : `${config.podUrl}/`,
     };
 
@@ -145,26 +145,26 @@ export class ContextGraphsSDK {
     const descId = `urn:cg:sdk:${Date.now()}` as IRI;
 
     const builder = ContextDescriptor.create(descId)
-      .describes(graphIri as IRI)
-      .temporal({
+.describes(graphIri as IRI)
+.temporal({
         validFrom: options.validFrom ?? now,
         validUntil: options.validUntil,
       })
-      .semiotic({
+.semiotic({
         modalStatus: options.modalStatus ?? 'Asserted',
         epistemicConfidence: options.confidence ?? 0.85,
         groundTruth: (options.modalStatus ?? 'Asserted') === 'Asserted',
       })
-      .trust({
+.trust({
         trustLevel: 'SelfAsserted',
         issuer: this.config.ownerWebId as IRI,
       })
-      .federation({
+.federation({
         origin: this.config.podUrl as IRI,
         storageEndpoint: this.config.podUrl as IRI,
         syncProtocol: 'SolidNotifications',
       })
-      .version(1);
+.version(1);
 
     // Add provenance with agent + owner
     if (this.config.ownerWebId && this.config.agentId) {
@@ -272,10 +272,10 @@ export class ContextGraphsSDK {
     });
 
     return scored
-      .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, options.limit ?? 10)
-      .map(s => ({
+.filter(s => s.score > 0)
+.sort((a, b) => b.score - a.score)
+.slice(0, options.limit ?? 10)
+.map(s => ({
         descriptorUrl: s.entry.descriptorUrl,
         describes: s.entry.describes,
         facetTypes: s.entry.facetTypes,
@@ -384,12 +384,12 @@ export class ContextGraphsSDK {
     const token = this.config.token;
     return async (url, init) => {
       const headers: Record<string, string> = {
-        ...(init?.headers as Record<string, string> ?? {}),
+...(init?.headers as Record<string, string> ?? {}),
       };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      const resp = await fetch(url, { ...init as RequestInit, headers });
+      const resp = await fetch(url, {...init as RequestInit, headers });
       return {
         ok: resp.ok,
         status: resp.status,

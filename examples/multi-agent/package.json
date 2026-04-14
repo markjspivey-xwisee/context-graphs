@@ -7,7 +7,7 @@
     "start": "tsx run.ts"
   },
   "dependencies": {
-    "@foxxi/context-graphs": "file:../../",
+    "@markjspivey-xwisee/context-graphs": "file:../../",
     "@solid/community-server": "^7.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.0.0",

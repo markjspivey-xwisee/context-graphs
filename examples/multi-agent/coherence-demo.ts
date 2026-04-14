@@ -41,9 +41,9 @@ import {
   validateAllPGSL,
   mintAtom,
   ingest,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
-import type { IRI, PGSLInstance } from '@foxxi/context-graphs';
+import type { IRI, PGSLInstance } from '@markjspivey-xwisee/context-graphs';
 
 // ── Colors & Logging ───────────────────────────────────────
 
@@ -318,8 +318,8 @@ function phase4_coverageAndContracts(): void {
   log('Coherence', '');
 
   const sorted = [...atomOverlaps.entries()]
-    .map(([atom, data]) => ({ atom, avgOverlap: data.total / data.count, ...data }))
-    .sort((a, b) => b.avgOverlap - a.avgOverlap);
+.map(([atom, data]) => ({ atom, avgOverlap: data.total / data.count,...data }))
+.sort((a, b) => b.avgOverlap - a.avgOverlap);
 
   for (const entry of sorted.slice(0, 10)) {
     const status = entry.avgOverlap >= 0.7 ? 'CONTRACT' :

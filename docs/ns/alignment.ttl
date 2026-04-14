@@ -1,22 +1,22 @@
-@prefix cg:    <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#> .
-@prefix pgsl:  <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> .
-@prefix cgh:   <https://markjspivey-xwisee.github.io/context-graphs/ns/harness#> .
-@prefix align: <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
-@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
-@prefix owl:   <http://www.w3.org/2002/07/owl#> .
-@prefix prov:  <http://www.w3.org/ns/prov#> .
-@prefix dct:   <http://purl.org/dc/terms/> .
-@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
-@prefix vann:  <http://purl.org/vocab/vann/> .
-@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
-@prefix hydra: <http://www.w3.org/ns/hydra/core#> .
-@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
-@prefix acl:   <http://www.w3.org/ns/auth/acl#> .
-@prefix vc:    <https://www.w3.org/2018/credentials#> .
-@prefix dcat:  <http://www.w3.org/ns/dcat#> .
-@prefix time:  <http://www.w3.org/2006/time#> .
+@prefix cg:    <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#>.
+@prefix pgsl:  <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#>.
+@prefix cgh:   <https://markjspivey-xwisee.github.io/context-graphs/ns/harness#>.
+@prefix align: <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#>.
+@prefix owl:   <http://www.w3.org/2002/07/owl#>.
+@prefix prov:  <http://www.w3.org/ns/prov#>.
+@prefix dct:   <http://purl.org/dc/terms/>.
+@prefix foaf:  <http://xmlns.com/foaf/0.1/>.
+@prefix vann:  <http://purl.org/vocab/vann/>.
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#>.
+@prefix hydra: <http://www.w3.org/ns/hydra/core#>.
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/>.
+@prefix acl:   <http://www.w3.org/ns/auth/acl#>.
+@prefix vc:    <https://www.w3.org/2018/credentials#>.
+@prefix dcat:  <http://www.w3.org/ns/dcat#>.
+@prefix time:  <http://www.w3.org/2006/time#>.
 
 # ══════════════════════════════════════════════════════════════
 #  Context Graphs 1.0 Cross-Layer Alignment Ontology
@@ -57,10 +57,6 @@
         foaf:name "Mark Spivey" ;
         foaf:homepage <https://github.com/markjspivey-xwisee>
     ] ;
-    dct:publisher [
-        a foaf:Organization ;
-        foaf:name "Foxxi Mediums Inc."
-    ] ;
     dct:license <https://creativecommons.org/licenses/by/4.0/> ;
     dct:created "2026-04-13"^^xsd:date ;
     dct:modified "2026-04-13"^^xsd:date ;
@@ -70,7 +66,7 @@
                 <https://markjspivey-xwisee.github.io/context-graphs/ns/context-graphs#> ,
                 <https://markjspivey-xwisee.github.io/context-graphs/ns/pgsl#> ,
                 <https://markjspivey-xwisee.github.io/context-graphs/ns/harness#> ;
-    rdfs:seeAlso <https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html> .
+    rdfs:seeAlso <https://markjspivey-xwisee.github.io/context-graphs/spec/context-graphs-1.0-wd.html>.
 
 # ══════════════════════════════════════════════════════════════
 #  PART 1 — cg ↔ pgsl (context descriptors ABOUT lattice content)
@@ -88,7 +84,7 @@ align:describesFragment a owl:ObjectProperty ;
     rdfs:comment "Specialization of cg:describes for the case where the described graph's content is a PGSL fragment. Declared as a subPropertyOf so any cg:describes query automatically includes fragment-level descriptions." ;
     rdfs:domain cg:ContextDescriptor ;
     rdfs:range pgsl:Fragment ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:describesAtom a owl:ObjectProperty ;
     rdfs:subPropertyOf cg:describes ;
@@ -96,7 +92,7 @@ align:describesAtom a owl:ObjectProperty ;
     rdfs:comment "Specialization of cg:describes for individual PGSL atoms. Useful for attaching fine-grained trust / temporal / semiotic facets to specific atoms without wrapping them in a fragment." ;
     rdfs:domain cg:ContextDescriptor ;
     rdfs:range pgsl:Atom ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:describesLattice a owl:ObjectProperty ;
     rdfs:subPropertyOf cg:describes ;
@@ -104,7 +100,7 @@ align:describesLattice a owl:ObjectProperty ;
     rdfs:comment "Specialization of cg:describes for an entire pgsl:Lattice instance. Used when a context descriptor applies to ALL content in the lattice (e.g. a pod-wide provenance statement)." ;
     rdfs:domain cg:ContextDescriptor ;
     rdfs:range pgsl:Lattice ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ── Fragments and Atoms inherit PROV entity-hood from both layers ──
 #
@@ -126,7 +122,7 @@ align:observedAtom a owl:ObjectProperty ;
     rdfs:comment "An ObservationSection references the specific PGSL atoms it observed. Declared as subPropertyOf prov:used so standard PROV tooling can walk from a decision back to the atoms that grounded it." ;
     rdfs:domain cgh:ObservationSection ;
     rdfs:range pgsl:Atom ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:affordanceOn a owl:ObjectProperty ;
     owl:equivalentProperty cgh:affordanceTarget ;
@@ -134,7 +130,7 @@ align:affordanceOn a owl:ObjectProperty ;
     rdfs:comment "Alias for cgh:affordanceTarget, emphasizing that affordances are directed at a specific PGSL node. Use this when the emphasis is on navigation ('what can I do from HERE?'), cgh:affordanceTarget when the emphasis is on the affordance itself." ;
     rdfs:domain cgh:Affordance ;
     rdfs:range pgsl:Node ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:evaluatedNode a owl:ObjectProperty ;
     rdfs:subPropertyOf prov:used ;
@@ -142,7 +138,7 @@ align:evaluatedNode a owl:ObjectProperty ;
     rdfs:comment "A runtime evaluation references the PGSL node whose retrieval/answer was scored. Subproperty of prov:used so the evaluation's PROV inputs are discoverable." ;
     rdfs:domain cgh:RuntimeEval ;
     rdfs:range pgsl:Node ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ── Decorator context carries lattice state ─────────────────────
 
@@ -152,7 +148,7 @@ align:contextNode a owl:ObjectProperty , owl:FunctionalProperty ;
     rdfs:comment "The PGSL node at the center of a DecoratorContext. Functional — each context is for exactly one node." ;
     rdfs:domain cgh:DecoratorContext ;
     rdfs:range pgsl:Node ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:contextLattice a owl:ObjectProperty , owl:FunctionalProperty ;
     rdfs:subPropertyOf prov:used ;
@@ -160,7 +156,7 @@ align:contextLattice a owl:ObjectProperty , owl:FunctionalProperty ;
     rdfs:comment "The PGSL Lattice a DecoratorContext is part of. Functional — a context is always from one lattice." ;
     rdfs:domain cgh:DecoratorContext ;
     rdfs:range pgsl:Lattice ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ══════════════════════════════════════════════════════════════
 #  PART 3 — cgh ↔ cg (harness outputs TYPED CONTEXT)
@@ -178,28 +174,28 @@ align:produces a owl:ObjectProperty ;
     rdfs:comment "A harness activity (e.g. RuntimeEval, Decision, PolicyDecision) can produce a ContextDescriptor as its output. The produced descriptor then describes the subject entity with whatever facets the harness computed." ;
     rdfs:domain prov:Activity ;
     rdfs:range cg:ContextDescriptor ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:confidenceToTrust a owl:ObjectProperty ;
     rdfs:label "confidence → trust" ;
     rdfs:comment "Links a runtime evaluation to the cg:TrustFacet it materializes. The harness's numeric confidence (cgh:confidence) projects onto cg:epistemicConfidence, and the cgh:ConfidenceLevel projects onto a cg:TrustLevel via this relation." ;
     rdfs:domain cgh:RuntimeEval ;
     rdfs:range cg:TrustFacet ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:policyDecisionToAccessControl a owl:ObjectProperty ;
     rdfs:label "policy decision → access control" ;
     rdfs:comment "Links a cgh:PolicyDecision to the cg:AccessControlFacet it authorizes. A granted policy decision materializes as an authorization triple in the AccessControlFacet." ;
     rdfs:domain cgh:PolicyDecision ;
     rdfs:range cg:AccessControlFacet ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:traceToProvenance a owl:ObjectProperty ;
     rdfs:label "trace → provenance" ;
     rdfs:comment "Links a cgh:ProvTrace to the cg:ProvenanceFacet that records it in a context descriptor. Since ProvTrace is already a prov:Activity, this is a re-materialization of the trace as a first-class provenance facet on the affected entity." ;
     rdfs:domain cgh:ProvTrace ;
     rdfs:range cg:ProvenanceFacet ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ══════════════════════════════════════════════════════════════
 #  PART 4 — SKOS concept scheme alignments
@@ -213,35 +209,35 @@ align:traceToProvenance a owl:ObjectProperty ;
 # ── Trust: cgh:ConfidenceLevel → cg TrustLevel individuals ──
 
 cgh:HighConfidence skos:closeMatch cg:CryptographicallyVerified ;
-    rdfs:comment "High harness confidence (≥0.8) maps to cg:CryptographicallyVerified trust when backed by VC proof, or at least to the highest trust class the asserting chain supports. skos:closeMatch because the scales are comparable but not exactly equivalent — confidence is derived from structural signals, trust from cryptographic proof." .
+    rdfs:comment "High harness confidence (≥0.8) maps to cg:CryptographicallyVerified trust when backed by VC proof, or at least to the highest trust class the asserting chain supports. skos:closeMatch because the scales are comparable but not exactly equivalent — confidence is derived from structural signals, trust from cryptographic proof.".
 
 cgh:MediumConfidence skos:closeMatch cg:ThirdPartyAttested ;
-    rdfs:comment "Medium harness confidence corresponds to third-party attestation — multiple independent signals agree, but there is no cryptographic ground truth." .
+    rdfs:comment "Medium harness confidence corresponds to third-party attestation — multiple independent signals agree, but there is no cryptographic ground truth.".
 
 cgh:LowConfidence skos:closeMatch cg:SelfAsserted ;
-    rdfs:comment "Low harness confidence corresponds to self-assertion — only the harness itself claims the result, without corroborating signals." .
+    rdfs:comment "Low harness confidence corresponds to self-assertion — only the harness itself claims the result, without corroborating signals.".
 
 # ── Modal status: cg modality ↔ cgh eval action ──
 
 cg:Asserted skos:related cgh:Accept ;
-    rdfs:comment "When a runtime eval returns Accept, the downstream context descriptor's modal status is typically cg:Asserted." .
+    rdfs:comment "When a runtime eval returns Accept, the downstream context descriptor's modal status is typically cg:Asserted.".
 
 cg:Hypothetical skos:related cgh:Retry ;
-    rdfs:comment "Retry produces a hypothetical alternative that has not yet been committed." .
+    rdfs:comment "Retry produces a hypothetical alternative that has not yet been committed.".
 
 cg:Retracted skos:related cgh:Abstain ;
-    rdfs:comment "Abstain corresponds to a retraction — the harness explicitly declines to assert anything." .
+    rdfs:comment "Abstain corresponds to a retraction — the harness explicitly declines to assert anything.".
 
 # ── Agent roles: cg roles ↔ cgh AATs ──
 
 cg:Author skos:broadMatch cgh:Executor ;
-    rdfs:comment "cg:Author in the descriptor layer corresponds to an Executor AAT in the harness layer — both are the entities that produce new content." .
+    rdfs:comment "cg:Author in the descriptor layer corresponds to an Executor AAT in the harness layer — both are the entities that produce new content.".
 
 cg:Curator skos:broadMatch cgh:Archivist ;
-    rdfs:comment "cg:Curator maps to Archivist — both are responsible for the ongoing lifecycle of content without authoring new content themselves." .
+    rdfs:comment "cg:Curator maps to Archivist — both are responsible for the ongoing lifecycle of content without authoring new content themselves.".
 
 cg:Validator skos:broadMatch cgh:Arbiter ;
-    rdfs:comment "cg:Validator maps to Arbiter — both arbitrate the correctness of other agents' output." .
+    rdfs:comment "cg:Validator maps to Arbiter — both arbitrate the correctness of other agents' output.".
 
 # ══════════════════════════════════════════════════════════════
 #  PART 5 — External W3C vocabulary alignments
@@ -253,72 +249,72 @@ cg:Validator skos:broadMatch cgh:Arbiter ;
 
 # ── PROV-O alignments ────────────────────────────────────────
 
-pgsl:Atom rdfs:subClassOf prov:Entity .
-pgsl:Fragment rdfs:subClassOf prov:Entity .
+pgsl:Atom rdfs:subClassOf prov:Entity.
+pgsl:Fragment rdfs:subClassOf prov:Entity.
 
-cgh:AbstractAgentType rdfs:subClassOf prov:Plan .
-cgh:ProvTrace rdfs:subClassOf prov:Activity .
-cgh:PolicyDecision rdfs:subClassOf prov:Activity .
-cgh:RuntimeEval rdfs:subClassOf prov:Activity .
-cgh:Decision rdfs:subClassOf prov:Activity .
-cgh:Conversation rdfs:subClassOf prov:Collection .
-cgh:ConversationMessage rdfs:subClassOf prov:Entity .
+cgh:AbstractAgentType rdfs:subClassOf prov:Plan.
+cgh:ProvTrace rdfs:subClassOf prov:Activity.
+cgh:PolicyDecision rdfs:subClassOf prov:Activity.
+cgh:RuntimeEval rdfs:subClassOf prov:Activity.
+cgh:Decision rdfs:subClassOf prov:Activity.
+cgh:Conversation rdfs:subClassOf prov:Collection.
+cgh:ConversationMessage rdfs:subClassOf prov:Entity.
 
-cg:AuthorizedAgent rdfs:subClassOf prov:SoftwareAgent .
+cg:AuthorizedAgent rdfs:subClassOf prov:SoftwareAgent.
 
 # ── Hydra alignments (HATEOAS affordances) ───────────────────
 
 cgh:Affordance rdfs:subClassOf hydra:Operation ;
-    rdfs:comment "Harness affordances are Hydra operations. A harness-produced affordance can be consumed by any Hydra client without understanding the harness ontology — it just sees a hydra:Operation with a method, target, and description." .
+    rdfs:comment "Harness affordances are Hydra operations. A harness-produced affordance can be consumed by any Hydra client without understanding the harness ontology — it just sees a hydra:Operation with a method, target, and description.".
 
-cgh:DecoratedAffordance rdfs:subClassOf cgh:Affordance .
+cgh:DecoratedAffordance rdfs:subClassOf cgh:Affordance.
 
 cg:Affordance skos:closeMatch cgh:Affordance ;
-    rdfs:comment "The two 'Affordance' classes — one in cg:, one in cgh: — are closely related but NOT identical. cg:Affordance is a high-level capability declared by a pod/manifest (discovery), while cgh:Affordance is a per-node operation produced by a decorator (execution). They are linked but not merged so that discovery-time and execution-time concerns stay separable." .
+    rdfs:comment "The two 'Affordance' classes — one in cg:, one in cgh: — are closely related but NOT identical. cg:Affordance is a high-level capability declared by a pod/manifest (discovery), while cgh:Affordance is a per-node operation produced by a decorator (execution). They are linked but not merged so that discovery-time and execution-time concerns stay separable.".
 
 # ── ODRL alignments (deontic rules) ──────────────────────────
 
-cgh:PolicyRule rdfs:subClassOf odrl:Rule .
-cgh:Permit skos:exactMatch odrl:permission .
-cgh:Deny skos:exactMatch odrl:prohibition .
-cgh:Duty skos:exactMatch odrl:duty .
+cgh:PolicyRule rdfs:subClassOf odrl:Rule.
+cgh:Permit skos:exactMatch odrl:permission.
+cgh:Deny skos:exactMatch odrl:prohibition.
+cgh:Duty skos:exactMatch odrl:duty.
 
 # ── ACL alignments (access control) ──────────────────────────
 
-cg:AccessControlFacet rdfs:seeAlso acl:Authorization .
+cg:AccessControlFacet rdfs:seeAlso acl:Authorization.
 
 align:policyToAclAuthorization a owl:ObjectProperty ;
     rdfs:label "policy → ACL authorization" ;
     rdfs:comment "Projection from a harness PolicyRule to a W3C Web Access Control Authorization. Not an equivalence — ACL is flat (agent × mode × resource), while ODRL/cgh policy rules can carry conditions and obligations." ;
     rdfs:domain cgh:PolicyRule ;
     rdfs:range acl:Authorization ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ── Verifiable Credentials alignments ─────────────────────────
 
-cg:TrustFacet rdfs:seeAlso vc:VerifiableCredential .
+cg:TrustFacet rdfs:seeAlso vc:VerifiableCredential.
 
 align:trustFromCredential a owl:ObjectProperty ;
     rdfs:subPropertyOf cg:verifiableCredential ;
     rdfs:label "trust from credential" ;
     rdfs:comment "A cg:TrustFacet can be backed by a W3C Verifiable Credential. This alignment just restates cg:verifiableCredential with a clearer name for cross-layer use." ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ── DCAT alignments (federation / distribution) ──────────────
 
-cg:DataProduct rdfs:subClassOf dcat:Dataset .
-cg:FederationFacet rdfs:seeAlso dcat:Distribution .
+cg:DataProduct rdfs:subClassOf dcat:Dataset.
+cg:FederationFacet rdfs:seeAlso dcat:Distribution.
 
 # ── OWL-Time alignments (temporal reasoning) ─────────────────
 
-cg:TemporalFacet rdfs:seeAlso time:TemporalEntity .
+cg:TemporalFacet rdfs:seeAlso time:TemporalEntity.
 
 align:temporalIntervalOf a owl:ObjectProperty ;
     rdfs:label "temporal interval of" ;
     rdfs:comment "Links a cg:TemporalFacet to the underlying OWL-Time ProperInterval. Use this when you need to reason temporally with standard OWL-Time axioms (before, after, during, etc.)." ;
     rdfs:domain cg:TemporalFacet ;
     rdfs:range time:ProperInterval ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 # ══════════════════════════════════════════════════════════════
 #  PART 6 — Integration patterns
@@ -338,32 +334,32 @@ align:IntegrationPattern a owl:Class , skos:ConceptScheme ;
         align:ArbitratedCompositionPattern ,
         align:AuditedPublicationPattern ,
         align:FederatedObservationPattern ;
-    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#> .
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/context-graphs/ns/alignment#>.
 
 align:TracedAnswerPattern a skos:Concept , align:IntegrationPattern ;
     skos:inScheme align:IntegrationPattern ;
     skos:prefLabel "Traced Answer Pattern" ;
-    skos:definition "Pattern: agent asks a question → harness runs retrieval over PGSL → runtime eval scores the answer → a cgh:ProvTrace records everything → the trace is materialized as a cg:ProvenanceFacet on the answer's ContextDescriptor → the descriptor is published. Every link from the final answer back to the source atoms is walkable via PROV-O." .
+    skos:definition "Pattern: agent asks a question → harness runs retrieval over PGSL → runtime eval scores the answer → a cgh:ProvTrace records everything → the trace is materialized as a cg:ProvenanceFacet on the answer's ContextDescriptor → the descriptor is published. Every link from the final answer back to the source atoms is walkable via PROV-O.".
 
 align:TrustedRetrievalPattern a skos:Concept , align:IntegrationPattern ;
     skos:inScheme align:IntegrationPattern ;
     skos:prefLabel "Trusted Retrieval Pattern" ;
-    skos:definition "Pattern: retrieval returns candidate PGSL atoms → each atom is filtered by the cg:TrustFacet of the ContextDescriptor that describes it → only atoms with trust level ≥ required threshold are passed to the answer pipeline → the runtime eval's confidence is capped by the minimum trust across used atoms." .
+    skos:definition "Pattern: retrieval returns candidate PGSL atoms → each atom is filtered by the cg:TrustFacet of the ContextDescriptor that describes it → only atoms with trust level ≥ required threshold are passed to the answer pipeline → the runtime eval's confidence is capped by the minimum trust across used atoms.".
 
 align:ArbitratedCompositionPattern a skos:Concept , align:IntegrationPattern ;
     skos:inScheme align:IntegrationPattern ;
     skos:prefLabel "Arbitrated Composition Pattern" ;
-    skos:definition "Pattern: two or more Executor agents produce conflicting ContextDescriptors for the same subject → an Arbiter AAT reads both, evaluates coherence → produces a cg:ComposedDescriptor using the override operator, with the Arbiter's policy decision attached as provenance." .
+    skos:definition "Pattern: two or more Executor agents produce conflicting ContextDescriptors for the same subject → an Arbiter AAT reads both, evaluates coherence → produces a cg:ComposedDescriptor using the override operator, with the Arbiter's policy decision attached as provenance.".
 
 align:AuditedPublicationPattern a skos:Concept , align:IntegrationPattern ;
     skos:inScheme align:IntegrationPattern ;
     skos:prefLabel "Audited Publication Pattern" ;
-    skos:definition "Pattern: an Archivist AAT promotes a PGSL fragment from local tier to pod tier → the promotion produces a cgh:ProvTrace → the trace references the specific fragment (prov:used) and the new location (prov:generated) → the promotion is only allowed if the policy engine permits it for the Archivist's AAT." .
+    skos:definition "Pattern: an Archivist AAT promotes a PGSL fragment from local tier to pod tier → the promotion produces a cgh:ProvTrace → the trace references the specific fragment (prov:used) and the new location (prov:generated) → the promotion is only allowed if the policy engine permits it for the Archivist's AAT.".
 
 align:FederatedObservationPattern a skos:Concept , align:IntegrationPattern ;
     skos:inScheme align:IntegrationPattern ;
     skos:prefLabel "Federated Observation Pattern" ;
-    skos:definition "Pattern: multiple agents in different pods each produce ObservationSections over the same logical subject → their observations are unioned via cg:union composition → coherence between agents is computed from the intersection of their observed atoms → a Decision is produced only when coherence ≥ threshold." .
+    skos:definition "Pattern: multiple agents in different pods each produce ObservationSections over the same logical subject → their observations are unioned via cg:union composition → coherence between agents is computed from the intersection of their observed atoms → a Decision is produced only when coherence ≥ threshold.".
 
 # ══════════════════════════════════════════════════════════════
 #  PART 7 — Disjointness assertions
@@ -373,10 +369,10 @@ align:FederatedObservationPattern a skos:Concept , align:IntegrationPattern ;
 #  layers get conflated.
 
 cg:ContextFacet owl:disjointWith pgsl:Node ;
-    rdfs:comment "A context facet is metadata ABOUT a graph; a PGSL node is content IN a graph. They must not be the same resource." .
+    rdfs:comment "A context facet is metadata ABOUT a graph; a PGSL node is content IN a graph. They must not be the same resource.".
 
 cgh:Affordance owl:disjointWith pgsl:Node ;
-    rdfs:comment "An affordance is a possible action at a node; it is never itself a node." .
+    rdfs:comment "An affordance is a possible action at a node; it is never itself a node.".
 
 cgh:ProvTrace owl:disjointWith pgsl:Atom ;
-    rdfs:comment "A trace is an activity; an atom is an entity. PROV-O disjointness applies." .
+    rdfs:comment "A trace is an activity; an atom is an entity. PROV-O disjointness applies.".

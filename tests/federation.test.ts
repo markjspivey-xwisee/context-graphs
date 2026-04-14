@@ -15,7 +15,7 @@ import { PodRegistry } from '../mcp-server/pod-registry.js';
 
 describe('PodDirectory', () => {
   const directory: PodDirectoryData = {
-    id: 'urn:directory:foxxi' as IRI,
+    id: 'urn:directory:example' as IRI,
     entries: [
       {
         podUrl: 'https://css-a.example.com/alice/' as IRI,
@@ -60,7 +60,7 @@ describe('PodDirectory', () => {
       const turtle = podDirectoryToTurtle(directory);
       const parsed = parsePodDirectory(turtle);
 
-      expect(parsed.id).toBe('urn:directory:foxxi');
+      expect(parsed.id).toBe('urn:directory:example');
       expect(parsed.entries).toHaveLength(3);
 
       const alice = parsed.entries.find(e => e.podUrl.includes('alice'));

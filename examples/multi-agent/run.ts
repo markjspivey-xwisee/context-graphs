@@ -33,7 +33,7 @@ import {
   publish,
   discover,
   subscribe,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 import type {
   IRI,
@@ -42,7 +42,7 @@ import type {
   ContextChangeEvent,
   FetchFn,
   WebSocketConstructor,
-} from '@foxxi/context-graphs';
+} from '@markjspivey-xwisee/context-graphs';
 
 // ── Configuration ───────────────────────────────────────────
 
@@ -182,44 +182,44 @@ async function agentAlice(): Promise<ContextDescriptorData> {
   // The graph content — Alice's Claude Code agent produced this
   // analysis of a microservice architecture.
   const graphContent = [
-    '@prefix schema: <https://schema.org/> .',
-    '@prefix arch: <https://example.org/architecture#> .',
+    '@prefix schema: <https://schema.org/>.',
+    '@prefix arch: <https://example.org/architecture#>.',
     '',
     '<urn:arch:api-gateway> a arch:Service ;',
     '    schema:name "API Gateway" ;',
     '    arch:dependsOn <urn:arch:auth-service>, <urn:arch:user-service> ;',
     '    arch:protocol "gRPC" ;',
-    '    arch:healthEndpoint "/healthz" .',
+    '    arch:healthEndpoint "/healthz".',
     '',
     '<urn:arch:auth-service> a arch:Service ;',
     '    schema:name "Authentication Service" ;',
     '    arch:dependsOn <urn:arch:user-service> ;',
     '    arch:protocol "gRPC" ;',
-    '    arch:usesDatabase <urn:arch:redis-session-store> .',
+    '    arch:usesDatabase <urn:arch:redis-session-store>.',
     '',
     '<urn:arch:user-service> a arch:Service ;',
     '    schema:name "User Service" ;',
     '    arch:protocol "REST" ;',
-    '    arch:usesDatabase <urn:arch:postgres-users> .',
+    '    arch:usesDatabase <urn:arch:postgres-users>.',
     '',
     '<urn:arch:redis-session-store> a arch:Database ;',
     '    schema:name "Session Store" ;',
-    '    arch:engine "Redis 7" .',
+    '    arch:engine "Redis 7".',
     '',
     '<urn:arch:postgres-users> a arch:Database ;',
     '    schema:name "Users DB" ;',
-    '    arch:engine "PostgreSQL 16" .',
+    '    arch:engine "PostgreSQL 16".',
   ].join('\n');
 
   // Build the Context Descriptor with full metadata
   const descriptor = ContextDescriptor.create('urn:cg:alice:arch-review-2026-Q1' as IRI)
-    .describes('urn:graph:alice:architecture-v3' as IRI)
-    .temporal({
+.describes('urn:graph:alice:architecture-v3' as IRI)
+.temporal({
       validFrom: '2026-01-15T10:00:00Z',
       validUntil: '2026-06-30T23:59:59Z',
       temporalResolution: 'P1D',
     })
-    .provenance({
+.provenance({
       wasGeneratedBy: {
         agent: 'urn:agent:claude-code:alice-instance' as IRI,
         startedAt: '2026-01-15T10:00:00Z',
@@ -228,23 +228,23 @@ async function agentAlice(): Promise<ContextDescriptorData> {
       wasAttributedTo: 'did:web:alice.example.org' as IRI,
       generatedAtTime: '2026-01-15T10:02:37Z',
     })
-    .agent('did:web:alice.example.org' as IRI, 'Author')
-    .semiotic({
+.agent('did:web:alice.example.org' as IRI, 'Author')
+.semiotic({
       modalStatus: 'Asserted',
       epistemicConfidence: 0.92,
       groundTruth: true,
     })
-    .trust({
+.trust({
       trustLevel: 'SelfAsserted',
       issuer: 'did:web:alice.example.org' as IRI,
     })
-    .federation({
+.federation({
       origin: ALICE_POD as IRI,
       storageEndpoint: ALICE_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(1)
-    .build();
+.version(1)
+.build();
 
   // Validate
   const result = validate(descriptor);
@@ -321,23 +321,23 @@ async function agentBob(aliceDescriptor: ContextDescriptorData): Promise<void> {
   // Bob builds his own local context
   log('Bob', 'Building Bob\'s local context descriptor...');
   const bobDescriptor = ContextDescriptor.create('urn:cg:bob:review-notes' as IRI)
-    .describes('urn:graph:alice:architecture-v3' as IRI)  // Same graph!
-    .temporal({
+.describes('urn:graph:alice:architecture-v3' as IRI)  // Same graph!
+.temporal({
       validFrom: '2026-03-01T00:00:00Z',
       validUntil: '2026-03-31T23:59:59Z',
     })
-    .semiotic({
+.semiotic({
       modalStatus: 'Hypothetical',
       epistemicConfidence: 0.7,
       groundTruth: false,
     })
-    .trust({
+.trust({
       trustLevel: 'SelfAsserted',
       issuer: 'did:web:bob.example.org' as IRI,
     })
-    .agent('did:web:bob.example.org' as IRI, 'Curator')
-    .version(1)
-    .build();
+.agent('did:web:bob.example.org' as IRI, 'Curator')
+.version(1)
+.build();
 
   log('Bob', `Bob's descriptor valid: ${validate(bobDescriptor).conforms}`);
 
@@ -407,23 +407,23 @@ async function alicePublishUpdate(): Promise<void> {
   log('Alice', 'Publishing updated descriptor (version 2)...');
 
   const updatedDescriptor = ContextDescriptor.create('urn:cg:alice:arch-review-2026-Q1-v2' as IRI)
-    .describes('urn:graph:alice:architecture-v3' as IRI)
-    .temporal({
+.describes('urn:graph:alice:architecture-v3' as IRI)
+.temporal({
       validFrom: '2026-03-19T00:00:00Z',
       validUntil: '2026-09-30T23:59:59Z',
     })
-    .asserted(0.97)
-    .selfAsserted('did:web:alice.example.org' as IRI)
-    .federation({
+.asserted(0.97)
+.selfAsserted('did:web:alice.example.org' as IRI)
+.federation({
       origin: ALICE_POD as IRI,
       storageEndpoint: ALICE_POD as IRI,
       syncProtocol: 'SolidNotifications',
     })
-    .version(2)
-    .supersedes('urn:cg:alice:arch-review-2026-Q1' as IRI)
-    .build();
+.version(2)
+.supersedes('urn:cg:alice:arch-review-2026-Q1' as IRI)
+.build();
 
-  const graphContent = '<urn:arch:api-gateway> <https://schema.org/name> "API Gateway v2" .';
+  const graphContent = '<urn:arch:api-gateway> <https://schema.org/name> "API Gateway v2".';
 
   const pubResult = await publish(updatedDescriptor, graphContent, ALICE_POD, {
     fetch: solidFetch,

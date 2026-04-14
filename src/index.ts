@@ -1,5 +1,5 @@
 /**
- * @foxxi/context-graphs
+ * @markjspivey-xwisee/context-graphs
  *
  * Reference implementation of Context Graphs 1.0 — a compositional
  * framework for typed graph contexts over RDF 1.2 Named Graphs.
@@ -10,14 +10,14 @@
  *
  * @example
  * ```ts
- * import { ContextDescriptor, toTurtle, validate } from '@foxxi/context-graphs';
+ * import { ContextDescriptor, toTurtle, validate } from '@markjspivey-xwisee/context-graphs';
  *
  * const desc = ContextDescriptor.create('urn:cg:my-context')
- *   .describes('urn:graph:observations-2026-Q1')
- *   .temporal({ validFrom: '2026-01-01T00:00:00Z', validUntil: '2026-03-31T23:59:59Z' })
- *   .asserted(0.95)
- *   .selfAsserted('did:web:context-graphs-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io')
- *   .build();
+ *.describes('urn:graph:observations-2026-Q1')
+ *.temporal({ validFrom: '2026-01-01T00:00:00Z', validUntil: '2026-03-31T23:59:59Z' })
+ *.asserted(0.95)
+ *.selfAsserted('did:web:context-graphs-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io')
+ *.build();
  *
  * const result = validate(desc);
  * console.log(result.conforms); // true
