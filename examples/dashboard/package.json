@@ -4,13 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx server.ts"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx server.ts"
   },
   "dependencies": {
     "@interego/core": "file:../../",
     "@solid/community-server": "^7.0.0",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.0.0",
-    "ws": "^8.19.0",
-    "@types/ws": "^8.18.1"
+    "typescript": "^5.7.0"
   }
 }

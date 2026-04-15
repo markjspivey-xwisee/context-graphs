@@ -52,14 +52,8 @@ RUN sed 's|"file:../../"|"file:/tmp/interego-core.tgz"|g' package.json.template 
 COPY examples/pgsl-browser/server.ts ./
 COPY examples/pgsl-browser/index.html ./
 COPY examples/pgsl-browser/observatory.html ./
-RUN npm install --no-save esbuild@^0.25.0 \
- && ./node_modules/.bin/esbuild server.ts \
-      --bundle=false \
-      --platform=node \
-      --target=node20 \
-      --format=esm \
-      --outfile=dist/server.js \
-      --sourcemap
+# esbuild is in devDependencies and got installed above
+RUN npm run build
 
 # ────────────────────────────────────────────────────────────
 #  Runtime stage: distroless image running compiled JS
