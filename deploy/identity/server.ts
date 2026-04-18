@@ -27,6 +27,7 @@
 import express from 'express';
 import * as crypto from 'node:crypto';
 import { ethers } from 'ethers';
+import bcrypt from 'bcryptjs';
 
 // ── Config ──────────────────────────────────────────────────
 
@@ -63,6 +64,12 @@ interface Identity {
   owner?: string;        // for agents: the user who owns them
   scope?: string;
   createdAt: string;
+  // Password hash (bcrypt) for user identities that opt into password auth.
+  // Agents never have passwords — they authenticate via their owner's
+  // delegation and the token issued at agent registration.
+  passwordHash?: string;
+  walletAddress?: string;
+  erc8004Key?: string;
 }
 
 interface TokenRecord {
@@ -80,13 +87,28 @@ const keys: Map<string, KeyPair> = new Map();
 const tokens: Map<string, TokenRecord> = new Map();
 
 // Seed with markj + agents
-function seedIdentity(id: string, type: 'user' | 'agent', name: string, owner?: string, scope?: string) {
-  identities.set(id, { id, type, name, owner, scope, createdAt: new Date().toISOString() });
+function seedIdentity(id: string, type: 'user' | 'agent', name: string, owner?: string, scope?: string, passwordHash?: string) {
+  const rec: Identity = { id, type, name, createdAt: new Date().toISOString() };
+  if (owner !== undefined) rec.owner = owner;
+  if (scope !== undefined) rec.scope = scope;
+  if (passwordHash !== undefined) rec.passwordHash = passwordHash;
+  identities.set(id, rec);
   keys.set(id, generateEd25519());
-  log(`Seeded ${type} identity: ${id} (${name})`);
+  log(`Seeded ${type} identity: ${id} (${name})${passwordHash ? ' [password set]' : ''}`);
 }
 
-seedIdentity('markj', 'user', 'Mark J');
+// Seed the primary user with an optional password from env so markj can log
+// in via the OAuth /login flow without a separate bootstrap step. For other
+// seeded users, set SEED_<ID>_PASSWORD or register them via POST /register.
+const seedMarkjPassword = process.env['SEED_MARKJ_PASSWORD'];
+seedIdentity(
+  'markj',
+  'user',
+  'Mark J',
+  undefined,
+  undefined,
+  seedMarkjPassword ? bcrypt.hashSync(seedMarkjPassword, 10) : undefined,
+);
 seedIdentity('claude-code-vscode', 'agent', 'Claude Code (VS Code)', 'markj', 'ReadWrite');
 seedIdentity('claude-code-desktop', 'agent', 'Claude Code (Desktop)', 'markj', 'ReadWrite');
 
@@ -233,13 +255,25 @@ app.get('/health', (_req, res) => {
 
 /**
  * POST /register — Register a new human + their first agent
- * Body: { name: "Sarah", userId: "sarah", agentId: "claude-code-sarah", agentName: "Claude Code (Sarah)" }
+ * Body: { name, userId, agentId, agentName?, scope?, password? }
  * Returns: { token, userId, agentId, webId, did, podUrl }
+ *
+ * If password is provided, the user can later authenticate via POST /login.
+ * Without a password the user is still valid (agent token works) but cannot
+ * be re-authenticated without another mechanism (wallet SIWE, fresh token).
  */
-app.post('/register', (req, res) => {
-  const { name, userId, agentId, agentName, scope } = req.body;
+app.post('/register', async (req, res) => {
+  const { name, userId, agentId, agentName, scope, password } = req.body;
   if (!name || !userId || !agentId) {
     res.status(400).json({ error: 'name, userId, and agentId are required' });
+    return;
+  }
+  if (password && typeof password !== 'string') {
+    res.status(400).json({ error: 'password must be a string' });
+    return;
+  }
+  if (password && password.length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
     return;
   }
 
@@ -248,8 +282,9 @@ app.post('/register', (req, res) => {
     return;
   }
 
-  // Create user identity
-  seedIdentity(userId, 'user', name);
+  // Create user identity (with optional password hash)
+  const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
+  seedIdentity(userId, 'user', name, undefined, undefined, passwordHash);
 
   // Create agent identity
   const agentLabel = agentName ?? `Agent (${agentId})`;
@@ -270,8 +305,124 @@ app.post('/register', (req, res) => {
     agentDid: `did:web:${host}:agents:${agentId}`,
     podUrl: `${CSS_URL}${userId}/`,
     identityServer: BASE_URL,
+    passwordSet: !!passwordHash,
   });
-  log(`Registered new user: ${userId} (${name}) with agent ${agentId}`);
+  log(`Registered new user: ${userId} (${name}) with agent ${agentId}${passwordHash ? ' [password set]' : ''}`);
+});
+
+/**
+ * POST /login — Authenticate an existing user by userId + password.
+ *
+ * Body: { userId, password, agentId? }
+ *
+ * If agentId is omitted, the user's first agent is used. Issues a fresh
+ * bearer token for that agent and returns full identity info so downstream
+ * services (like the MCP relay's OAuth provider) can populate session
+ * context (webId, pod URL, DID) without another round trip.
+ *
+ * Returns 401 if the user has no password set, or if password is wrong.
+ */
+app.post('/login', async (req, res) => {
+  const { userId, password, agentId: requestedAgentId } = req.body;
+  if (!userId || !password) {
+    res.status(400).json({ error: 'userId and password are required' });
+    return;
+  }
+
+  const user = identities.get(userId);
+  if (!user || user.type !== 'user') {
+    res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+  if (!user.passwordHash) {
+    res.status(401).json({ error: 'User has no password set. Use /set-password to enable password login.' });
+    return;
+  }
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) {
+    res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  // Pick the agent to issue a token for
+  let agentId = requestedAgentId;
+  if (agentId) {
+    const agent = identities.get(agentId);
+    if (!agent || agent.type !== 'agent' || agent.owner !== userId) {
+      res.status(403).json({ error: `Agent '${agentId}' is not authorized for user '${userId}'` });
+      return;
+    }
+  } else {
+    // Pick any agent owned by the user
+    const firstAgent = [...identities.values()].find(i => i.type === 'agent' && i.owner === userId);
+    if (!firstAgent) {
+      res.status(400).json({ error: 'User has no agents. Use POST /register-agent to create one.' });
+      return;
+    }
+    agentId = firstAgent.id;
+  }
+
+  const agent = identities.get(agentId)!;
+  const tokenRecord = issueToken(userId, agentId, agent.scope ?? 'ReadWrite');
+
+  const host = new URL(BASE_URL).host;
+  res.json({
+    userId,
+    agentId,
+    token: tokenRecord.token,
+    expiresAt: tokenRecord.expiresAt,
+    scope: tokenRecord.scope,
+    webId: `${BASE_URL}/users/${userId}/profile#me`,
+    did: `did:web:${host}:users:${userId}`,
+    agentDid: `did:web:${host}:agents:${agentId}`,
+    podUrl: `${CSS_URL}${userId}/`,
+    identityServer: BASE_URL,
+  });
+  log(`Login OK: ${userId} via agent ${agentId}`);
+});
+
+/**
+ * POST /set-password — Set or change a user's password.
+ *
+ * Body: { userId, newPassword } with valid Bearer token for that user.
+ * Primary use cases: seeded users (like 'markj') claiming their account,
+ * or existing users rotating their password.
+ */
+app.post('/set-password', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Bearer token required' });
+    return;
+  }
+  const tokenResult = verifyToken(authHeader.slice(7));
+  if (!tokenResult.valid) {
+    res.status(401).json({ error: tokenResult.reason });
+    return;
+  }
+
+  const { userId, newPassword } = req.body;
+  if (!userId || !newPassword) {
+    res.status(400).json({ error: 'userId and newPassword are required' });
+    return;
+  }
+  if (tokenResult.record!.userId !== userId) {
+    res.status(403).json({ error: 'Token does not belong to this user' });
+    return;
+  }
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    res.status(400).json({ error: 'newPassword must be a string of at least 8 characters' });
+    return;
+  }
+
+  const user = identities.get(userId);
+  if (!user || user.type !== 'user') {
+    res.status(404).json({ error: `User '${userId}' not found` });
+    return;
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  log(`Password set for ${userId}`);
+  res.json({ updated: true, userId });
 });
 
 /**
