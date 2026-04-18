@@ -4,13 +4,12 @@ name: Deploy to Azure Container Apps
 # image cares about. Workflow_dispatch lets you also kick it off manually
 # from the Actions tab for ad-hoc redeploys.
 #
-# Four container apps are CI-managed:
+# Five container apps are CI-managed:
 #   - interego-dashboard
 #   - interego-pgsl-browser
 #   - interego-relay
 #   - interego-identity
-#
-# The other two (css, browser) are untouched by this workflow.
+#   - interego-css         (Solid pod server; file-backed storage on mounted volume)
 
 on:
   push:
@@ -21,10 +20,12 @@ on:
       - 'deploy/Dockerfile.pgsl-browser'
       - 'deploy/Dockerfile.relay'
       - 'deploy/Dockerfile.identity'
+      - 'deploy/Dockerfile.css'
       - 'deploy/mcp-relay/**'
       - 'deploy/identity/**'
       - 'examples/dashboard/**'
       - 'examples/pgsl-browser/**'
+      - 'examples/multi-agent/css-config.json'
       - 'docs/ns/**'
       - 'package.json'
       - 'package-lock.json'
@@ -33,9 +34,9 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: 'Comma-separated image names (default: all four)'
+        description: 'Comma-separated image names (default: all five)'
         required: false
-        default: 'dashboard,pgsl-browser,relay,identity'
+        default: 'dashboard,pgsl-browser,relay,identity,css'
 
 # OIDC federated identity — no long-lived secrets. The id-token: write
 # permission is required for actions/federated-credentials to work.
@@ -70,6 +71,8 @@ jobs:
             dockerfile: deploy/Dockerfile.relay
           - image: interego-identity
             dockerfile: deploy/Dockerfile.identity
+          - image: interego-css
+            dockerfile: deploy/Dockerfile.css
 
     steps:
       - name: Checkout
