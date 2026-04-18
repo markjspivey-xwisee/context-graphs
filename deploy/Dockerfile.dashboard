@@ -36,6 +36,10 @@ COPY examples/dashboard/server.ts ./
 COPY examples/dashboard/index.html ./
 COPY examples/multi-agent/css-config.json ./css-config.json
 RUN npx tsc
+# server.ts uses path.resolve(__dirname, 'index.html') to serve the
+# dashboard HTML. After compilation, __dirname inside dist/server.js
+# is /app/dist, so the HTML must live there too.
+RUN cp index.html dist/
 
 # ────────────────────────────────────────────────────────────
 #  Runtime stage: distroless image running compiled JS
