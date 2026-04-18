@@ -38,6 +38,7 @@ import {
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import { WebSocket } from 'ws';
 
 import {
@@ -160,6 +161,11 @@ const CSS_BIN = resolve(__dirname, 'node_modules', '.bin', 'community-solid-serv
 const podRegistry = new PodRegistry();
 let cssProcess: ChildProcess | null = null;
 let cssReady = false;
+// Sticky flag: once CSS has proven unreachable in this session, stop retrying.
+// Reset only on explicit user action (there is none currently). Prevents every
+// pod-touching tool from paying the 30s CSS-startup-timeout on systems that
+// have no local CSS binary and no remote CSS configured.
+let cssUnavailable = false;
 let registryInitialized = false;
 let notificationLog: ContextChangeEvent[] = [];
 let lastPublishedDescriptor: ContextDescriptorData | null = null;
@@ -204,6 +210,7 @@ const solidFetch: FetchFn = async (url, init) => {
 
 async function ensureCSS(): Promise<void> {
   if (cssReady) return;
+  if (cssUnavailable) throw new Error('CSS marked unavailable this session');
 
   const homePod = podRegistry.getHome()!;
   const homeUrl = new URL(homePod.url);
@@ -221,7 +228,15 @@ async function ensureCSS(): Promise<void> {
 
   // Only start local CSS if home pod is localhost
   if (homeUrl.hostname !== 'localhost' && homeUrl.hostname !== '127.0.0.1') {
+    cssUnavailable = true;
     throw new Error(`Cannot reach CSS at ${homePod.url} — remote server must be started independently`);
+  }
+
+  // If the local CSS binary isn't present, skip immediately instead of
+  // waiting 30s for the poll to time out on a spawn that will never start.
+  if (!existsSync(CSS_BIN) && !existsSync(CSS_BIN + '.cmd')) {
+    cssUnavailable = true;
+    throw new Error(`Local CSS binary not found at ${CSS_BIN}`);
   }
 
   log(`Starting local CSS on port ${CSS_PORT}...`);
@@ -257,7 +272,10 @@ async function ensureCSS(): Promise<void> {
       } catch { /* not ready */ }
     }, 400);
 
-    setTimeout(() => { clearInterval(poll); if (!started) rej(new Error('CSS startup timeout')); }, 30_000);
+    setTimeout(() => {
+      clearInterval(poll);
+      if (!started) { cssUnavailable = true; rej(new Error('CSS startup timeout')); }
+    }, 30_000);
   });
 }
 
