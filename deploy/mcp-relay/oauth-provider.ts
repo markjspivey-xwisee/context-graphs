@@ -12,7 +12,7 @@
  * to issue the code and redirect the user back to the client's redirect_uri.
  */
 import type { Response } from 'express';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import type { OAuthServerProvider, AuthorizationParams } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
@@ -29,13 +29,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 export interface ResolvedIdentity {
@@ -481,9 +474,3 @@ async function didSubmit() {
   }
 }
 
-// Kept for the `timingSafeEqual` export consumers elsewhere (server.ts legacy
-// API-key check still uses its own `safeEqual` inline; this export is unused).
-void timingSafeEqual;
-
-// Suppress unused-import lint if createHash is not used elsewhere
-void createHash;
