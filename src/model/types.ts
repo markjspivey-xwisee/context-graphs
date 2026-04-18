@@ -558,6 +558,15 @@ export interface AuthorizedAgentData {
   readonly validUntil?: string;
   /** Whether this delegation has been revoked. */
   readonly revoked?: boolean;
+  /**
+   * X25519 public key (base64) used when publishing encrypted content to
+   * this pod. Anyone writing an encrypted envelope to the pod wraps the
+   * content key for every authorized agent's encryptionPublicKey so each
+   * can decrypt with their own private key. Agents without this field
+   * simply aren't recipients — they can see manifest metadata but not
+   * encrypted payloads. See crypto/encryption.ts.
+   */
+  readonly encryptionPublicKey?: string;
 }
 
 /** The owner profile stored on a pod. */

@@ -1,5 +1,6 @@
 export {
   publish, discover, subscribe, parseManifest,
+  fetchGraphContent,
   writeAgentRegistry, readAgentRegistry,
   writeDelegationCredential, verifyAgentDelegation,
 } from './client.js';

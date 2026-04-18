@@ -268,6 +268,8 @@ export {
   writeAnchor,
   writeAnchors,
   readAnchors,
+  // E2EE envelope fetch
+  fetchGraphContent,
 } from './solid/index.js';
 
 export type {

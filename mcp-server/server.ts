@@ -90,6 +90,12 @@ import {
   daysBetween,
   countUnique,
   shouldAbstain,
+  // E2EE
+  generateKeyPair,
+  createEncryptedEnvelope,
+  openEncryptedEnvelope,
+  type EncryptionKeyPair,
+  fetchGraphContent,
 } from '@interego/core';
 
 import type {
@@ -182,6 +188,36 @@ let cssUnavailable = false;
 let registryInitialized = false;
 let notificationLog: ContextChangeEvent[] = [];
 let lastPublishedDescriptor: ContextDescriptorData | null = null;
+
+// ── Agent X25519 Keypair (for E2EE) ─────────────────────────
+// Each agent has a persistent X25519 keypair (public + secret). The
+// public key is registered on the user's pod as an authorizedAgent
+// attribute so other authorized agents can wrap content keys for us.
+// The secret key never leaves this host. Persisted next to the agent
+// dist so it survives container rebuilds on the same volume; new
+// keypair is generated on first use (written atomically).
+const AGENT_KEY_PATH = (() => {
+  if (process.env['CG_AGENT_KEY_FILE']) return process.env['CG_AGENT_KEY_FILE'];
+  return resolve(__dirname, '..', `agent-key-${encodeURIComponent(MY_AGENT_ID)}.json`);
+})();
+
+const agentKeyPair: EncryptionKeyPair = (() => {
+  try {
+    if (existsSync(AGENT_KEY_PATH)) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const parsed = JSON.parse(require('node:fs').readFileSync(AGENT_KEY_PATH, 'utf8'));
+      if (parsed?.publicKey && parsed?.secretKey && parsed?.algorithm === 'X25519-XSalsa20-Poly1305') {
+        return parsed as EncryptionKeyPair;
+      }
+    }
+  } catch { /* fall through to fresh generation */ }
+  const kp = generateKeyPair();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('node:fs').writeFileSync(AGENT_KEY_PATH, JSON.stringify(kp, null, 2), { mode: 0o600 });
+  } catch { /* best-effort; in-memory still works for this session */ }
+  return kp;
+})();
 
 // PGSL state — the lattice persists across tool calls
 const pgslProvenance: NodeProvenance = {
@@ -341,6 +377,8 @@ async function ensureRegistry(): Promise<void> {
   }
 
   const existing = profile.authorizedAgents.find(a => a.agentId === MY_AGENT_ID && !a.revoked);
+  const existingHasKey = existing?.encryptionPublicKey === agentKeyPair.publicKey;
+
   if (!existing) {
     log(`Registering agent ${MY_AGENT_ID} on behalf of ${MY_OWNER_WEBID}`);
     profile = addAuthorizedAgent(profile, {
@@ -353,6 +391,7 @@ async function ensureRegistry(): Promise<void> {
       isSoftwareAgent: true,
       scope: 'ReadWrite',
       validFrom: new Date().toISOString(),
+      encryptionPublicKey: agentKeyPair.publicKey,
     });
 
     await writeAgentRegistry(profile, homePod.url, { fetch: solidFetch });
@@ -361,6 +400,17 @@ async function ensureRegistry(): Promise<void> {
     const credential = createDelegationCredential(profile, agent, homePod.url as IRI);
     await writeDelegationCredential(credential, homePod.url, { fetch: solidFetch });
     log(`Delegation credential written for ${MY_AGENT_ID}`);
+  } else if (!existingHasKey) {
+    // Agent was registered before we had a keypair (or key rotated). Re-register
+    // with the current encryption key so other agents can encrypt to us.
+    log(`Updating encryption key for existing agent ${MY_AGENT_ID}`);
+    const updatedAgents = profile.authorizedAgents.map(a =>
+      a.agentId === MY_AGENT_ID && !a.revoked
+        ? { ...a, encryptionPublicKey: agentKeyPair.publicKey }
+        : a,
+    );
+    profile = { ...profile, authorizedAgents: Object.freeze(updatedAgents) };
+    await writeAgentRegistry(profile, homePod.url, { fetch: solidFetch });
   }
 
   registryInitialized = true;
@@ -427,7 +477,23 @@ async function toolPublishContext(args: {
     return `Validation failed: ${validation.violations.map(v => v.message).join('; ')}`;
   }
 
-  const result = await publish(descriptor, args.graph_content, podUrl, { fetch: solidFetch });
+  // E2EE: wrap graph content in an nacl envelope keyed to every authorized
+  // agent with a registered encryption public key. Only agents with a key
+  // in the registry can decrypt — CSS / Azure Files / IPFS pin see only
+  // ciphertext. When the registry has no keyed agents yet (bootstrap), we
+  // fall back to plaintext publish so the very first writes aren't locked
+  // out of themselves. The descriptor metadata (facets, manifest entry)
+  // stays plaintext so discovery queries work across federation.
+  const currentProfile = await readAgentRegistry(podUrl, { fetch: solidFetch });
+  const recipients = (currentProfile?.authorizedAgents ?? [])
+    .filter(a => !a.revoked && a.encryptionPublicKey)
+    .map(a => a.encryptionPublicKey!) as string[];
+  // Include our own key so we can read back our own publish in later sessions
+  if (!recipients.includes(agentKeyPair.publicKey)) recipients.push(agentKeyPair.publicKey);
+  const publishOptions: Parameters<typeof publish>[3] = recipients.length > 0
+    ? { fetch: solidFetch, encrypt: { recipients, senderKeyPair: agentKeyPair } }
+    : { fetch: solidFetch };
+  const result = await publish(descriptor, args.graph_content, podUrl, publishOptions);
   lastPublishedDescriptor = descriptor;
 
   const lines = [
@@ -435,10 +501,11 @@ async function toolPublishContext(args: {
     `  Owner: ${MY_OWNER_WEBID}`,
     `  Agent: ${MY_AGENT_ID}`,
     `  Descriptor: ${result.descriptorUrl}`,
-    `  Graph: ${result.graphUrl}`,
+    `  Graph: ${result.graphUrl}${result.encrypted ? ' [encrypted envelope]' : ''}`,
     `  Manifest: ${result.manifestUrl}`,
     `  Facets: ${descriptor.facets.map(f => f.type).join(', ')}`,
     `  Confidence: ${args.confidence ?? 0.85}`,
+    `  E2EE: ${result.encrypted ? `yes (${recipients.length} recipient(s))` : 'no (no keyed agents in registry; publish plaintext)'}`,
     args.task_description ? `  Task: ${args.task_description}` : '',
   ];
 
@@ -563,6 +630,20 @@ async function toolDiscoverContext(args: {
 
 async function toolGetDescriptor(args: { url: string }): Promise<string> {
   await ensureCSS();
+  // If the caller passes a graph payload URL (.envelope.jose.json or .trig),
+  // route through fetchGraphContent which handles envelope decryption for
+  // the recipients of this agent's key. Descriptor .ttl URLs return as-is.
+  if (args.url.endsWith('.envelope.jose.json') || args.url.endsWith('.trig')) {
+    const { content, encrypted, mediaType } = await fetchGraphContent(args.url, {
+      fetch: solidFetch,
+      recipientKeyPair: agentKeyPair,
+    });
+    if (content === null && encrypted) {
+      return `Fetched ${args.url} but this agent (${MY_AGENT_ID}) is not a recipient — no wrapped key matches its public key. Add its encryption key to the pod's agent registry to decrypt.`;
+    }
+    const tag = encrypted ? ' [decrypted envelope]' : '';
+    return `Graph at ${args.url} (${content?.length ?? 0} bytes, ${mediaType})${tag}:\n\n${content ?? ''}`;
+  }
   const resp = await fetch(args.url, { headers: { 'Accept': 'text/turtle' } });
   if (!resp.ok) {
     return `Failed to fetch ${args.url}: ${resp.status} ${resp.statusText}`;
