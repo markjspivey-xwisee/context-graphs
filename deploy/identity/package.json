@@ -9,11 +9,13 @@
   "dependencies": {
     "express": "^4.21.0",
     "@noble/ed25519": "^2.2.0",
-    "ethers": "^6.16.0"
+    "ethers": "^6.16.0",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "typescript": "^5.7.0"
   }
 }

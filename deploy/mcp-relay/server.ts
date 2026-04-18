@@ -75,29 +75,17 @@ const IDENTITY_URL = process.env['IDENTITY_URL'] ?? 'http://localhost:8090';
 // set an Authorization header directly (local curl, scripts).
 const RELAY_MCP_API_KEY = process.env['RELAY_MCP_API_KEY'] ?? '';
 
-// Admin password gate for the OAuth authorize-page login form. MUST be set
-// on any deployment that wants OAuth to work — unset == no one can complete
-// the authorize flow, which is the safe default.
-const RELAY_ADMIN_PASSWORD = process.env['RELAY_ADMIN_PASSWORD'] ?? '';
-
 // Public base URL of THIS relay (used as the OAuth issuer + resource URL).
 // Must be set in production so the OAuth metadata advertises the correct
 // externally-reachable URL. Falls back to constructing from request host.
 const PUBLIC_BASE_URL = process.env['PUBLIC_BASE_URL'] ?? '';
 
-// Identity attributed to /mcp requests once auth passes (i.e. the mobile
-// agent acting on the user's behalf). Override per deployment as needed.
-const MOBILE_AGENT_ID = process.env['MOBILE_AGENT_ID'] ?? 'urn:agent:anthropic:claude-mobile:markj';
-const MOBILE_OWNER_WEBID = process.env['MOBILE_OWNER_WEBID'] ?? `${IDENTITY_URL}/users/markj/profile#me`;
-const MOBILE_POD_NAME = process.env['MOBILE_POD_NAME'] ?? 'markj';
-
-// Singleton OAuth provider — holds per-request state (pending authorizations,
-// auth codes, access tokens) in memory for the life of the container.
+// Singleton OAuth provider. Auth is delegated to the identity server — the
+// provider's login form collects userId+password, server.ts /oauth/login
+// forwards to ${IDENTITY_URL}/login, and the returned identity is baked into
+// the OAuth access token. Per-user, fully federated, no shared admin secret.
 const oauthProvider = new InteregoOAuthProvider({
-  adminPassword: RELAY_ADMIN_PASSWORD,
-  agentId: MOBILE_AGENT_ID,
-  ownerWebId: MOBILE_OWNER_WEBID,
-  userId: MOBILE_POD_NAME,
+  identityUrl: IDENTITY_URL,
   tokenTtlSec: 3600,
 });
 
@@ -723,12 +711,15 @@ function buildMcpServer(authContext: { agentId: string; ownerWebId?: string; use
       return { content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }], isError: true };
     }
     const args: ToolArgs = { ...(rawArgs ?? {}) };
-    // Inject identity from auth context for write operations so the mobile
-    // agent publishes on behalf of the authenticated owner by default.
-    if (authContext && AUTH_REQUIRED_TOOLS.has(name)) {
+    // Inject identity from auth context so the authenticated user's default
+    // pod / agent / WebID fill in when the caller doesn't specify them.
+    // Applies to ALL tools, not just writes — lets reads like get_pod_status
+    // and discover_context default to "your home pod".
+    if (authContext) {
       if (!args.agent_id) args.agent_id = authContext.agentId;
       if (!args.owner_webid && authContext.ownerWebId) args.owner_webid = authContext.ownerWebId;
       if (!args.pod_name && authContext.userId) args.pod_name = authContext.userId;
+      if (!args.pod_url && authContext.userId) args.pod_url = `${CSS_URL}${authContext.userId}/`;
     }
     try {
       const text = await tool.handler(args);
@@ -762,12 +753,15 @@ function checkMcpApiKey(req: express.Request): { ok: true; authContext: { agentI
   if (!safeEqual(token, RELAY_MCP_API_KEY)) {
     return { ok: false, error: 'Invalid MCP API key' };
   }
+  // Legacy API-key path carries the default markj identity. Keep the agent
+  // ID distinct from per-user OAuth-issued tokens so attributions stay
+  // readable in prov:wasAssociatedWith.
   return {
     ok: true,
     authContext: {
-      agentId: MOBILE_AGENT_ID,
-      ownerWebId: MOBILE_OWNER_WEBID,
-      userId: MOBILE_POD_NAME,
+      agentId: 'urn:agent:anthropic:relay-apikey:markj',
+      ownerWebId: `${IDENTITY_URL}/users/markj/profile#me`,
+      userId: 'markj',
     },
   };
 }
@@ -810,29 +804,151 @@ app.use(mcpAuthRouter({
   resourceName: 'Interego MCP',
 }));
 
-// /oauth/login — form submit endpoint for the HTML login page rendered by
-// provider.authorize(). Validates the admin password, promotes the pending
-// authorization into an auth code, and redirects back to the OAuth client's
-// registered redirect_uri with ?code=<code>&state=<state>.
-app.post('/oauth/login', (req, res) => {
-  const { pending_id, password } = req.body as { pending_id?: string; password?: string };
-  if (!RELAY_ADMIN_PASSWORD) {
-    res.status(503).send('<html><body><p>Server misconfigured: RELAY_ADMIN_PASSWORD not set.</p></body></html>');
+// Render a simple HTML error page — used inline by the OAuth login/signup
+// routes so error states share the same visual style as the forms.
+function renderError(title: string, detail: string, status = 400): string {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>${title}</title>
+<style>body{font:16px/1.4 system-ui,sans-serif;max-width:440px;margin:3em auto;padding:0 1em;color:#222}
+h1{font-size:1.2em}p{color:#555}a{color:inherit}
+@media (prefers-color-scheme:dark){body{background:#111;color:#eee}p{color:#aaa}}</style>
+</head><body><h1>${title}</h1><p>${detail}</p>
+<p><a href="javascript:history.back()">Back</a></p></body></html>`;
+  // (status is set by caller via res.status)
+  void status;
+}
+
+/**
+ * POST /oauth/login — form submit endpoint for the authorize-page sign-in.
+ * Forwards userId+password to the identity server's /login endpoint; on
+ * success, calls completePendingAuthorization with the resolved identity
+ * and redirects back to the OAuth client's redirect_uri with ?code=&state=.
+ */
+app.post('/oauth/login', async (req, res) => {
+  const { pending_id, user_id, password } = req.body as { pending_id?: string; user_id?: string; password?: string };
+  if (!pending_id || !user_id || !password) {
+    res.status(400).send(renderError('Missing fields', 'pending_id, user_id, and password are required.'));
     return;
   }
-  if (!pending_id || !password) {
-    res.status(400).send('<html><body><p>Missing password or pending_id.</p></body></html>');
+
+  let loginResp: {
+    userId: string;
+    agentId: string;
+    token: string;
+    webId: string;
+    podUrl: string;
+    error?: string;
+  };
+  try {
+    const r = await fetch(`${IDENTITY_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user_id, password }),
+    });
+    loginResp = await r.json() as typeof loginResp;
+    if (!r.ok) {
+      res.status(r.status).send(renderError('Sign in failed', loginResp.error ?? `Identity server returned ${r.status}`));
+      return;
+    }
+  } catch (err) {
+    res.status(503).send(renderError('Identity server unreachable', (err as Error).message));
     return;
   }
-  if (!oauthProvider.checkAdminPassword(password)) {
-    res.status(401).send('<html><body><p>Invalid password. <a href="javascript:history.back()">Back</a></p></body></html>');
-    return;
-  }
-  const result = oauthProvider.completePendingAuthorization(pending_id);
+
+  const result = oauthProvider.completePendingAuthorization(pending_id, {
+    userId: loginResp.userId,
+    agentId: loginResp.agentId,
+    ownerWebId: loginResp.webId,
+    podUrl: loginResp.podUrl,
+    identityToken: loginResp.token,
+  });
   if (!result) {
-    res.status(400).send('<html><body><p>Authorization request expired or unknown. Please retry from your MCP client.</p></body></html>');
+    res.status(400).send(renderError('Authorization request expired', 'Please retry from your MCP client.'));
     return;
   }
+
+  const redirect = new URL(result.redirectUri);
+  redirect.searchParams.set('code', result.code);
+  if (result.state) redirect.searchParams.set('state', result.state);
+  res.redirect(302, redirect.toString());
+});
+
+/**
+ * GET /oauth/signup — signup page linked from the authorize login form so
+ * new users can self-register during an OAuth flow without leaving the
+ * browser tab. The pending_id round-trips through so after registration we
+ * can immediately issue the auth code.
+ */
+app.get('/oauth/signup', (req, res) => {
+  const pendingId = (req.query['pending_id'] as string | undefined) ?? '';
+  if (!pendingId) {
+    res.status(400).send(renderError('Missing pending_id', 'Open /oauth/signup from the Interego sign-in page.'));
+    return;
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(oauthProvider.renderSignupPage(pendingId));
+});
+
+/**
+ * POST /oauth/signup — creates a new user + their first agent on the
+ * identity server, then completes the pending OAuth authorization.
+ * Agent ID is auto-derived from userId so the user doesn't have to think
+ * about the distinction on first signup.
+ */
+app.post('/oauth/signup', async (req, res) => {
+  const { pending_id, user_id, name, password } = req.body as { pending_id?: string; user_id?: string; name?: string; password?: string };
+  if (!pending_id || !user_id || !name || !password) {
+    res.status(400).send(renderError('Missing fields', 'pending_id, user_id, name, and password are required.'));
+    return;
+  }
+  if (!/^[a-z0-9][a-z0-9-]{1,30}$/.test(user_id)) {
+    res.status(400).send(renderError('Invalid user ID', 'User ID must be lowercase alphanumeric + hyphens, 2-31 chars.'));
+    return;
+  }
+  if (password.length < 8) {
+    res.status(400).send(renderError('Password too short', 'Password must be at least 8 characters.'));
+    return;
+  }
+
+  const agentId = `claude-mobile-${user_id}`;
+  const agentName = `Claude Mobile (${name})`;
+
+  let registerResp: {
+    userId: string;
+    agentId: string;
+    token: string;
+    webId: string;
+    podUrl: string;
+    error?: string;
+  };
+  try {
+    const r = await fetch(`${IDENTITY_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user_id, name, agentId, agentName, password, scope: 'ReadWrite' }),
+    });
+    registerResp = await r.json() as typeof registerResp;
+    if (!r.ok) {
+      res.status(r.status).send(renderError('Registration failed', registerResp.error ?? `Identity server returned ${r.status}`));
+      return;
+    }
+  } catch (err) {
+    res.status(503).send(renderError('Identity server unreachable', (err as Error).message));
+    return;
+  }
+
+  const result = oauthProvider.completePendingAuthorization(pending_id, {
+    userId: registerResp.userId,
+    agentId: registerResp.agentId,
+    ownerWebId: registerResp.webId,
+    podUrl: registerResp.podUrl,
+    identityToken: registerResp.token,
+  });
+  if (!result) {
+    res.status(400).send(renderError('Authorization request expired', 'Please retry from your MCP client.'));
+    return;
+  }
+
   const redirect = new URL(result.redirectUri);
   redirect.searchParams.set('code', result.code);
   if (result.state) redirect.searchParams.set('state', result.state);
@@ -1062,9 +1178,9 @@ app.delete('/mcp', mcpGate, handleMcp);
 app.listen(PORT, () => {
   log(`MCP Relay started on port ${PORT}`);
   log(`CSS: ${CSS_URL}`);
-  log(`/mcp auth: OAuth 2.1 (required) + legacy Bearer <RELAY_MCP_API_KEY> (${RELAY_MCP_API_KEY ? 'enabled' : 'disabled'})`);
-  log(`OAuth admin password: ${RELAY_ADMIN_PASSWORD ? 'set' : 'UNSET (OAuth authorize flow will fail)'}`);
+  log(`/mcp auth: OAuth 2.1 + legacy Bearer <RELAY_MCP_API_KEY> fallback (${RELAY_MCP_API_KEY ? 'enabled' : 'disabled'})`);
   log(`OAuth issuer: ${PUBLIC_BASE_URL || `http://localhost:${PORT}`}`);
+  log(`Identity server: ${IDENTITY_URL}`);
   log(`Endpoints:`);
   log(`  GET  /health                                  Health check`);
   log(`  GET  /tools  |  POST /tool/:name              REST convenience`);
