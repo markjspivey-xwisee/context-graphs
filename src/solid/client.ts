@@ -17,6 +17,7 @@ import type { ContextDescriptorData, ContextTypeName, OwnerProfileData, AgentDel
 import { toTurtle } from '../rdf/serializer.js';
 import { turtlePrefixes } from '../rdf/namespaces.js';
 import { ownerProfileToTurtle, parseOwnerProfile, delegationCredentialToJsonLd, verifyDelegation } from '../model/delegation.js';
+import { createEncryptedEnvelope, openEncryptedEnvelope, type EncryptedEnvelope, type EncryptionKeyPair } from '../crypto/encryption.js';
 
 import type {
   FetchFn,
@@ -41,6 +42,11 @@ const MANIFEST_PATH = '.well-known/context-graphs';
 const DEFAULT_CONTAINER = 'context-graphs/';
 const TURTLE_CONTENT_TYPE = 'text/turtle';
 const TRIG_CONTENT_TYPE = 'application/trig';
+// JWE-family IANA type; pragmatically correct for our tweetnacl envelope
+// even though we aren't using JOSE's wire format — the semantics match
+// (encrypted payload + per-recipient wrapped keys) and the media type is
+// the signal other clients need to know "don't try to parse this as RDF".
+const ENVELOPE_CONTENT_TYPE = 'application/jose+json';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -348,17 +354,40 @@ export async function publish(
 
   const descriptorTurtle = toTurtle(descriptor);
   const primaryGraph = descriptor.describes[0]!;
-  const trigDocument = wrapAsTriG(descriptorTurtle, graphContent, primaryGraph);
 
-  // 1. PUT the TriG document
-  const graphUrl = `${container}${graphSlug}.trig`;
+  // 1. PUT the graph payload — plaintext TriG OR encrypted envelope.
+  //    When options.encrypt is set, the named-graph content is wrapped in
+  //    an nacl-box envelope with one wrapped key per recipient, so CSS /
+  //    Azure Files / IPFS see only ciphertext. Descriptor metadata stays
+  //    plaintext so federation queries (facet type, temporal filter,
+  //    trust level) work without the viewer being an authorized recipient.
+  let graphUrl: string;
+  let graphBody: string;
+  let graphContentType: string;
+  let encryptedFlag = false;
+  if (options.encrypt) {
+    const envelope = createEncryptedEnvelope(
+      wrapAsTriG(descriptorTurtle, graphContent, primaryGraph),
+      options.encrypt.recipients,
+      options.encrypt.senderKeyPair,
+    );
+    graphUrl = `${container}${graphSlug}.envelope.jose.json`;
+    graphBody = JSON.stringify(envelope);
+    graphContentType = ENVELOPE_CONTENT_TYPE;
+    encryptedFlag = true;
+  } else {
+    graphUrl = `${container}${graphSlug}.trig`;
+    graphBody = wrapAsTriG(descriptorTurtle, graphContent, primaryGraph);
+    graphContentType = TRIG_CONTENT_TYPE;
+  }
+
   const graphResponse = await fetchFn(graphUrl, {
     method: 'PUT',
     headers: {
-      'Content-Type': TRIG_CONTENT_TYPE,
+      'Content-Type': graphContentType,
       'If-None-Match': '*',
     },
-    body: trigDocument,
+    body: graphBody,
   });
   if (!graphResponse.ok && graphResponse.status !== 412) {
     throw new Error(
@@ -426,7 +455,52 @@ export async function publish(
     }
   }
 
-  return { descriptorUrl, graphUrl, manifestUrl, pgslUri, pgslLevel };
+  const result: PublishResult = { descriptorUrl, graphUrl, manifestUrl };
+  if (encryptedFlag) (result as { encrypted?: boolean }).encrypted = true;
+  if (pgslUri !== undefined) (result as { pgslUri?: string }).pgslUri = pgslUri;
+  if (pgslLevel !== undefined) (result as { pgslLevel?: number }).pgslLevel = pgslLevel;
+  return result;
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Fetch & decrypt an encrypted graph payload
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * Fetch a graph URL that may be an encrypted envelope and return plaintext
+ * if the caller's key is a recipient. Plaintext TriG passes through
+ * unchanged. Returns null when the caller isn't a recipient (authorized
+ * but no wrapped key for their public key) or decryption fails.
+ */
+export async function fetchGraphContent(
+  graphUrl: string,
+  options: { fetch?: FetchFn; recipientKeyPair?: EncryptionKeyPair } = {},
+): Promise<{ content: string | null; encrypted: boolean; mediaType: string }> {
+  const fetchFn = options.fetch ?? getDefaultFetch();
+  const r = await fetchFn(graphUrl, { headers: { 'Accept': `${ENVELOPE_CONTENT_TYPE}, ${TRIG_CONTENT_TYPE}, ${TURTLE_CONTENT_TYPE}` } });
+  if (!r.ok) throw new Error(`Failed to GET ${graphUrl}: ${r.status} ${r.statusText}`);
+  const mediaType = r.headers?.get('Content-Type') ?? '';
+  const body = await r.text();
+
+  const looksLikeEnvelope = graphUrl.endsWith('.envelope.jose.json') || mediaType.includes('jose') || mediaType.includes('json');
+  if (!looksLikeEnvelope) {
+    return { content: body, encrypted: false, mediaType };
+  }
+  // Attempt envelope parse; if it's malformed JSON, surface body as-is.
+  let env: EncryptedEnvelope;
+  try {
+    env = JSON.parse(body) as EncryptedEnvelope;
+  } catch {
+    return { content: body, encrypted: false, mediaType };
+  }
+  if (!env || env.algorithm !== 'X25519-XSalsa20-Poly1305' || !Array.isArray(env.wrappedKeys)) {
+    return { content: body, encrypted: false, mediaType };
+  }
+  if (!options.recipientKeyPair) {
+    return { content: null, encrypted: true, mediaType };
+  }
+  const plaintext = openEncryptedEnvelope(env, options.recipientKeyPair);
+  return { content: plaintext, encrypted: true, mediaType };
 }
 
 // ═════════════════════════════════════════════════════════════

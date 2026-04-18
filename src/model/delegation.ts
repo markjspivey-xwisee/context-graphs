@@ -161,6 +161,13 @@ export function ownerProfileToTurtle(profile: OwnerProfileData): string {
     if (agent.isSoftwareAgent) {
       lines.push('    a prov:SoftwareAgent ;');
     }
+    if (agent.encryptionPublicKey) {
+      // Public key is base64 — publish as a literal so downstream tools
+      // (including non-RDF clients) can read it without parsing additional
+      // vocabularies. cg:encryptionPublicKey is the relationship; the
+      // algorithm is implicit X25519-XSalsa20-Poly1305 per the crypto layer.
+      lines.push(`    cg:encryptionPublicKey "${agent.encryptionPublicKey}" ;`);
+    }
     // Close
     const lastIdx = lines.length - 1;
     lines[lastIdx] = lines[lastIdx]!.replace(/ ;$/, ' .');
@@ -199,6 +206,7 @@ export function parseOwnerProfile(turtle: string): OwnerProfileData {
     const fromMatch = block.match(/cg:validFrom\s+"([^"]+)"/);
     const untilMatch = block.match(/cg:validUntil\s+"([^"]+)"/);
     const labelMatch = block.match(/foaf:name\s+"([^"]+)"/);
+    const encKeyMatch = block.match(/cg:encryptionPublicKey\s+"([^"]+)"/);
     const isSoftware = block.includes('prov:SoftwareAgent');
 
     if (idMatch && delegatedByMatch && scopeMatch && fromMatch) {
@@ -210,6 +218,7 @@ export function parseOwnerProfile(turtle: string): OwnerProfileData {
         validUntil: untilMatch?.[1],
         label: labelMatch?.[1],
         isSoftwareAgent: isSoftware || undefined,
+        encryptionPublicKey: encKeyMatch?.[1],
       });
     }
   }

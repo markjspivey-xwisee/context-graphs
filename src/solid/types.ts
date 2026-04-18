@@ -43,8 +43,10 @@ export type WebSocketConstructor = new (url: string) => WebSocketLike;
 export interface PublishResult {
   /** IRI where the descriptor Turtle was written. */
   readonly descriptorUrl: string;
-  /** IRI where the TriG graph content was written. */
+  /** IRI where the TriG graph content was written (plaintext mode), or the encrypted envelope (encrypted mode). */
   readonly graphUrl: string;
+  /** True when the graph payload at graphUrl is an encrypted envelope (application/jose+json). */
+  readonly encrypted?: boolean;
   /** IRI of the updated manifest. */
   readonly manifestUrl: string;
   /**
@@ -81,6 +83,21 @@ export interface PublishOptions {
   readonly pgsl?: import('../pgsl/types.js').PGSLInstance;
   /** Tokenization granularity for PGSL ingestion (default: 'word'). */
   readonly pgslGranularity?: import('../pgsl/types.js').TokenGranularity;
+
+  /**
+   * If set, the named-graph content is encrypted client-side as a
+   * tweetnacl envelope (XSalsa20-Poly1305 content + X25519-wrapped keys
+   * per recipient) before PUT. CSS / Azure Files / IPFS see only
+   * ciphertext. Descriptor metadata stays plaintext (it's discoverable
+   * manifest content: facet types, temporal range, modal status) so
+   * federation queries still work without decryption.
+   */
+  readonly encrypt?: {
+    /** Base64 X25519 public keys of every authorized agent. */
+    readonly recipients: readonly string[];
+    /** Sender's X25519 keypair (typically the publishing agent's). */
+    readonly senderKeyPair: import('../crypto/encryption.js').EncryptionKeyPair;
+  };
 }
 
 /** Options for the discover function. */

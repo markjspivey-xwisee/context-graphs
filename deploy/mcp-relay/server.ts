@@ -16,6 +16,7 @@
 
 import express from 'express';
 import { randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { WebSocket } from 'ws';
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -48,6 +49,9 @@ import {
   resolveWebFinger,
   pinToIpfs,
   cryptoComputeCid,
+  generateKeyPair,
+  fetchGraphContent,
+  type EncryptionKeyPair,
 } from '@interego/core';
 
 import type {
@@ -178,6 +182,25 @@ const solidFetch: FetchFn = async (url, init) => {
 let subscriptions: Map<string, Subscription> = new Map();
 let notificationLog: ContextChangeEvent[] = [];
 
+// Per-process X25519 keypair used to encrypt content the relay publishes on
+// behalf of the authenticated mobile agent. Persisted to disk so container
+// restarts preserve the same identity (matters for recipient membership on
+// previously-encrypted envelopes). Generated fresh on first run.
+const RELAY_AGENT_KEY_FILE = process.env['RELAY_AGENT_KEY_FILE'] ?? '/app/relay-agent-key.json';
+const relayAgentKey: EncryptionKeyPair = (() => {
+  try {
+    if (existsSync(RELAY_AGENT_KEY_FILE)) {
+      const parsed = JSON.parse(readFileSync(RELAY_AGENT_KEY_FILE, 'utf8'));
+      if (parsed?.publicKey && parsed?.secretKey && parsed?.algorithm === 'X25519-XSalsa20-Poly1305') {
+        return parsed as EncryptionKeyPair;
+      }
+    }
+  } catch { /* fall through */ }
+  const kp = generateKeyPair();
+  try { writeFileSync(RELAY_AGENT_KEY_FILE, JSON.stringify(kp, null, 2), { mode: 0o600 }); } catch { /* best-effort */ }
+  return kp;
+})();
+
 // ── Tool Handlers ───────────────────────────────────────────
 
 type ToolArgs = Record<string, unknown>;
@@ -226,7 +249,39 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     return JSON.stringify({ error: validation.violations.map(v => v.message) });
   }
 
-  const result = await publish(descriptor, args.graph_content as string, podUrl, { fetch: solidFetch });
+  // Ensure the relay's agent key is registered on this pod + collect
+  // recipients from the pod's authorized-agent list. Matches the stdio
+  // server's behaviour so both publishers land encrypted envelopes in
+  // the same pods, readable by the same set of agents.
+  try {
+    const profile = await readAgentRegistry(podUrl, { fetch: solidFetch });
+    if (profile) {
+      const me = profile.authorizedAgents.find(a => a.agentId === agentId && !a.revoked);
+      if (me && me.encryptionPublicKey !== relayAgentKey.publicKey) {
+        const updated = {
+          ...profile,
+          authorizedAgents: Object.freeze(
+            profile.authorizedAgents.map(a =>
+              a.agentId === agentId && !a.revoked
+                ? { ...a, encryptionPublicKey: relayAgentKey.publicKey }
+                : a,
+            ),
+          ),
+        };
+        await writeAgentRegistry(updated, podUrl, { fetch: solidFetch });
+      }
+    }
+  } catch { /* registry might not exist yet; publish plaintext */ }
+
+  const currentProfile = await readAgentRegistry(podUrl, { fetch: solidFetch }).catch(() => null);
+  const recipients = (currentProfile?.authorizedAgents ?? [])
+    .filter(a => !a.revoked && a.encryptionPublicKey)
+    .map(a => a.encryptionPublicKey!) as string[];
+  if (!recipients.includes(relayAgentKey.publicKey)) recipients.push(relayAgentKey.publicKey);
+  const publishOptions: Parameters<typeof publish>[3] = recipients.length > 0
+    ? { fetch: solidFetch, encrypt: { recipients, senderKeyPair: relayAgentKey } }
+    : { fetch: solidFetch };
+  const result = await publish(descriptor, args.graph_content as string, podUrl, publishOptions);
 
   // Pin to IPFS if configured (org-level or user override)
   const ipfsConfig = resolveIpfsConfig(args._req ?? {});
@@ -251,6 +306,8 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     pod: podUrl,
     descriptorUrl: result.descriptorUrl,
     graphUrl: result.graphUrl,
+    encrypted: result.encrypted ?? false,
+    recipients: recipients.length,
     manifestUrl: result.manifestUrl,
     ipfs,
   });
@@ -288,14 +345,34 @@ async function handleDiscoverContext(args: ToolArgs): Promise<string> {
 }
 
 async function handleGetDescriptor(args: ToolArgs): Promise<string> {
-  const resp = await solidFetch(args.url as string, {
+  const url = args.url as string;
+  // Route envelope / TriG URLs through fetchGraphContent so encrypted
+  // payloads are transparently decrypted for this relay's agent key (the
+  // recipients registered on the pod include us when we published, so
+  // round-tripping is seamless).
+  if (url.endsWith('.envelope.jose.json') || url.endsWith('.trig')) {
+    const { content, encrypted, mediaType } = await fetchGraphContent(url, {
+      fetch: solidFetch,
+      recipientKeyPair: relayAgentKey,
+    });
+    if (content === null && encrypted) {
+      return JSON.stringify({
+        url,
+        encrypted: true,
+        error: 'Relay agent key is not a recipient of this envelope; cannot decrypt.',
+      });
+    }
+    return JSON.stringify({ url, encrypted, mediaType, content });
+  }
+
+  const resp = await solidFetch(url, {
     method: 'GET',
     headers: { 'Accept': 'text/turtle' },
   });
   if (!resp.ok) {
     return JSON.stringify({ error: `${resp.status} ${resp.statusText}` });
   }
-  return JSON.stringify({ url: args.url, turtle: await resp.text() });
+  return JSON.stringify({ url, turtle: await resp.text() });
 }
 
 async function handleGetPodStatus(args: ToolArgs): Promise<string> {
