@@ -24,6 +24,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import { InteregoOAuthProvider } from './oauth-provider.js';
 
 import {
   ContextDescriptor,
@@ -66,16 +69,37 @@ const PORT = parseInt(process.env['PORT'] ?? '8080');
 const CSS_URL = process.env['CSS_URL'] ?? 'http://localhost:3456/';
 const IDENTITY_URL = process.env['IDENTITY_URL'] ?? 'http://localhost:8090';
 
-// Simple API-key auth for /mcp used by claude.ai connectors / mobile apps.
-// If unset, /mcp is open (writes still gated by AUTH_REQUIRED_TOOLS + bearer).
-// Set to a random string in production and paste it into claude.ai connector config.
+// OAuth 2.1 auth config for /mcp. This is the real auth path used by
+// claude.ai custom connectors and any MCP client that speaks OAuth.
+// RELAY_MCP_API_KEY still works as a legacy fallback for tooling that can
+// set an Authorization header directly (local curl, scripts).
 const RELAY_MCP_API_KEY = process.env['RELAY_MCP_API_KEY'] ?? '';
 
-// Identity attributed to /mcp requests once API-key auth passes (i.e. the mobile
+// Admin password gate for the OAuth authorize-page login form. MUST be set
+// on any deployment that wants OAuth to work — unset == no one can complete
+// the authorize flow, which is the safe default.
+const RELAY_ADMIN_PASSWORD = process.env['RELAY_ADMIN_PASSWORD'] ?? '';
+
+// Public base URL of THIS relay (used as the OAuth issuer + resource URL).
+// Must be set in production so the OAuth metadata advertises the correct
+// externally-reachable URL. Falls back to constructing from request host.
+const PUBLIC_BASE_URL = process.env['PUBLIC_BASE_URL'] ?? '';
+
+// Identity attributed to /mcp requests once auth passes (i.e. the mobile
 // agent acting on the user's behalf). Override per deployment as needed.
 const MOBILE_AGENT_ID = process.env['MOBILE_AGENT_ID'] ?? 'urn:agent:anthropic:claude-mobile:markj';
 const MOBILE_OWNER_WEBID = process.env['MOBILE_OWNER_WEBID'] ?? `${IDENTITY_URL}/users/markj/profile#me`;
 const MOBILE_POD_NAME = process.env['MOBILE_POD_NAME'] ?? 'markj';
+
+// Singleton OAuth provider — holds per-request state (pending authorizations,
+// auth codes, access tokens) in memory for the life of the container.
+const oauthProvider = new InteregoOAuthProvider({
+  adminPassword: RELAY_ADMIN_PASSWORD,
+  agentId: MOBILE_AGENT_ID,
+  ownerWebId: MOBILE_OWNER_WEBID,
+  userId: MOBILE_POD_NAME,
+  tokenTtlSec: 3600,
+});
 
 // Org-level IPFS/CDP keys — used as defaults when users don't provide their own
 const ORG_IPFS_PROVIDER = (process.env['IPFS_PROVIDER'] ?? 'local') as 'pinata' | 'web3storage' | 'local';
@@ -757,13 +781,62 @@ void randomBytes;
 
 const app = express();
 app.use(express.json());
+// Login form POSTs x-www-form-urlencoded; OAuth token endpoint does too.
+app.use(express.urlencoded({ extended: false }));
 
-// CORS for remote agents
+// CORS for remote agents + claude.ai connector discovery. Expose
+// Authorization so browser-based MCP clients can send Bearer tokens.
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id, mcp-protocol-version');
+  res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id, mcp-protocol-version');
   next();
+});
+
+// ── OAuth Routes ────────────────────────────────────────────
+// mcpAuthRouter wires: /.well-known/oauth-authorization-server,
+// /.well-known/oauth-protected-resource, /authorize, /token, /register,
+// /revoke (optional). Uses our InteregoOAuthProvider for the business logic.
+//
+// issuerUrl must be the externally-reachable URL of this relay. If unset,
+// we fall back to localhost (useful for local dev); deployments MUST set
+// PUBLIC_BASE_URL to the true public URL.
+const DEFAULT_ISSUER = new URL(PUBLIC_BASE_URL || `http://localhost:${PORT}`);
+app.use(mcpAuthRouter({
+  provider: oauthProvider,
+  issuerUrl: DEFAULT_ISSUER,
+  scopesSupported: ['mcp'],
+  resourceName: 'Interego MCP',
+}));
+
+// /oauth/login — form submit endpoint for the HTML login page rendered by
+// provider.authorize(). Validates the admin password, promotes the pending
+// authorization into an auth code, and redirects back to the OAuth client's
+// registered redirect_uri with ?code=<code>&state=<state>.
+app.post('/oauth/login', (req, res) => {
+  const { pending_id, password } = req.body as { pending_id?: string; password?: string };
+  if (!RELAY_ADMIN_PASSWORD) {
+    res.status(503).send('<html><body><p>Server misconfigured: RELAY_ADMIN_PASSWORD not set.</p></body></html>');
+    return;
+  }
+  if (!pending_id || !password) {
+    res.status(400).send('<html><body><p>Missing password or pending_id.</p></body></html>');
+    return;
+  }
+  if (!oauthProvider.checkAdminPassword(password)) {
+    res.status(401).send('<html><body><p>Invalid password. <a href="javascript:history.back()">Back</a></p></body></html>');
+    return;
+  }
+  const result = oauthProvider.completePendingAuthorization(pending_id);
+  if (!result) {
+    res.status(400).send('<html><body><p>Authorization request expired or unknown. Please retry from your MCP client.</p></body></html>');
+    return;
+  }
+  const redirect = new URL(result.redirectUri);
+  redirect.searchParams.set('code', result.code);
+  if (result.state) redirect.searchParams.set('state', result.state);
+  res.redirect(302, redirect.toString());
 });
 
 // Health check
@@ -913,76 +986,90 @@ app.post('/messages', async (req, res) => {
 // any modern MCP client will use. Handles initialize + tools/list + tools/call
 // with proper JSON-RPC framing and SSE streaming.
 
+// Extract the auth context for this request. Three valid paths:
+//   1. req.auth populated by requireBearerAuth (OAuth token verified by provider)
+//   2. Authorization: Bearer <RELAY_MCP_API_KEY> (legacy API key, for curl/scripts)
+//   3. Unauthenticated (if RELAY_MCP_API_KEY unset AND no OAuth token) — open mode
+function resolveAuthContext(req: express.Request): { agentId: string; ownerWebId: string; userId: string } | null {
+  // OAuth-verified request: bearerAuth middleware already set req.auth
+  const reqAuth = (req as express.Request & { auth?: { extra?: { agentId?: string; ownerWebId?: string; userId?: string } } }).auth;
+  if (reqAuth?.extra?.agentId && reqAuth.extra.ownerWebId && reqAuth.extra.userId) {
+    return {
+      agentId: reqAuth.extra.agentId,
+      ownerWebId: reqAuth.extra.ownerWebId,
+      userId: reqAuth.extra.userId,
+    };
+  }
+  // Legacy API-key path: Authorization: Bearer <RELAY_MCP_API_KEY>
+  const legacy = checkMcpApiKey(req);
+  if (legacy.ok && legacy.authContext) return legacy.authContext;
+  return null;
+}
+
 async function handleMcp(req: express.Request, res: express.Response): Promise<void> {
-  // Two auth modes are accepted:
-  //   1. Authorization: Bearer <key>  — classic; preferred when callers can set headers
-  //   2. URL path segment /mcp/<key>  — for MCP clients that don't let you set
-  //      custom auth headers (claude.ai custom connectors currently require OAuth
-  //      or no-auth; a secret in the URL path lets you use the no-auth flow while
-  //      still keeping the endpoint unguessable). Tradeoff: the URL itself is the
-  //      credential, so it appears in server access logs.
-  const pathKey = (req.params as { key?: string }).key;
-  let authResult: ReturnType<typeof checkMcpApiKey>;
-
-  if (pathKey && RELAY_MCP_API_KEY) {
-    if (safeEqual(pathKey, RELAY_MCP_API_KEY)) {
-      authResult = {
-        ok: true,
-        authContext: {
-          agentId: MOBILE_AGENT_ID,
-          ownerWebId: MOBILE_OWNER_WEBID,
-          userId: MOBILE_POD_NAME,
-        },
-      };
-    } else {
-      authResult = { ok: false, error: 'Invalid MCP API key in path' };
-    }
-  } else {
-    authResult = checkMcpApiKey(req);
-  }
-
-  if (authResult.ok === false) {
-    res.status(401).json({ error: authResult.error, hint: 'Use /mcp/<RELAY_MCP_API_KEY> or set Authorization: Bearer <RELAY_MCP_API_KEY>' });
-    return;
-  }
-
+  const authContext = resolveAuthContext(req);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  const server = buildMcpServer(authResult.authContext);
+  const server = buildMcpServer(authContext);
   try {
     await server.connect(transport);
-    // For POST, express.json() has already parsed the body; pass it through.
     await transport.handleRequest(req, res, (req as express.Request & { body?: unknown }).body);
   } catch (err) {
     log(`[/mcp] transport error: ${(err as Error).message}`);
     if (!res.headersSent) res.status(500).json({ error: (err as Error).message });
   } finally {
-    // Stateless: close the per-request server + transport so there's no leak.
     await server.close().catch(() => {});
   }
 }
 
-// Header-auth route (preferred)
-app.post('/mcp', handleMcp);
-app.get('/mcp', handleMcp);
-app.delete('/mcp', handleMcp);
+// Bearer-auth middleware for the OAuth path. Requires 'mcp' scope on the
+// token. When a request arrives WITHOUT an Authorization header, the
+// middleware returns 401 with a WWW-Authenticate header that points MCP
+// clients at the OAuth discovery metadata — so claude.ai can discover the
+// authorization server and kick off the DCR + code+PKCE flow.
+const resourceMetadataUrl = PUBLIC_BASE_URL
+  ? `${PUBLIC_BASE_URL.replace(/\/$/, '')}/.well-known/oauth-protected-resource`
+  : undefined;
 
-// Path-auth route (for clients that can't send custom auth headers, e.g.
-// claude.ai custom connectors configured with "no auth").
-app.post('/mcp/:key', handleMcp);
-app.get('/mcp/:key', handleMcp);
-app.delete('/mcp/:key', handleMcp);
+const oauthBearer = requireBearerAuth({
+  verifier: oauthProvider,
+  requiredScopes: ['mcp'],
+  ...(resourceMetadataUrl ? { resourceMetadataUrl } : {}),
+});
+
+// Custom /mcp gate: if the request has an Authorization header starting with
+// the legacy API key, short-circuit past OAuth. Otherwise run the OAuth
+// bearer middleware, which will either validate the token or return 401 with
+// proper WWW-Authenticate so clients know to start the OAuth flow.
+const mcpGate: express.RequestHandler = (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ') && RELAY_MCP_API_KEY) {
+    const token = auth.slice(7).trim();
+    if (safeEqual(token, RELAY_MCP_API_KEY)) {
+      // Legacy API key — skip OAuth, handleMcp will pick up via resolveAuthContext
+      next();
+      return;
+    }
+  }
+  oauthBearer(req, res, next);
+};
+
+app.post('/mcp', mcpGate, handleMcp);
+app.get('/mcp', mcpGate, handleMcp);
+app.delete('/mcp', mcpGate, handleMcp);
 
 // ── Start ───────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   log(`MCP Relay started on port ${PORT}`);
   log(`CSS: ${CSS_URL}`);
-  log(`/mcp auth: ${RELAY_MCP_API_KEY ? 'bearer API key required' : 'open (writes still gated by AUTH_REQUIRED_TOOLS)'}`);
+  log(`/mcp auth: OAuth 2.1 (required) + legacy Bearer <RELAY_MCP_API_KEY> (${RELAY_MCP_API_KEY ? 'enabled' : 'disabled'})`);
+  log(`OAuth admin password: ${RELAY_ADMIN_PASSWORD ? 'set' : 'UNSET (OAuth authorize flow will fail)'}`);
+  log(`OAuth issuer: ${PUBLIC_BASE_URL || `http://localhost:${PORT}`}`);
   log(`Endpoints:`);
-  log(`  GET  /health         — Health check`);
-  log(`  GET  /tools          — List tools`);
-  log(`  POST /tool/:name     — Call a tool via REST`);
-  log(`  GET  /sse            — Legacy SSE notification stream`);
-  log(`  POST /messages       — Legacy MCP JSON-RPC`);
-  log(`  */mcp                — MCP Streamable HTTP (for claude.ai connectors)`);
+  log(`  GET  /health                                  Health check`);
+  log(`  GET  /tools  |  POST /tool/:name              REST convenience`);
+  log(`  POST /mcp                                     MCP Streamable HTTP (OAuth-gated)`);
+  log(`  GET  /.well-known/oauth-authorization-server  OAuth metadata`);
+  log(`  GET  /.well-known/oauth-protected-resource    Resource metadata`);
+  log(`  */authorize /token /register /revoke           OAuth endpoints (SDK)`);
 });
