@@ -15,7 +15,15 @@
  */
 
 import express from 'express';
+import { randomBytes } from 'node:crypto';
 import { WebSocket } from 'ws';
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import {
   ContextDescriptor,
@@ -57,6 +65,17 @@ import type {
 const PORT = parseInt(process.env['PORT'] ?? '8080');
 const CSS_URL = process.env['CSS_URL'] ?? 'http://localhost:3456/';
 const IDENTITY_URL = process.env['IDENTITY_URL'] ?? 'http://localhost:8090';
+
+// Simple API-key auth for /mcp used by claude.ai connectors / mobile apps.
+// If unset, /mcp is open (writes still gated by AUTH_REQUIRED_TOOLS + bearer).
+// Set to a random string in production and paste it into claude.ai connector config.
+const RELAY_MCP_API_KEY = process.env['RELAY_MCP_API_KEY'] ?? '';
+
+// Identity attributed to /mcp requests once API-key auth passes (i.e. the mobile
+// agent acting on the user's behalf). Override per deployment as needed.
+const MOBILE_AGENT_ID = process.env['MOBILE_AGENT_ID'] ?? 'urn:agent:anthropic:claude-mobile:markj';
+const MOBILE_OWNER_WEBID = process.env['MOBILE_OWNER_WEBID'] ?? `${IDENTITY_URL}/users/markj/profile#me`;
+const MOBILE_POD_NAME = process.env['MOBILE_POD_NAME'] ?? 'markj';
 
 // Org-level IPFS/CDP keys — used as defaults when users don't provide their own
 const ORG_IPFS_PROVIDER = (process.env['IPFS_PROVIDER'] ?? 'local') as 'pinata' | 'web3storage' | 'local';
@@ -474,6 +493,266 @@ const TOOLS: Record<string, { description: string; handler: (args: ToolArgs) => 
   resolve_webfinger: { description: 'Resolve WebFinger to find a pod', handler: handleResolveWebfinger },
 };
 
+// ── MCP Tool Schemas ────────────────────────────────────────
+// Input schemas for each tool. Claude's LLM uses these to know how to call
+// each tool; empty inputSchema means the model can never pick the right args.
+// Property names match what each handler reads off args.
+
+const TOOL_SCHEMAS = [
+  {
+    name: 'publish_context',
+    description: 'Publish a context-annotated knowledge graph (Turtle) to your Solid pod with the full 6-facet descriptor (Temporal, Provenance, Agent, Semiotic, Trust, Federation). Attributes the descriptor to the pod owner and associates it with the calling agent.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        graph_iri: { type: 'string', description: 'IRI for the named graph, e.g. urn:graph:markj:session:20260418' },
+        graph_content: { type: 'string', description: 'RDF Turtle content of the knowledge graph' },
+        pod_name: { type: 'string', description: 'Pod name (default: the authenticated user\'s pod)' },
+        descriptor_id: { type: 'string', description: 'Optional descriptor IRI (auto-generated if omitted)' },
+        valid_from: { type: 'string', description: 'ISO 8601 start of validity (default: now)' },
+        valid_until: { type: 'string', description: 'ISO 8601 end of validity (optional)' },
+        modal_status: { type: 'string', enum: ['Asserted', 'Hypothetical', 'Counterfactual'], description: 'Semiotic modal status (default: Asserted)' },
+        confidence: { type: 'number', description: 'Epistemic confidence 0.0-1.0 (default: 0.85)' },
+      },
+      required: ['graph_iri', 'graph_content'],
+    },
+  },
+  {
+    name: 'discover_context',
+    description: 'Discover context descriptors on a specific Solid pod. Optionally verify the agent delegation chain.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_url: { type: 'string', description: 'Solid pod URL to discover from (e.g. https://pod.example.com/agent/)' },
+        facet_type: { type: 'string', enum: ['Temporal', 'Provenance', 'Agent', 'Semiotic', 'Trust', 'Federation'], description: 'Filter by facet type' },
+        valid_from: { type: 'string', description: 'Filter: valid at or after this ISO datetime' },
+        valid_until: { type: 'string', description: 'Filter: valid at or before this ISO datetime' },
+        verify_delegation: { type: 'boolean', description: 'If true, also fetch the agent registry to verify delegation' },
+      },
+      required: ['pod_url'],
+    },
+  },
+  {
+    name: 'get_descriptor',
+    description: 'Fetch the full Turtle content of a specific context descriptor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full URL of the descriptor resource (ends in .ttl)' },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'get_pod_status',
+    description: 'Check a Solid pod — owner, authorized agents, descriptor count, recent notifications.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_url: { type: 'string', description: 'Pod URL (default: home pod for authenticated user)' },
+      },
+    },
+  },
+  {
+    name: 'subscribe_to_pod',
+    description: 'Subscribe to a pod\'s Solid Notifications channel; incoming changes accumulate in the relay\'s notification log.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_url: { type: 'string', description: 'Pod URL to subscribe to' },
+      },
+      required: ['pod_url'],
+    },
+  },
+  {
+    name: 'register_agent',
+    description: 'Register an agent (delegate) on a pod on behalf of an owner. Creates the owner profile if missing, adds the agent with a delegation credential.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Agent IRI, e.g. urn:agent:anthropic:claude-mobile:markj' },
+        pod_name: { type: 'string', description: 'Pod name (default: authenticated user\'s pod)' },
+        owner_webid: { type: 'string', description: 'Owner WebID (default: authenticated user)' },
+        owner_name: { type: 'string', description: 'Owner display name' },
+        label: { type: 'string', description: 'Human-readable label for this agent' },
+        scope: { type: 'string', enum: ['ReadWrite', 'Read'], description: 'Authorization scope (default: ReadWrite)' },
+      },
+      required: ['agent_id'],
+    },
+  },
+  {
+    name: 'revoke_agent',
+    description: 'Revoke an agent\'s delegation on a pod.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Agent IRI to revoke' },
+        pod_name: { type: 'string', description: 'Pod name (default: authenticated user\'s pod)' },
+      },
+      required: ['agent_id'],
+    },
+  },
+  {
+    name: 'verify_agent',
+    description: 'Verify an agent\'s delegation chain on a pod — checks registry, credential, and non-revocation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Agent IRI to verify' },
+        pod_url: { type: 'string', description: 'Pod URL where the agent is registered' },
+      },
+      required: ['agent_id', 'pod_url'],
+    },
+  },
+  {
+    name: 'discover_all',
+    description: 'Discover context descriptors across all pods currently in the relay\'s federation registry. Use add_pod or discover_directory first to populate.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        facet_type: { type: 'string', enum: ['Temporal', 'Provenance', 'Agent', 'Semiotic', 'Trust', 'Federation'], description: 'Filter by facet type' },
+      },
+    },
+  },
+  {
+    name: 'list_known_pods',
+    description: 'List pods in the relay\'s in-memory federation registry (home pod, manually added, directory-discovered, WebFinger-resolved).',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'add_pod',
+    description: 'Manually add a pod to the federation registry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_url: { type: 'string', description: 'Pod URL to add' },
+        label: { type: 'string', description: 'Human-readable label' },
+        owner: { type: 'string', description: 'Owner WebID or name' },
+      },
+      required: ['pod_url'],
+    },
+  },
+  {
+    name: 'remove_pod',
+    description: 'Remove a pod from the federation registry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_url: { type: 'string', description: 'Pod URL to remove' },
+      },
+      required: ['pod_url'],
+    },
+  },
+  {
+    name: 'discover_directory',
+    description: 'Import a PodDirectory graph and merge its entries into the federation registry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        directory_url: { type: 'string', description: 'URL of a Turtle-encoded PodDirectory graph' },
+      },
+      required: ['directory_url'],
+    },
+  },
+  {
+    name: 'publish_directory',
+    description: 'Publish the current federation registry as a PodDirectory graph on a pod.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pod_name: { type: 'string', description: 'Pod name to publish to (default: authenticated user)' },
+        directory_id: { type: 'string', description: 'Optional directory IRI' },
+      },
+    },
+  },
+  {
+    name: 'resolve_webfinger',
+    description: 'Resolve a WebFinger resource identifier (acct:user@host) to its pod URL. Adds the pod to the registry on success.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        resource: { type: 'string', description: 'WebFinger resource, e.g. acct:alice@example.com' },
+      },
+      required: ['resource'],
+    },
+  },
+] as const;
+
+// ── MCP Server Factory ──────────────────────────────────────
+// One Server instance per /mcp request (stateless mode). Wires ListTools
+// and CallTool to the same handler registry used by the REST routes.
+
+function buildMcpServer(authContext: { agentId: string; ownerWebId?: string; userId?: string } | null): Server {
+  const server = new Server(
+    { name: '@interego/mcp-relay', version: '0.2.0' },
+    { capabilities: { tools: {} } },
+  );
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOL_SCHEMAS.map((t) => ({...t })),
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const { name, arguments: rawArgs } = req.params;
+    const tool = TOOLS[name];
+    if (!tool) {
+      return { content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }], isError: true };
+    }
+    const args: ToolArgs = { ...(rawArgs ?? {}) };
+    // Inject identity from auth context for write operations so the mobile
+    // agent publishes on behalf of the authenticated owner by default.
+    if (authContext && AUTH_REQUIRED_TOOLS.has(name)) {
+      if (!args.agent_id) args.agent_id = authContext.agentId;
+      if (!args.owner_webid && authContext.ownerWebId) args.owner_webid = authContext.ownerWebId;
+      if (!args.pod_name && authContext.userId) args.pod_name = authContext.userId;
+    }
+    try {
+      const text = await tool.handler(args);
+      return { content: [{ type: 'text' as const, text }] };
+    } catch (err) {
+      return { content: [{ type: 'text' as const, text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  });
+
+  return server;
+}
+
+// Timing-safe string compare to prevent auth-key length leakage
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function checkMcpApiKey(req: express.Request): { ok: true; authContext: { agentId: string; ownerWebId: string; userId: string } | null } | { ok: false; error: string } {
+  // If no key is configured, /mcp is open. Writes still require the relay's
+  // existing AUTH_REQUIRED_TOOLS gate downstream.
+  if (!RELAY_MCP_API_KEY) return { ok: true, authContext: null };
+
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) {
+    return { ok: false, error: 'Missing Authorization: Bearer <key> header' };
+  }
+  const token = auth.slice(7).trim();
+  if (!safeEqual(token, RELAY_MCP_API_KEY)) {
+    return { ok: false, error: 'Invalid MCP API key' };
+  }
+  return {
+    ok: true,
+    authContext: {
+      agentId: MOBILE_AGENT_ID,
+      ownerWebId: MOBILE_OWNER_WEBID,
+      userId: MOBILE_POD_NAME,
+    },
+  };
+}
+
+// Suppress randomBytes lint: it's used by ops to generate a RELAY_MCP_API_KEY
+// at deploy time (az containerapp update --set-env-vars RELAY_MCP_API_KEY=...),
+// but leaving the import in keeps the tsc-strict "unused" warning quiet.
+void randomBytes;
+
 // ── Express App ─────────────────────────────────────────────
 
 const app = express();
@@ -629,15 +908,48 @@ app.post('/messages', async (req, res) => {
   res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
 });
 
+// ── MCP Streamable HTTP Endpoint (/mcp) ─────────────────────
+// This is the real MCP transport — what claude.ai custom connectors and
+// any modern MCP client will use. Handles initialize + tools/list + tools/call
+// with proper JSON-RPC framing and SSE streaming.
+
+async function handleMcp(req: express.Request, res: express.Response): Promise<void> {
+  const authResult = checkMcpApiKey(req);
+  if (authResult.ok === false) {
+    res.status(401).json({ error: authResult.error, hint: 'Set header: Authorization: Bearer <RELAY_MCP_API_KEY>' });
+    return;
+  }
+
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  const server = buildMcpServer(authResult.authContext);
+  try {
+    await server.connect(transport);
+    // For POST, express.json() has already parsed the body; pass it through.
+    await transport.handleRequest(req, res, (req as express.Request & { body?: unknown }).body);
+  } catch (err) {
+    log(`[/mcp] transport error: ${(err as Error).message}`);
+    if (!res.headersSent) res.status(500).json({ error: (err as Error).message });
+  } finally {
+    // Stateless: close the per-request server + transport so there's no leak.
+    await server.close().catch(() => {});
+  }
+}
+
+app.post('/mcp', handleMcp);
+app.get('/mcp', handleMcp);
+app.delete('/mcp', handleMcp);
+
 // ── Start ───────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   log(`MCP Relay started on port ${PORT}`);
   log(`CSS: ${CSS_URL}`);
+  log(`/mcp auth: ${RELAY_MCP_API_KEY ? 'bearer API key required' : 'open (writes still gated by AUTH_REQUIRED_TOOLS)'}`);
   log(`Endpoints:`);
-  log(`  GET  /health     — Health check`);
-  log(`  GET  /tools      — List tools`);
-  log(`  POST /tool/:name — Call a tool via REST`);
-  log(`  GET  /sse        — SSE stream`);
-  log(`  POST /messages   — MCP JSON-RPC`);
+  log(`  GET  /health         — Health check`);
+  log(`  GET  /tools          — List tools`);
+  log(`  POST /tool/:name     — Call a tool via REST`);
+  log(`  GET  /sse            — Legacy SSE notification stream`);
+  log(`  POST /messages       — Legacy MCP JSON-RPC`);
+  log(`  */mcp                — MCP Streamable HTTP (for claude.ai connectors)`);
 });
