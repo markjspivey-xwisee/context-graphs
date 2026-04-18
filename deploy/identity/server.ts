@@ -71,26 +71,59 @@ interface Identity {
   owner?: string;        // for agents: the user who owns them
   scope?: string;
   createdAt: string;
-  // Decentralized auth methods registered to this user. All auth is proof-
-  // of-possession over the public keys below; the server never holds secrets.
-  // Multiple methods can be active concurrently (wallet + passkey, etc.).
-  walletAddress?: string;        // SIWE — Ethereum wallet
-  webAuthnCredentials?: Array<{
-    id: string;                  // credential ID (base64url)
-    publicKey: string;           // COSE public key (base64url)
+  erc8004Key?: string;
+  // NOTE: auth methods (walletAddress, webAuthnCredentials, didKeys) live in
+  // the user's own Solid pod at <pod>/auth-methods.jsonld — not here. The
+  // identity server is stateless wrt user-owned credential data; pods are
+  // the source of truth. See readAuthMethods() / writeAuthMethods() below.
+}
+
+// Auth methods schema persisted in each user's pod as JSON-LD. Canonical
+// predicates live under the cg: and sec: namespaces; any RDF-aware tool
+// can consume the file. A user can have multiple methods of each kind
+// (multiple wallets, multiple passkeys, multiple DID keys) registered.
+interface AuthMethods {
+  '@context'?: Record<string, string>;
+  '@id'?: string;
+  '@type'?: string;
+  userId: string;
+  name: string;                           // display name — restored on restart
+  agentId?: string;                       // user's first agent ID for token issuance
+  walletAddresses: string[];              // lowercased Ethereum addresses
+  webAuthnCredentials: Array<{
+    id: string;                           // credential ID (base64url)
+    publicKey: string;                    // COSE public key (base64url)
     counter: number;
     transports?: string[];
     label?: string;
     createdAt: string;
   }>;
-  didKeys?: Array<{              // generic DID auth (did:key, external did:web, etc.)
+  didKeys: Array<{
     did: string;
     publicKeyMultibase: string;
     keyType: 'Ed25519VerificationKey2020';
     label?: string;
     createdAt: string;
   }>;
-  erc8004Key?: string;
+}
+
+function emptyAuthMethods(userId: string, name = userId, agentId?: string): AuthMethods {
+  const m: AuthMethods = {
+    '@context': {
+      cg: ONTOLOGY_URL,
+      sec: 'https://w3id.org/security#',
+      xsd: 'http://www.w3.org/2001/XMLSchema#',
+    },
+    '@id': `#auth-${userId}`,
+    '@type': 'cg:AuthMethods',
+    userId,
+    name,
+    walletAddresses: [],
+    webAuthnCredentials: [],
+    didKeys: [],
+  };
+  if (agentId) m.agentId = agentId;
+  return m;
 }
 
 interface TokenRecord {
@@ -102,10 +135,197 @@ interface TokenRecord {
   expiresAt: string;
 }
 
-// In-memory stores (production: use a database or key vault)
+// In-memory stores. `identities` and `keys` are cheap-to-rebuild bookkeeping
+// (user/agent shells + Ed25519 keys for DID documents). The user-authoritative
+// credential data (wallets, passkeys, DID keys) does NOT live here — it lives
+// in each user's Solid pod as auth-methods.jsonld. `walletIndex` and
+// `credentialIndex` are read-through caches built from pod scans on startup
+// so SIWE/passkey flows can look up "which user owns this wallet/credential?"
+// without scanning every pod on every call.
 const identities: Map<string, Identity> = new Map();
 const keys: Map<string, KeyPair> = new Map();
 const tokens: Map<string, TokenRecord> = new Map();
+
+// lowercased wallet address → userId
+const walletIndex: Map<string, string> = new Map();
+// webauthn credential id → userId
+const credentialIndex: Map<string, string> = new Map();
+// did → userId
+const didIndex: Map<string, string> = new Map();
+
+// Per-user auth-methods cache with 60s TTL. Stale-while-revalidate:
+// a cache miss or expired entry triggers a pod fetch but returns the
+// stale value in the meantime on non-critical reads.
+const authMethodsCache: Map<string, { value: AuthMethods; fetchedAt: number }> = new Map();
+const AUTH_METHODS_TTL_MS = 60 * 1000;
+
+function podAuthMethodsUrl(userId: string): string {
+  return `${CSS_URL}${userId}/auth-methods.jsonld`;
+}
+
+async function fetchPodAuthMethods(userId: string): Promise<AuthMethods> {
+  const url = podAuthMethodsUrl(userId);
+  try {
+    const r = await fetch(url, { headers: { 'Accept': 'application/ld+json' } });
+    if (r.status === 404) {
+      // First touch — pod has no file yet; write an empty one so the caller
+      // can append to it without racing other writers.
+      const empty = emptyAuthMethods(userId);
+      await putPodAuthMethods(userId, empty);
+      return empty;
+    }
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    const body = await r.json();
+    return normaliseAuthMethods(body, userId);
+  } catch (err) {
+    log(`WARN: could not read ${url}: ${(err as Error).message}`);
+    // Return an empty doc rather than throwing — identity flows gracefully
+    // degrade to "no credentials on file" which surfaces as "register first".
+    return emptyAuthMethods(userId);
+  }
+}
+
+async function putPodAuthMethods(userId: string, methods: AuthMethods): Promise<void> {
+  const url = podAuthMethodsUrl(userId);
+  // Ensure pod container exists first (idempotent).
+  try {
+    await fetch(`${CSS_URL}${userId}/`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/turtle',
+        'Link': '<http://www.w3.org/ns/ldp#BasicContainer>; rel="type"',
+      },
+      body: '',
+    });
+  } catch { /* best-effort */ }
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/ld+json' },
+    body: JSON.stringify(methods, null, 2),
+  });
+  if (!r.ok && r.status !== 205) {
+    throw new Error(`PUT ${url} failed: ${r.status} ${r.statusText}`);
+  }
+  // Update cache + indexes for this user
+  authMethodsCache.set(userId, { value: methods, fetchedAt: Date.now() });
+  rebuildIndexesForUser(userId, methods);
+}
+
+function normaliseAuthMethods(raw: unknown, userId: string): AuthMethods {
+  const base = emptyAuthMethods(userId);
+  if (!raw || typeof raw !== 'object') return base;
+  const src = raw as Partial<AuthMethods>;
+  return {
+    ...base,
+    userId: typeof src.userId === 'string' ? src.userId : userId,
+    name: typeof src.name === 'string' ? src.name : userId,
+    ...(src.agentId ? { agentId: src.agentId } : {}),
+    walletAddresses: Array.isArray(src.walletAddresses)
+      ? src.walletAddresses.filter((w): w is string => typeof w === 'string').map(w => w.toLowerCase())
+      : [],
+    webAuthnCredentials: Array.isArray(src.webAuthnCredentials) ? src.webAuthnCredentials : [],
+    didKeys: Array.isArray(src.didKeys) ? src.didKeys : [],
+  };
+}
+
+async function readAuthMethods(userId: string, allowStale = false): Promise<AuthMethods> {
+  const cached = authMethodsCache.get(userId);
+  const now = Date.now();
+  if (cached && now - cached.fetchedAt < AUTH_METHODS_TTL_MS) {
+    return cached.value;
+  }
+  if (cached && allowStale) {
+    // Refresh in background; return stale now
+    fetchPodAuthMethods(userId).then(fresh => {
+      authMethodsCache.set(userId, { value: fresh, fetchedAt: Date.now() });
+      rebuildIndexesForUser(userId, fresh);
+    }).catch(() => {});
+    return cached.value;
+  }
+  const fresh = await fetchPodAuthMethods(userId);
+  authMethodsCache.set(userId, { value: fresh, fetchedAt: now });
+  rebuildIndexesForUser(userId, fresh);
+  return fresh;
+}
+
+function rebuildIndexesForUser(userId: string, m: AuthMethods): void {
+  // Remove previous entries pointing at this user (e.g. after credential deletion)
+  for (const [k, v] of walletIndex) if (v === userId) walletIndex.delete(k);
+  for (const [k, v] of credentialIndex) if (v === userId) credentialIndex.delete(k);
+  for (const [k, v] of didIndex) if (v === userId) didIndex.delete(k);
+  for (const addr of m.walletAddresses) walletIndex.set(addr.toLowerCase(), userId);
+  for (const c of m.webAuthnCredentials) credentialIndex.set(c.id, userId);
+  for (const k of m.didKeys) didIndex.set(k.did, userId);
+}
+
+// Discover pods by listing the CSS root as an LDP BasicContainer. CSS emits
+// `ldp:contains <child/>, <other/> ;` for every direct sub-container, which
+// is exactly the set of user pods (one per user). This makes the pod layer
+// — not a database — the authoritative user registry.
+async function discoverUsersFromCSS(): Promise<string[]> {
+  try {
+    const r = await fetch(CSS_URL, { headers: { 'Accept': 'text/turtle' } });
+    if (!r.ok) return [];
+    const body = await r.text();
+    const out: string[] = [];
+    // Match ldp:contains blocks and extract child IRIs
+    const re = /ldp:contains\s+([\s\S]*?)\s*(?:;|\.)/g;
+    let blockMatch: RegExpExecArray | null;
+    while ((blockMatch = re.exec(body)) !== null) {
+      const refs = blockMatch[1].match(/<([^>]+)>/g) || [];
+      for (const ref of refs) {
+        const path = ref.slice(1, -1);
+        // Child IRIs are relative URIs ending in '/' — pod paths are "<userId>/"
+        if (path.endsWith('/') && !path.startsWith('.')) {
+          out.push(path.replace(/\/$/, ''));
+        }
+      }
+    }
+    return [...new Set(out)];
+  } catch (err) {
+    log(`WARN: could not list CSS root: ${(err as Error).message}`);
+    return [];
+  }
+}
+
+// Hydrate an identity shell from a pod's auth-methods.jsonld when we don't
+// have an in-memory entry yet (common after a container restart). Also
+// creates a default agent if auth-methods references one, so issueTokenResponse
+// has something to issue for. Idempotent — skipped if the user is already in
+// the identities map.
+function hydrateFromAuthMethods(m: AuthMethods): void {
+  if (identities.has(m.userId)) return;
+  seedIdentity(m.userId, 'user', m.name);
+  const agentId = m.agentId ?? `claude-mobile-${m.userId}`;
+  if (!identities.has(agentId)) {
+    seedIdentity(agentId, 'agent', `Claude Mobile (${m.name})`, m.userId, 'ReadWrite');
+  }
+}
+
+// Rebuild all indexes from pod scans. Uses LDP discovery on CSS so users
+// registered in a previous container life are recoverable without any
+// in-memory state having survived. Seeded users (markj + default agents)
+// are still rehydrated too in case their pods aren't in CSS yet.
+async function rebuildAllIndexes(): Promise<void> {
+  const seededUserIds = [...identities.values()].filter(i => i.type === 'user').map(i => i.id);
+  const discoveredUserIds = await discoverUsersFromCSS();
+  const allUserIds = [...new Set([...seededUserIds, ...discoveredUserIds])];
+  log(`Rebuilding credential indexes from ${allUserIds.length} pod(s) (seeded=${seededUserIds.length} discovered=${discoveredUserIds.length})...`);
+  let ok = 0, fail = 0;
+  await Promise.all(allUserIds.map(async (uid) => {
+    try {
+      const m = await fetchPodAuthMethods(uid);
+      // Hydrate in-memory shell so downstream token issuance works
+      hydrateFromAuthMethods(m);
+      authMethodsCache.set(uid, { value: m, fetchedAt: Date.now() });
+      rebuildIndexesForUser(uid, m);
+      ok++;
+    } catch {
+      fail++;
+    }
+  }));
+  log(`Index rebuild: ${ok} pod(s) OK, ${fail} failed. users=${identities.size} wallets=${walletIndex.size} webauthn=${credentialIndex.size} dids=${didIndex.size}`);
+}
 
 // Seed with markj + agents. No passwords, no secrets — identities only
 // exist to reserve names and mint DID documents. Auth is wired up after
@@ -376,14 +596,18 @@ app.post('/register', (req, res) => {
  *             (server returns allowed credential IDs the client may use)
  * Returns: { nonce, expiresAt, allowCredentials? }
  */
-app.post('/challenges', (req, res) => {
+app.post('/challenges', async (req, res) => {
   const { purpose, userId } = req.body as { purpose?: Challenge['purpose']; userId?: string };
   const ch = issueChallenge(purpose, userId);
   const resp: Record<string, unknown> = { nonce: ch.nonce, expiresAt: new Date(ch.expiresAt).toISOString() };
   if (purpose === 'webauthn-authenticate' && userId) {
-    const user = identities.get(userId);
-    const creds = (user?.webAuthnCredentials ?? []).map(c => ({ id: c.id, type: 'public-key', transports: c.transports }));
-    resp.allowCredentials = creds;
+    // Read credentials from the user's pod (stale-while-revalidate cache)
+    const methods = await readAuthMethods(userId, /* allowStale */ true);
+    resp.allowCredentials = methods.webAuthnCredentials.map(c => ({
+      id: c.id,
+      type: 'public-key',
+      transports: c.transports,
+    }));
   }
   res.json(resp);
 });
@@ -436,8 +660,10 @@ app.post('/auth/siwe', async (req, res) => {
     return;
   }
 
-  // Find user by wallet address (returning user) or create (first-time)
-  let user = [...identities.values()].find(i => i.type === 'user' && i.walletAddress === recoveredAddress);
+  // Find user by wallet address (returning user via index) or create (first-time)
+  let userId = walletIndex.get(recoveredAddress);
+  let user = userId ? identities.get(userId) : undefined;
+
   if (!user) {
     if (!hintedUserId || !name) {
       res.status(404).json({
@@ -452,9 +678,18 @@ app.post('/auth/siwe', async (req, res) => {
     }
     seedIdentity(hintedUserId, 'user', name);
     user = identities.get(hintedUserId)!;
-    user.walletAddress = recoveredAddress;
     const agentId = hintedAgentId ?? `claude-mobile-${hintedUserId}`;
     seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, hintedUserId, 'ReadWrite');
+    // Persist wallet binding to user's pod (name + agentId included so a
+    // future container restart can recover the full identity from the pod).
+    const methods = emptyAuthMethods(user.id, name, agentId);
+    methods.walletAddresses.push(recoveredAddress);
+    try {
+      await putPodAuthMethods(user.id, methods);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to persist wallet to pod: ${(err as Error).message}` });
+      return;
+    }
     log(`First-time SIWE registration: ${hintedUserId} wallet=${recoveredAddress}`);
   }
 
@@ -481,7 +716,7 @@ app.post('/auth/webauthn/register-options', async (req, res) => {
     const agentId = `claude-mobile-${userId}`;
     seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, userId, 'ReadWrite');
   }
-  const user = identities.get(userId)!;
+  const existingMethods = await readAuthMethods(userId);
 
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
@@ -489,7 +724,7 @@ app.post('/auth/webauthn/register-options', async (req, res) => {
     userName: userId,
     userDisplayName: name,
     attestationType: 'none',
-    excludeCredentials: (user.webAuthnCredentials ?? []).map(c => ({
+    excludeCredentials: existingMethods.webAuthnCredentials.map(c => ({
       id: c.id,
       transports: (c.transports ?? []) as unknown as import('@simplewebauthn/server').AuthenticatorTransportFuture[],
     })),
@@ -555,14 +790,30 @@ app.post('/auth/webauthn/register', async (req, res) => {
   }
 
   const { credential } = verification.registrationInfo;
-  user.webAuthnCredentials ??= [];
-  user.webAuthnCredentials.push({
+  const methods = await readAuthMethods(userId);
+  // On first enrollment the stale methods doc may not have name/agentId
+  // populated — backfill from the in-memory shell so a container restart
+  // can rehydrate this user straight from their pod.
+  if (!methods.name || methods.name === userId) {
+    methods.name = user.name;
+  }
+  if (!methods.agentId) {
+    const a = [...identities.values()].find(i => i.type === 'agent' && i.owner === userId);
+    if (a) methods.agentId = a.id;
+  }
+  methods.webAuthnCredentials.push({
     id: credential.id,
     publicKey: Buffer.from(credential.publicKey).toString('base64url'),
     counter: credential.counter,
     transports: (response.response?.transports as string[] | undefined) ?? [],
     createdAt: new Date().toISOString(),
   });
+  try {
+    await putPodAuthMethods(userId, methods);
+  } catch (err) {
+    res.status(500).json({ error: `Failed to persist passkey to pod: ${(err as Error).message}` });
+    return;
+  }
   log(`WebAuthn credential registered for ${userId}`);
 
   res.json(issueTokenResponse(user));
@@ -584,7 +835,8 @@ app.post('/auth/webauthn/authenticate', async (req, res) => {
     res.status(404).json({ error: `User '${userId}' not found` });
     return;
   }
-  const cred = (user.webAuthnCredentials ?? []).find(c => c.id === response.id);
+  const methods = await readAuthMethods(userId);
+  const cred = methods.webAuthnCredentials.find(c => c.id === response.id);
   if (!cred) {
     res.status(401).json({ error: 'No WebAuthn credential matches this response' });
     return;
@@ -626,7 +878,16 @@ app.post('/auth/webauthn/authenticate', async (req, res) => {
     return;
   }
 
+  // Counter is bumped by the authenticator; persist the new value so the
+  // next authentication rejects replay of older signed counters.
   cred.counter = verification.authenticationInfo.newCounter;
+  try {
+    await putPodAuthMethods(userId, methods);
+  } catch (err) {
+    log(`WARN: failed to persist updated passkey counter: ${(err as Error).message}`);
+    // Not fatal — the user successfully authenticated this round; worst case
+    // the next attempt re-accepts an older counter value (still valid per spec).
+  }
   res.json(issueTokenResponse(user));
 });
 
@@ -703,8 +964,10 @@ app.post('/auth/did', async (req, res) => {
     return;
   }
 
-  // Find user by registered DID (returning) or create (first-time)
-  let user = [...identities.values()].find(i => i.type === 'user' && (i.didKeys ?? []).some(k => k.did === did));
+  // Find user by registered DID (returning) via index or create (first-time)
+  let userId = didIndex.get(did);
+  let user = userId ? identities.get(userId) : undefined;
+
   if (!user) {
     if (!hintedUserId || !name) {
       res.status(404).json({ error: 'DID not linked. Supply userId + name to register.', did });
@@ -716,14 +979,21 @@ app.post('/auth/did', async (req, res) => {
     }
     seedIdentity(hintedUserId, 'user', name);
     user = identities.get(hintedUserId)!;
-    user.didKeys = [{
+    const agentId = `claude-mobile-${hintedUserId}`;
+    seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, hintedUserId, 'ReadWrite');
+    const methods = emptyAuthMethods(user.id, name, agentId);
+    methods.didKeys.push({
       did,
       publicKeyMultibase: publicKeyMultibase ?? ('z' + publicKeyRaw.toString('base64url')),
       keyType: 'Ed25519VerificationKey2020',
       createdAt: new Date().toISOString(),
-    }];
-    const agentId = `claude-mobile-${hintedUserId}`;
-    seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, hintedUserId, 'ReadWrite');
+    });
+    try {
+      await putPodAuthMethods(user.id, methods);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to persist DID to pod: ${(err as Error).message}` });
+      return;
+    }
     log(`First-time DID registration: ${hintedUserId} did=${did}`);
   }
 
@@ -736,6 +1006,9 @@ function issueTokenResponse(user: Identity): Record<string, unknown> {
   if (!firstAgent) throw new Error(`User '${user.id}' has no agents`);
   const tokenRecord = issueToken(user.id, firstAgent.id, firstAgent.scope ?? 'ReadWrite');
   const host = new URL(BASE_URL).host;
+  // Summarise registered auth methods from cache (stale ok — this is just
+  // a UI hint, not security-critical).
+  const cached = authMethodsCache.get(user.id)?.value;
   return {
     userId: user.id,
     agentId: firstAgent.id,
@@ -746,11 +1019,12 @@ function issueTokenResponse(user: Identity): Record<string, unknown> {
     did: `did:web:${host}:users:${user.id}`,
     agentDid: `did:web:${host}:agents:${firstAgent.id}`,
     podUrl: `${CSS_URL}${user.id}/`,
+    authMethodsUrl: podAuthMethodsUrl(user.id),
     identityServer: BASE_URL,
     authMethods: {
-      wallet: !!user.walletAddress,
-      webauthn: (user.webAuthnCredentials ?? []).length,
-      did: (user.didKeys ?? []).length,
+      wallets: cached?.walletAddresses.length ?? 0,
+      webauthn: cached?.webAuthnCredentials.length ?? 0,
+      dids: cached?.didKeys.length ?? 0,
     },
   };
 }
@@ -999,9 +1273,9 @@ app.post('/siwe/verify', (req, res) => {
     return;
   }
 
-  const user = [...identities.values()].find(
-    i => i.type === 'user' && (i as any).walletAddress === walletAddress
-  );
+  // Look up by pod-resident index (rebuilt from pods on startup + on writes).
+  const userId = walletIndex.get(walletAddress);
+  const user = userId ? identities.get(userId) : undefined;
 
   if (user) {
     const token = issueToken(user.id, `wallet-${walletAddress}`, 'ReadWrite');
@@ -1013,12 +1287,11 @@ app.post('/siwe/verify', (req, res) => {
       expiresAt: token.expiresAt,
     });
   } else {
-    // Unknown wallet — offer registration
     res.json({
       valid: true,
       walletAddress,
       userId: null,
-      message: 'Wallet signature valid but no account linked. POST /register with walletAddress to create one.',
+      message: 'Wallet signature valid but no account linked. Use POST /auth/siwe to register.',
     });
   }
 });
@@ -1076,7 +1349,7 @@ app.get('/users', (_req, res) => {
  * Body: { userId, walletAddress, siweMessage, signature }
  * The user signs a SIWE message proving they own the wallet.
  */
-app.post('/wallet/link', (req, res) => {
+app.post('/wallet/link', async (req, res) => {
   const { userId, walletAddress, siweMessage, signature } = req.body;
   if (!userId || !walletAddress || !siweMessage || !signature) {
     res.status(400).json({ error: 'userId, walletAddress, siweMessage, and signature are required' });
@@ -1101,33 +1374,45 @@ app.post('/wallet/link', (req, res) => {
     return;
   }
 
-  // Link the wallet to the user
-  (user as any).walletAddress = walletAddress.toLowerCase();
-  log(`Linked wallet ${walletAddress} to user ${userId}`);
+  // Persist the wallet link to the user's pod, not an in-memory field.
+  const addr = (walletAddress as string).toLowerCase();
+  const methods = await readAuthMethods(userId);
+  if (!methods.walletAddresses.includes(addr)) {
+    methods.walletAddresses.push(addr);
+    try {
+      await putPodAuthMethods(userId, methods);
+    } catch (err) {
+      res.status(500).json({ error: `Failed to persist wallet to pod: ${(err as Error).message}` });
+      return;
+    }
+  }
+  log(`Linked wallet ${addr} to user ${userId}`);
 
   res.json({
     linked: true,
     userId,
-    walletAddress: walletAddress.toLowerCase(),
+    walletAddress: addr,
     message: 'Wallet linked. You can now use SIWE to authenticate.',
   });
 });
 
 /**
- * GET /wallet/status/:userId — Check if a user has a linked wallet
+ * GET /wallet/status/:userId — Check if a user has any linked wallets.
  */
-app.get('/wallet/status/:userId', (req, res) => {
+app.get('/wallet/status/:userId', async (req, res) => {
   const user = identities.get(req.params.userId);
   if (!user || user.type !== 'user') {
     res.status(404).json({ error: 'User not found' });
     return;
   }
 
-  const walletAddress = (user as any).walletAddress;
+  const methods = await readAuthMethods(user.id, /* allowStale */ true);
   res.json({
     userId: user.id,
-    hasWallet: !!walletAddress,
-    walletAddress: walletAddress ?? null,
+    hasWallet: methods.walletAddresses.length > 0,
+    walletAddresses: methods.walletAddresses,
+    // Legacy field preserved for older callers
+    walletAddress: methods.walletAddresses[0] ?? null,
   });
 });
 
@@ -1312,15 +1597,24 @@ app.listen(PORT, () => {
   log(`Interego Identity Server v2 started on port ${PORT}`);
   log(`Base URL: ${BASE_URL}`);
   log(`CSS URL: ${CSS_URL}`);
+  log(`WebAuthn RP: id=${RP_ID} origin=${RP_ORIGIN}`);
+  log(`Auth: decentralized — user credentials stored per-pod at <pod>/auth-methods.jsonld`);
   log(`Endpoints:`);
-  log(`  POST /register                      — Register new human + first agent`);
-  log(`  POST /register-agent                — Register additional agent`);
-  log(`  POST /tokens                        — Issue bearer token`);
-  log(`  POST /tokens/verify                 — Verify bearer token`);
-  log(`  GET  /users                         — List registered users`);
-  log(`  GET  /users/:id/did.json            — User DID document`);
-  log(`  GET  /agents/:id/did.json           — Agent DID document`);
-  log(`  GET  /users/:id/profile             — WebID profile`);
-  log(`  GET  /.well-known/webfinger         — WebFinger`);
-  log(`  GET  /health                        — Health check`);
+  log(`  POST /register                        Reserve user+agent (no auth)`);
+  log(`  POST /challenges                      Issue proof-of-possession nonce`);
+  log(`  POST /auth/siwe                       Sign-In With Ethereum`);
+  log(`  POST /auth/webauthn/register-options  Begin passkey enrollment`);
+  log(`  POST /auth/webauthn/register          Finish passkey enrollment`);
+  log(`  POST /auth/webauthn/authenticate      Passkey sign-in`);
+  log(`  POST /auth/did                        Ed25519 DID-signature auth`);
+  log(`  POST /tokens/verify                   Verify bearer token`);
+  log(`  GET  /users/:id/did.json              User DID document`);
+  log(`  GET  /users/:id/profile               WebID profile (Turtle)`);
+  log(`  GET  /.well-known/webfinger           WebFinger (RFC 7033)`);
+  log(`  GET  /health                          Health check`);
+
+  // Rebuild credential indexes from existing pod data so users who registered
+  // before this container restarted are still reachable without re-enrolling.
+  // Non-blocking — health checks come up immediately, indexes populate async.
+  rebuildAllIndexes().catch(err => log(`WARN: initial index rebuild failed: ${(err as Error).message}`));
 });
