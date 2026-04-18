@@ -914,9 +914,35 @@ app.post('/messages', async (req, res) => {
 // with proper JSON-RPC framing and SSE streaming.
 
 async function handleMcp(req: express.Request, res: express.Response): Promise<void> {
-  const authResult = checkMcpApiKey(req);
+  // Two auth modes are accepted:
+  //   1. Authorization: Bearer <key>  — classic; preferred when callers can set headers
+  //   2. URL path segment /mcp/<key>  — for MCP clients that don't let you set
+  //      custom auth headers (claude.ai custom connectors currently require OAuth
+  //      or no-auth; a secret in the URL path lets you use the no-auth flow while
+  //      still keeping the endpoint unguessable). Tradeoff: the URL itself is the
+  //      credential, so it appears in server access logs.
+  const pathKey = (req.params as { key?: string }).key;
+  let authResult: ReturnType<typeof checkMcpApiKey>;
+
+  if (pathKey && RELAY_MCP_API_KEY) {
+    if (safeEqual(pathKey, RELAY_MCP_API_KEY)) {
+      authResult = {
+        ok: true,
+        authContext: {
+          agentId: MOBILE_AGENT_ID,
+          ownerWebId: MOBILE_OWNER_WEBID,
+          userId: MOBILE_POD_NAME,
+        },
+      };
+    } else {
+      authResult = { ok: false, error: 'Invalid MCP API key in path' };
+    }
+  } else {
+    authResult = checkMcpApiKey(req);
+  }
+
   if (authResult.ok === false) {
-    res.status(401).json({ error: authResult.error, hint: 'Set header: Authorization: Bearer <RELAY_MCP_API_KEY>' });
+    res.status(401).json({ error: authResult.error, hint: 'Use /mcp/<RELAY_MCP_API_KEY> or set Authorization: Bearer <RELAY_MCP_API_KEY>' });
     return;
   }
 
@@ -935,9 +961,16 @@ async function handleMcp(req: express.Request, res: express.Response): Promise<v
   }
 }
 
+// Header-auth route (preferred)
 app.post('/mcp', handleMcp);
 app.get('/mcp', handleMcp);
 app.delete('/mcp', handleMcp);
+
+// Path-auth route (for clients that can't send custom auth headers, e.g.
+// claude.ai custom connectors configured with "no auth").
+app.post('/mcp/:key', handleMcp);
+app.get('/mcp/:key', handleMcp);
+app.delete('/mcp/:key', handleMcp);
 
 // ── Start ───────────────────────────────────────────────────
 
