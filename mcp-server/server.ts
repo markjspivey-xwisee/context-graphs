@@ -96,6 +96,8 @@ import {
   openEncryptedEnvelope,
   type EncryptionKeyPair,
   fetchGraphContent,
+  // Cross-pod sharing
+  resolveRecipients,
 } from '@interego/core';
 
 import type {
@@ -438,6 +440,7 @@ async function toolPublishContext(args: {
   valid_from?: string;
   valid_until?: string;
   target_pod?: string;
+  share_with?: string[];
 }): Promise<string> {
   await ensureCSS();
   await ensureRegistry();
@@ -490,6 +493,22 @@ async function toolPublishContext(args: {
     .map(a => a.encryptionPublicKey!) as string[];
   // Include our own key so we can read back our own publish in later sessions
   if (!recipients.includes(agentKeyPair.publicKey)) recipients.push(agentKeyPair.publicKey);
+
+  // Cross-pod sharing: for each handle in share_with, resolve to their pod's
+  // agent registry and union their agents' encryption keys into recipients.
+  // This graph then becomes decryptable by those other people's agents too —
+  // per-graph opt-in, no pod-level ACL change needed, fully federated.
+  const shareResolved: { handle: string; podUrl: string; agentCount: number }[] = [];
+  if (args.share_with && args.share_with.length > 0) {
+    const resolved = await resolveRecipients(args.share_with, { fetch: solidFetch });
+    for (const r of resolved) {
+      shareResolved.push({ handle: r.handle, podUrl: r.podUrl, agentCount: r.agentEncryptionKeys.length });
+      for (const key of r.agentEncryptionKeys) {
+        if (!recipients.includes(key)) recipients.push(key);
+      }
+    }
+  }
+
   const publishOptions: Parameters<typeof publish>[3] = recipients.length > 0
     ? { fetch: solidFetch, encrypt: { recipients, senderKeyPair: agentKeyPair } }
     : { fetch: solidFetch };
@@ -506,6 +525,10 @@ async function toolPublishContext(args: {
     `  Facets: ${descriptor.facets.map(f => f.type).join(', ')}`,
     `  Confidence: ${args.confidence ?? 0.85}`,
     `  E2EE: ${result.encrypted ? `yes (${recipients.length} recipient(s))` : 'no (no keyed agents in registry; publish plaintext)'}`,
+    ...(shareResolved.length > 0 ? [
+      `  Shared with:`,
+      ...shareResolved.map(s => `    ${s.handle} → ${s.podUrl || 'UNRESOLVED'} (${s.agentCount} agent(s))`),
+    ] : []),
     args.task_description ? `  Task: ${args.task_description}` : '',
   ];
 
@@ -1509,6 +1532,11 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
           valid_from: { type: 'string', description: 'ISO 8601 start of validity (default: now)' },
           valid_until: { type: 'string', description: 'ISO 8601 end of validity (optional)' },
           target_pod: { type: 'string', description: 'Pod URL to publish to (default: home pod)' },
+          share_with: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of external identity handles (did:web:..., WebID URLs, or acct:user@host) to include as additional E2EE recipients. Their pods are resolved and their authorized agents are added to the envelope recipient set — only those specific agents can decrypt THIS graph. Use for selective cross-pod sharing without exposing other pod content.',
+          },
         },
         required: ['graph_iri', 'graph_content'],
       },

@@ -270,6 +270,10 @@ export {
   readAnchors,
   // E2EE envelope fetch
   fetchGraphContent,
+  // Cross-pod sharing
+  resolveHandleToPodUrl,
+  resolveRecipient,
+  resolveRecipients,
 } from './solid/index.js';
 
 export type {
@@ -300,6 +304,9 @@ export type {
   PgslAnchorReceipt,
   ActivityAnchorReceipt,
   AnchorReceipt,
+  ShareHandle,
+  ResolvedRecipientPod,
+  ResolveRecipientsOptions,
 } from './solid/index.js';
 
 // ── PGSL (Poly-Granular Sequence Lattice) ───────────────────

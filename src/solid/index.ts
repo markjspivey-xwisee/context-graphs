@@ -40,6 +40,14 @@ export type { WebFingerResult, WebFingerLink } from './webfinger.js';
 export { didWebToUrl, resolveDidWeb, extractPublicKey, findStorageEndpoint } from './did.js';
 export type { DidDocument, VerificationMethod, ServiceEndpoint, DidResolutionResult } from './did.js';
 
+// ── Cross-pod Sharing (federated recipient resolution) ─────
+export {
+  resolveHandleToPodUrl,
+  resolveRecipient,
+  resolveRecipients,
+} from './sharing.js';
+export type { ShareHandle, ResolvedRecipientPod, ResolveRecipientsOptions } from './sharing.js';
+
 // ── IPFS Anchoring ──────────────────────────────────────────
 export { computeCid, computeLatticeCids, pinToIPFS, computeDescriptorAnchor } from './ipfs.js';
 
