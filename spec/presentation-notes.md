@@ -2,8 +2,7 @@
 
 **Target duration:** 30 minutes (25 min presentation + 5 min Q&A)
 
-**Audience:** W3C Community Group members, standards engineers, multi-agent
-system practitioners.
+**Audience:** Standards engineers, multi-agent system practitioners.
 
 **Setup requirements:** Browser with Interego UI loaded, terminal with
 PGSL store running, demo data pre-loaded (healthcare handoff scenario).
@@ -14,7 +13,7 @@ PGSL store running, demo data pre-loaded (healthcare handoff scenario).
 
 **Interego: Composable, Verifiable, Federated Context Infrastructure**
 
-W3C Community Group Presentation
+Interego Presentation
 
 **Time:** 1 minute
 
@@ -274,7 +273,7 @@ available for review.
 
 **Standardization and adoption roadmap**
 
-- W3C Community Group specification finalization
+- Specification finalization
 - Production deployments in education (TLA) and healthcare
 - Agent SDK integration (provide Interego as infrastructure for any
   agent framework)

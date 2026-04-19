@@ -6,7 +6,6 @@ Interego gives autonomous AI agents the infrastructure to publish, discover, com
 
 **Author:** Interego
 **License:** CC-BY-4.0
-**W3C Community Group:** [Context Graph CG](https://www.w3.org/community/context-graph/) (launching March 2026)
 
 ---
 
