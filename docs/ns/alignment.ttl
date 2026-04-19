@@ -539,3 +539,98 @@ ie:Whether skos:related
     cg:TrustFacet ,
     cgh:PolicyDecision ,
     cgh:RuntimeEval .
+
+# ══════════════════════════════════════════════════════════════
+#  Extended project ontologies: HyprCat, HyprAgent, HELA, SAT,
+#  CTS, OLKE, AMTA — declarative alignments to the core cg:/cgh:/
+#  pgsl:/ie: stack so external tooling navigating the alignment
+#  graph finds every cross-layer equivalence in one place.
+# ══════════════════════════════════════════════════════════════
+
+@prefix hyprcat:   <https://markjspivey-xwisee.github.io/interego/ns/hyprcat#> .
+@prefix hypragent: <https://markjspivey-xwisee.github.io/interego/ns/hypragent#> .
+@prefix hela:      <https://markjspivey-xwisee.github.io/interego/ns/hela#> .
+@prefix sat:       <https://markjspivey-xwisee.github.io/interego/ns/sat#> .
+@prefix cts:       <https://markjspivey-xwisee.github.io/interego/ns/cts#> .
+@prefix olke:      <https://markjspivey-xwisee.github.io/interego/ns/olke#> .
+@prefix amta:      <https://markjspivey-xwisee.github.io/interego/ns/amta#> .
+@prefix dcat:      <http://www.w3.org/ns/dcat#> .
+@prefix dprod:     <https://dprod.org/ns/dprod#> .
+
+# ── HyprCat: federated catalog layer ─────────────────────────
+
+hyprcat:FederatedCatalog rdfs:subClassOf dcat:Catalog , dprod:DataProductPlatform ;
+    rdfs:comment "HyprCat catalogs are DCAT Catalogs first — any DCAT-aware tool ingests them without HyprCat-specific code. The DPROD DataProductPlatform subclass adds the data-product-lifecycle semantics (input/output ports, freshness, discoverability) on top.".
+
+hyprcat:FederatedDataProduct rdfs:subClassOf dprod:DataProduct , cg:DataProduct ;
+    rdfs:comment "Same structural subclass as DPROD DataProduct; the cg:DataProduct tie lets Interego federation tooling navigate without HyprCat imports.".
+
+hyprcat:FederatedDistribution rdfs:subClassOf dcat:Distribution , cg:Affordance , cgh:Affordance , hydra:Operation ;
+    rdfs:comment "A single node that is simultaneously a DCAT distribution, an Interego affordance (both cg: discovery-time and cgh: execution-time), and a Hydra operation. Any client speaking any of those vocabularies can dispatch the distribution.".
+
+hyprcat:PortAffordance rdfs:subClassOf hyprcat:FederatedDistribution .
+
+hyprcat:FederatedCatalog skos:closeMatch cg:PodCatalog ;
+    rdfs:comment "cg:PodCatalog is the pod-scoped realization of a HyprCat federated catalog. A HyprCat federation may aggregate many cg:PodCatalog instances across pods into one mesh.".
+
+# ── HyprAgent: agent machinery ───────────────────────────────
+
+hypragent:Agent rdfs:subClassOf prov:SoftwareAgent , cg:AuthorizedAgent , cgh:Agent ;
+    rdfs:comment "A HyprAgent is simultaneously a PROV SoftwareAgent (for provenance), a cg:AuthorizedAgent (for pod-registry delegation), and a cgh:Agent (for OODA-cycle participation). Walking the subclass graph lets any tooling pick its native abstraction level.".
+
+hypragent:DelegationChain rdfs:subClassOf vc:VerifiableCredential ;
+    skos:closeMatch cg:AgentDelegationCredential ;
+    rdfs:comment "HyprAgent delegation chains are ordered sequences of W3C Verifiable Credentials; each link is a cg:AgentDelegationCredential.".
+
+hypragent:Dispatch rdfs:subClassOf prov:Activity , cgh:DecoratedAffordance ;
+    rdfs:comment "Every HyprAgent dispatch is a provenance activity (so prov:-aware auditors see it) and a decorated cgh: affordance execution (so harness-aware tooling sees it).".
+
+# ── HELA: xAPI presheaf ──────────────────────────────────────
+
+hela:Statement rdfs:subClassOf prov:Activity ;
+    rdfs:seeAlso cg:ProvenanceFacet ;
+    rdfs:comment "A HELA xAPI statement is a prov:Activity; wrapping it in a cg:ContextDescriptor projects its attribution + timing into cg:ProvenanceFacet.".
+
+hela:Actor skos:closeMatch cg:AuthorizedAgent ;
+    rdfs:comment "HELA Actor (the learner) and cg:AuthorizedAgent (the delegate) are different views of the same underlying entity; the Actor view emphasises participation in learning activities.".
+
+hela:Trace rdfs:seeAlso cg:ContextDescriptor ;
+    rdfs:comment "A HELA Trace (a learner's full statement sequence) is a sub-presheaf; represented in Interego as a set of cg:ContextDescriptor instances sharing an actor attribution.".
+
+# ── SAT: Semiotic Agent Topos ────────────────────────────────
+
+sat:SemioticFieldFunctor owl:equivalentClass cg:SemioticFacet ;
+    rdfs:comment "The Semiotic Field Functor Σ instantiated at a specific context graph IS the cg:SemioticFacet of that graph's descriptor. Full equivalence — SAT provides the categorical machinery, cg: provides the per-descriptor projection.".
+
+sat:Sign rdfs:seeAlso pgsl:sign ;
+    rdfs:comment "SAT Sign (the Peircean representamen) is carried at the substrate layer by pgsl:sign — each lattice node can optionally bind a sign.".
+
+sat:Semiosis rdfs:seeAlso ie:Interrogative ;
+    rdfs:comment "The eleven canonical interrogatives are typed entry-points into semiosis — each prompts a specific class of interpretant assignment.".
+
+# ── CTS: Compositional Tuple Store ───────────────────────────
+
+cts:Pattern owl:equivalentClass cg:SyntagmaticPattern ;
+    rdfs:comment "CTS patterns and cg:SyntagmaticPattern are the same concept at two abstraction layers: CTS at the raw usage layer, cg: at the typed-context layer. Explicit equivalence lets tooling navigate freely between them.".
+
+cts:ParadigmSet rdfs:subClassOf cg:ParadigmSet ;
+    rdfs:comment "A CTS paradigm set is the empirically observed distribution of fillers at a position; a cg:ParadigmSet is the declared set of admissible alternatives. CTS paradigm sets become cg: paradigm sets once canonicalised.".
+
+cts:Tuple rdfs:seeAlso pgsl:Fragment ;
+    rdfs:comment "A PGSL fragment at level N is a tuple whose fillers are fragments at level N-1. CTS and PGSL are two views of the same compositional structure — CTS emphasises usage + emergence, PGSL emphasises content-addressed algebra.".
+
+# ── OLKE: Knowledge evolution stages ─────────────────────────
+
+olke:stage rdfs:seeAlso cg:ContextDescriptor ;
+    rdfs:comment "Every cg:ContextDescriptor may carry an olke:stage annotation indicating where in the tacit→articulate→collective→institutional ladder its knowledge currently sits.".
+
+olke:Transition rdfs:seeAlso cg:PersistenceRecord ;
+    rdfs:comment "A stage transition is a kind of persistence event — the descriptor's bytes persist but its organizational binding evolves.".
+
+# ── AMTA: Trust attestation ──────────────────────────────────
+
+amta:Attestation rdfs:subClassOf cg:TrustFacet ;
+    rdfs:comment "An AMTA attestation is a trust facet with per-axis ratings (competence / honesty / relevance / recency). Downstream cgh:PolicyDecision evaluations can reference these axes via ODRL constraints.".
+
+amta:Reputation rdfs:seeAlso cg:TrustFacet ;
+    rdfs:comment "An agent's reputation is the aggregate distribution of amta:Attestation instances it has received over time; materializes into a cg:TrustFacet on the agent's registry entry.".
