@@ -46,6 +46,76 @@ const TOKEN_TTL_SECONDS = 86400; // 24 hours
 
 function log(msg: string) { console.log(`[identity] ${msg}`); }
 
+// ── Bootstrap invites ───────────────────────────────────────
+//
+// Seeded users (markj, pre-existing pod paths) cannot be claimed by an
+// arbitrary caller — that was the pre-fix vulnerability. Instead, the
+// operator configures BOOTSTRAP_INVITES="userA:tokenA,userB:tokenB".
+// The token is presented exactly once on first-enrollment to bind the
+// very first credential to the seeded userId. All subsequent devices
+// for that user enroll via the authenticated add-credential flow
+// (bearer token proving control of an already-bound credential), not
+// via the bootstrap invite.
+//
+// Why: canonical identity is the credential, not a string. The seeded
+// userId 'markj' is a display alias + pod path; only the legitimate
+// owner knows the invite (out-of-band) and only a successful auth with
+// an already-bound credential proves ownership thereafter.
+const BOOTSTRAP_INVITES: Map<string, string> = (() => {
+  const raw = process.env['BOOTSTRAP_INVITES'] ?? '';
+  const m = new Map<string, string>();
+  for (const pair of raw.split(',').map(s => s.trim()).filter(Boolean)) {
+    const idx = pair.indexOf(':');
+    if (idx <= 0) continue;
+    const uid = pair.slice(0, idx);
+    const tok = pair.slice(idx + 1);
+    if (uid && tok) m.set(uid, tok);
+  }
+  return m;
+})();
+// Consumed invites are remembered in-memory for process lifetime.
+// Durable consumption is implicit: once the user has any credential on
+// file in their pod, `hasAnyCredential(user)` is true and the invite
+// flow refuses to run regardless of CONSUMED_INVITES state. So even
+// after a container restart, the attacker cannot re-use an invite to
+// add a second credential — the have-credentials guard fires first.
+const CONSUMED_INVITES: Set<string> = new Set();
+
+function hasAnyCredential(m: AuthMethods): boolean {
+  return m.walletAddresses.length > 0
+    || m.webAuthnCredentials.length > 0
+    || m.didKeys.length > 0;
+}
+
+function verifyBootstrapInvite(userId: string, token: string | undefined): boolean {
+  if (!token) return false;
+  const expected = BOOTSTRAP_INVITES.get(userId);
+  if (!expected || expected !== token) return false;
+  if (CONSUMED_INVITES.has(userId)) return false;
+  CONSUMED_INVITES.add(userId);
+  return true;
+}
+
+// ── UserId derivation (canonical identity, not user-claimed) ─
+//
+// Every fresh registration derives the userId deterministically from
+// the credential material being enrolled. Attackers cannot steal
+// someone else's userId by typing it because the userId is a function
+// of a keypair they don't control. Seeded legacy userIds (markj) are
+// protected separately by BOOTSTRAP_INVITES.
+function deriveUserIdFromCredentialId(credentialId: string): string {
+  const h = crypto.createHash('sha256').update(credentialId).digest('hex');
+  return `u-pk-${h.slice(0, 12)}`;
+}
+function deriveUserIdFromWallet(addressLower: string): string {
+  // Ethereum addresses are already 160-bit; slice directly.
+  return `u-eth-${addressLower.replace(/^0x/, '').slice(0, 12)}`;
+}
+function deriveUserIdFromDid(did: string): string {
+  const h = crypto.createHash('sha256').update(did).digest('hex');
+  return `u-did-${h.slice(0, 12)}`;
+}
+
 // ── Key Generation ──────────────────────────────────────────
 
 interface KeyPair {
@@ -358,9 +428,20 @@ interface Challenge {
   // specific auth method / WebAuthn operation. Prevents cross-use of
   // a WebAuthn-originated challenge against SIWE, etc.
   purpose?: 'siwe' | 'webauthn-register' | 'webauthn-authenticate' | 'did-sig';
-  // For WebAuthn flows: the user this challenge is scoped to (so the
-  // relying party knows which credentials to match against).
+  // For WebAuthn flows: the transient session-user handle emitted in
+  // the registration options (so the `/register` step can match the
+  // ceremony back to this challenge). NOT the final userId.
   userId?: string;
+  // WebAuthn register — mode (C): existing authenticated user adding
+  // another device. Set when Authorization: Bearer <token> was valid.
+  addDeviceUserId?: string;
+  // WebAuthn register — mode (B): seeded legacy user being claimed
+  // via an out-of-band BOOTSTRAP_INVITES token.
+  bootstrapUserId?: string;
+  bootstrapInvite?: string;
+  // Display name captured at options-time so /register doesn't have to
+  // re-accept (and potentially be coerced to echo) a different one.
+  displayName?: string;
 }
 
 const challenges = new Map<string, Challenge>();
@@ -548,42 +629,37 @@ app.get('/health', (_req, res) => {
 // the account usable from a client that can sign challenges.
 
 /**
- * POST /register — Reserve a new human identity + first agent.
- * Body: { name, userId, agentId, agentName?, scope? }
- * Returns: { userId, agentId, webId, did, podUrl, ... }
+ * POST /register — DEPRECATED.
  *
- * No initial bearer token is issued — tokens come from /verify after
- * a successful signature proof. Register-then-authenticate is the
- * pattern because tokens imply authentication, and we have none yet.
+ * Previously let callers reserve an arbitrary userId before proving any
+ * key-ownership. That let an attacker typing `markj` sit on the slot
+ * long enough to beat the real user in a race, or (for post-seed
+ * existing users) passkey-hijack via the WebAuthn register flow since
+ * the identity shell was treated as "already present, just add creds".
+ *
+ * The correct paths are:
+ *
+ *   - Brand-new user: call /auth/webauthn/register-options → /register,
+ *     or /auth/siwe, or /auth/did. userId is derived from the credential.
+ *   - Seeded legacy userId (markj): supply { bootstrapUserId,
+ *     bootstrapInvite } on the first auth call (one-time).
+ *   - Add another device/wallet/did: authenticate first, then call the
+ *     same endpoints with Authorization: Bearer <token>.
+ *
+ * This endpoint now always returns 410 Gone to force migration.
  */
-app.post('/register', (req, res) => {
-  const { name, userId, agentId, agentName, scope } = req.body;
-  if (!name || !userId || !agentId) {
-    res.status(400).json({ error: 'name, userId, and agentId are required' });
-    return;
-  }
-  if (identities.has(userId)) {
-    res.status(409).json({ error: `User '${userId}' already exists` });
-    return;
-  }
-
-  seedIdentity(userId, 'user', name);
-  const agentLabel = agentName ?? `Agent (${agentId})`;
-  seedIdentity(agentId, 'agent', agentLabel, userId, scope ?? 'ReadWrite');
-
-  const host = new URL(BASE_URL).host;
-  res.status(201).json({
-    registered: true,
-    userId,
-    agentId,
-    webId: `${BASE_URL}/users/${userId}/profile#me`,
-    did: `did:web:${host}:users:${userId}`,
-    agentDid: `did:web:${host}:agents:${agentId}`,
-    podUrl: `${CSS_URL}${userId}/`,
-    identityServer: BASE_URL,
-    nextStep: 'Register an auth method: POST /auth/siwe, /auth/webauthn/register, or /auth/did',
+app.post('/register', (_req, res) => {
+  res.status(410).json({
+    error: 'POST /register is deprecated and no longer accepts user-supplied userIds',
+    reason: 'canonical identity is derived from the credential being enrolled, not from a claimed string',
+    use: {
+      'brand-new user (passkey)': 'POST /auth/webauthn/register-options then /auth/webauthn/register',
+      'brand-new user (wallet)': 'POST /auth/siwe after /challenges with purpose=siwe',
+      'brand-new user (did)': 'POST /auth/did after /challenges with purpose=did-sig',
+      'claim legacy seeded userId': 'include { bootstrapUserId, bootstrapInvite } on first-auth call (one-time)',
+      'add another device to existing account': 'authenticate first, then repeat any register path with Authorization: Bearer <token>',
+    },
   });
-  log(`Registered new user: ${userId} (${name}) with agent ${agentId}`);
 });
 
 // ── Challenge issuance ──────────────────────────────────────
@@ -629,7 +705,12 @@ app.post('/challenges', async (req, res) => {
  * }
  */
 app.post('/auth/siwe', async (req, res) => {
-  const { message, signature, nonce, userId: hintedUserId, name, agentId: hintedAgentId, surfaceAgent } = req.body;
+  const {
+    message, signature, nonce,
+    name,
+    bootstrapUserId, bootstrapInvite,
+    surfaceAgent,
+  } = req.body ?? {};
   if (!message || !signature || !nonce) {
     res.status(400).json({ error: 'message, signature, and nonce are required' });
     return;
@@ -652,7 +733,6 @@ app.post('/auth/siwe', async (req, res) => {
     return;
   }
 
-  // Extract wallet address from the SIWE message (second line per ERC-4361)
   const addressMatch = String(message).match(/0x[a-fA-F0-9]{40}/);
   const claimedAddress = addressMatch?.[0]?.toLowerCase();
   if (claimedAddress && claimedAddress !== recoveredAddress) {
@@ -660,29 +740,56 @@ app.post('/auth/siwe', async (req, res) => {
     return;
   }
 
-  // Find user by wallet address (returning user via index) or create (first-time)
+  // Returning user via wallet index — no user-claim needed.
   let userId = walletIndex.get(recoveredAddress);
   let user = userId ? identities.get(userId) : undefined;
 
+  // Authenticated add-wallet: if a valid bearer is presented, bind this
+  // newly-signed wallet to the caller's user (not a new one).
   if (!user) {
-    if (!hintedUserId || !name) {
-      res.status(404).json({
-        error: 'Wallet not linked to any user. Supply userId + name to register.',
-        walletAddress: recoveredAddress,
-      });
-      return;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const tr = verifyToken(authHeader.slice(7));
+      if (tr.valid) {
+        userId = tr.record!.userId;
+        user = identities.get(userId);
+      }
     }
-    if (identities.has(hintedUserId)) {
-      res.status(409).json({ error: `userId '${hintedUserId}' already taken` });
-      return;
+  }
+
+  if (!user) {
+    // Choose the target userId using the same three-mode logic as WebAuthn.
+    let targetUserId: string;
+    if (bootstrapUserId || bootstrapInvite) {
+      if (!bootstrapUserId || !bootstrapInvite) {
+        res.status(400).json({ error: 'bootstrapUserId and bootstrapInvite must both be supplied' });
+        return;
+      }
+      // Guard before consuming the invite.
+      const existing = await readAuthMethods(bootstrapUserId, /* allowStale */ true);
+      if (hasAnyCredential(existing)) {
+        res.status(409).json({ error: `User '${bootstrapUserId}' already has credentials — use the add-wallet flow` });
+        return;
+      }
+      if (!verifyBootstrapInvite(bootstrapUserId, bootstrapInvite)) {
+        res.status(401).json({ error: 'Invalid or consumed bootstrap invite' });
+        return;
+      }
+      targetUserId = bootstrapUserId;
+    } else {
+      targetUserId = deriveUserIdFromWallet(recoveredAddress);
     }
-    seedIdentity(hintedUserId, 'user', name);
-    user = identities.get(hintedUserId)!;
-    const agentId = hintedAgentId ?? `claude-mobile-${hintedUserId}`;
-    seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, hintedUserId, 'ReadWrite');
-    // Persist wallet binding to user's pod (name + agentId included so a
-    // future container restart can recover the full identity from the pod).
-    const methods = emptyAuthMethods(user.id, name, agentId);
+
+    if (!identities.has(targetUserId)) {
+      const displayName = String(name ?? targetUserId);
+      seedIdentity(targetUserId, 'user', displayName);
+      const defaultAgentId = `claude-mobile-${targetUserId}`;
+      seedIdentity(defaultAgentId, 'agent', `Claude Mobile (${displayName})`, targetUserId, 'ReadWrite');
+    }
+    user = identities.get(targetUserId)!;
+    const agentId = [...identities.values()].find(i => i.type === 'agent' && i.owner === targetUserId)?.id
+      ?? `claude-mobile-${targetUserId}`;
+    const methods = emptyAuthMethods(user.id, user.name, agentId);
     methods.walletAddresses.push(recoveredAddress);
     try {
       await putPodAuthMethods(user.id, methods);
@@ -690,7 +797,20 @@ app.post('/auth/siwe', async (req, res) => {
       res.status(500).json({ error: `Failed to persist wallet to pod: ${(err as Error).message}` });
       return;
     }
-    log(`First-time SIWE registration: ${hintedUserId} wallet=${recoveredAddress}`);
+    log(`First-time SIWE registration: ${targetUserId} wallet=${recoveredAddress}`);
+  } else {
+    // Add-wallet (authenticated) path — append if not already bound.
+    const methods = await readAuthMethods(user.id);
+    if (!methods.walletAddresses.includes(recoveredAddress)) {
+      methods.walletAddresses.push(recoveredAddress);
+      try {
+        await putPodAuthMethods(user.id, methods);
+      } catch (err) {
+        res.status(500).json({ error: `Failed to persist wallet to pod: ${(err as Error).message}` });
+        return;
+      }
+      log(`Wallet ${recoveredAddress} linked to existing user ${user.id}`);
+    }
   }
 
   res.json(issueTokenResponse(user, surfaceAgent));
@@ -700,61 +820,135 @@ app.post('/auth/siwe', async (req, res) => {
 
 /**
  * POST /auth/webauthn/register-options — start passkey registration.
- * Body: { userId, name }
+ *
+ * Three modes — the server never trusts a user-supplied userId claim:
+ *
+ *   (A) Fresh registration (default):
+ *       Body: { name }
+ *       Server mints no user up-front. userId is derived from the
+ *       credential at /auth/webauthn/register time as `u-pk-<hash>`.
+ *
+ *   (B) Bootstrap-claim a seeded legacy user (e.g. 'markj'):
+ *       Body: { name, bootstrapUserId, bootstrapInvite }
+ *       Requires a matching out-of-band invite configured via env
+ *       BOOTSTRAP_INVITES. Single-use: after success, that userId can
+ *       only gain credentials via the add-device flow below.
+ *
+ *   (C) Add another device to the caller's existing account:
+ *       Header: Authorization: Bearer <token>  (for user X)
+ *       Body: { name }
+ *       Adds a new credential to user X. No bootstrap invite, no claim.
+ *
  * Returns: PublicKeyCredentialCreationOptionsJSON (pass to navigator.credentials.create)
  */
 app.post('/auth/webauthn/register-options', async (req, res) => {
-  const { userId, name } = req.body;
-  if (!userId || !name) {
-    res.status(400).json({ error: 'userId and name are required' });
+  const { name, bootstrapUserId, bootstrapInvite } = req.body ?? {};
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
     return;
   }
-  // Ensure user exists (or create shell)
-  if (!identities.has(userId)) {
-    seedIdentity(userId, 'user', name);
-    // Also seed a default agent so the user has something to issue tokens for
-    const agentId = `claude-mobile-${userId}`;
-    seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, userId, 'ReadWrite');
+
+  // Mode (C): authenticated add-device flow.
+  let addDeviceUserId: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const tr = verifyToken(authHeader.slice(7));
+    if (!tr.valid) {
+      res.status(401).json({ error: `Invalid bearer token: ${tr.reason}` });
+      return;
+    }
+    addDeviceUserId = tr.record!.userId;
   }
-  const existingMethods = await readAuthMethods(userId);
+
+  // Mode (B): validate bootstrap invite (do NOT consume yet — consumption
+  // happens at /register after the ceremony actually verifies).
+  let bootstrapTargetUserId: string | undefined;
+  if (bootstrapUserId || bootstrapInvite) {
+    if (!bootstrapUserId || !bootstrapInvite) {
+      res.status(400).json({ error: 'bootstrapUserId and bootstrapInvite must both be supplied' });
+      return;
+    }
+    const expected = BOOTSTRAP_INVITES.get(bootstrapUserId);
+    if (!expected || expected !== bootstrapInvite) {
+      res.status(401).json({ error: 'Invalid bootstrap invite' });
+      return;
+    }
+    if (CONSUMED_INVITES.has(bootstrapUserId)) {
+      res.status(409).json({ error: `Bootstrap invite for '${bootstrapUserId}' has already been consumed` });
+      return;
+    }
+    // Additional guard: if the seeded user already has any credential on
+    // file, the invite flow is locked out regardless of invite validity.
+    const existing = await readAuthMethods(bootstrapUserId, /* allowStale */ true);
+    if (hasAnyCredential(existing)) {
+      res.status(409).json({ error: `User '${bootstrapUserId}' already has credentials — use the add-device flow` });
+      return;
+    }
+    bootstrapTargetUserId = bootstrapUserId;
+  }
+
+  // Ceremony-time user handle: for modes (A) and (B) we don't yet know
+  // the final userId (mode A derives it from the credential; mode B
+  // binds to bootstrapTargetUserId at register time). Use a transient
+  // random session id as the WebAuthn userHandle. For mode (C) use the
+  // existing userId so the authenticator binds to the correct account.
+  const sessionUserId = addDeviceUserId ?? `u-pend-${crypto.randomBytes(8).toString('hex')}`;
+  const userDisplayName = String(name);
+
+  // excludeCredentials: prevents re-enrolling an authenticator already
+  // bound to this account. Only meaningful in mode (C).
+  let excludeCredentials: Array<{ id: string; transports?: import('@simplewebauthn/server').AuthenticatorTransportFuture[] }> = [];
+  if (addDeviceUserId) {
+    const m = await readAuthMethods(addDeviceUserId);
+    excludeCredentials = m.webAuthnCredentials.map(c => ({
+      id: c.id,
+      transports: (c.transports ?? []) as unknown as import('@simplewebauthn/server').AuthenticatorTransportFuture[],
+    }));
+  }
 
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID: RP_ID,
-    userName: userId,
-    userDisplayName: name,
+    userName: sessionUserId,
+    userDisplayName,
     attestationType: 'none',
-    excludeCredentials: existingMethods.webAuthnCredentials.map(c => ({
-      id: c.id,
-      transports: (c.transports ?? []) as unknown as import('@simplewebauthn/server').AuthenticatorTransportFuture[],
-    })),
+    excludeCredentials,
     authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
   });
 
-  // Bind this challenge to webauthn-register for this user
-  challenges.set(options.challenge, {
+  // Stash session state on the challenge so /register can consult it.
+  const ch: Challenge = {
     nonce: options.challenge,
     expiresAt: Date.now() + CHALLENGE_TTL_MS,
     purpose: 'webauthn-register',
-    userId,
-  });
+    userId: sessionUserId,
+  };
+  if (addDeviceUserId) ch.addDeviceUserId = addDeviceUserId;
+  if (bootstrapTargetUserId) {
+    ch.bootstrapUserId = bootstrapTargetUserId;
+    ch.bootstrapInvite = bootstrapInvite;
+  }
+  ch.displayName = userDisplayName;
+  challenges.set(options.challenge, ch);
   res.json(options);
 });
 
 /**
- * POST /auth/webauthn/register — finish passkey registration. Verifies
- * the attestation, stores the new credential, issues a bearer token.
- * Body: { userId, response: RegistrationResponseJSON }
+ * POST /auth/webauthn/register — finish passkey registration.
+ *
+ * Body: { response: RegistrationResponseJSON, surfaceAgent? }
+ *
+ * The server NEVER trusts a user-supplied userId here. The final userId
+ * is determined by the challenge's pre-validated session state:
+ *
+ *   - addDeviceUserId (mode C): bound at options-time by bearer token
+ *   - bootstrapUserId (mode B): bound at options-time by valid invite
+ *   - else (mode A): derived from the new credential's ID
  */
 app.post('/auth/webauthn/register', async (req, res) => {
-  const { userId, response, surfaceAgent } = req.body;
-  if (!userId || !response) {
-    res.status(400).json({ error: 'userId and response are required' });
-    return;
-  }
-  const user = identities.get(userId);
-  if (!user || user.type !== 'user') {
-    res.status(404).json({ error: `User '${userId}' not found` });
+  const { response, surfaceAgent } = req.body ?? {};
+  if (!response) {
+    res.status(400).json({ error: 'response is required' });
     return;
   }
 
@@ -766,7 +960,7 @@ app.post('/auth/webauthn/register', async (req, res) => {
     return;
   }
   const ch = consumeChallenge(expectedChallenge, 'webauthn-register');
-  if (!ch || ch.userId !== userId) {
+  if (!ch) {
     res.status(401).json({ error: 'Invalid or expired registration challenge' });
     return;
   }
@@ -790,31 +984,77 @@ app.post('/auth/webauthn/register', async (req, res) => {
   }
 
   const { credential } = verification.registrationInfo;
-  const methods = await readAuthMethods(userId);
-  // On first enrollment the stale methods doc may not have name/agentId
-  // populated — backfill from the in-memory shell so a container restart
-  // can rehydrate this user straight from their pod.
-  if (!methods.name || methods.name === userId) {
+  const credentialId = credential.id;
+
+  // Reject a credential we've seen before — either as a duplicate register
+  // attempt, or (extremely unlikely) as a 256-bit collision.
+  if (credentialIndex.has(credentialId)) {
+    res.status(409).json({ error: 'This credential is already registered' });
+    return;
+  }
+
+  // Resolve the target userId according to the mode established at
+  // /register-options time (already authorised there).
+  let targetUserId: string;
+  const displayName = ch.displayName ?? credentialId.slice(0, 8);
+  if (ch.addDeviceUserId) {
+    // Mode (C) add-device — proven by bearer token at options time.
+    targetUserId = ch.addDeviceUserId;
+  } else if (ch.bootstrapUserId) {
+    // Mode (B) bootstrap-claim — invite pre-validated at options time.
+    // Consume the invite now that we have a verified credential to bind.
+    if (!verifyBootstrapInvite(ch.bootstrapUserId, ch.bootstrapInvite)) {
+      res.status(409).json({ error: 'Bootstrap invite no longer valid' });
+      return;
+    }
+    // Re-check: if somebody else bound a credential in the interim, refuse.
+    const existing = await readAuthMethods(ch.bootstrapUserId, /* allowStale */ true);
+    if (hasAnyCredential(existing)) {
+      res.status(409).json({ error: `User '${ch.bootstrapUserId}' already has credentials` });
+      return;
+    }
+    targetUserId = ch.bootstrapUserId;
+  } else {
+    // Mode (A) fresh user — derive userId from the credential itself.
+    targetUserId = deriveUserIdFromCredentialId(credentialId);
+  }
+
+  // Ensure an Identity shell exists for the target. Seeded users already
+  // have one; derived users get created here on first touch.
+  let user = identities.get(targetUserId);
+  if (!user) {
+    seedIdentity(targetUserId, 'user', displayName);
+    user = identities.get(targetUserId)!;
+  }
+  // Make sure the user has a default agent to issue tokens for.
+  const hasAgent = [...identities.values()].some(i => i.type === 'agent' && i.owner === targetUserId);
+  if (!hasAgent) {
+    const defaultAgentId = `claude-mobile-${targetUserId}`;
+    seedIdentity(defaultAgentId, 'agent', `Claude Mobile (${displayName})`, targetUserId, 'ReadWrite');
+  }
+
+  const methods = await readAuthMethods(targetUserId);
+  if (!methods.name || methods.name === targetUserId) {
     methods.name = user.name;
   }
   if (!methods.agentId) {
-    const a = [...identities.values()].find(i => i.type === 'agent' && i.owner === userId);
+    const a = [...identities.values()].find(i => i.type === 'agent' && i.owner === targetUserId);
     if (a) methods.agentId = a.id;
   }
   methods.webAuthnCredentials.push({
-    id: credential.id,
+    id: credentialId,
     publicKey: Buffer.from(credential.publicKey).toString('base64url'),
     counter: credential.counter,
     transports: (response.response?.transports as string[] | undefined) ?? [],
     createdAt: new Date().toISOString(),
   });
   try {
-    await putPodAuthMethods(userId, methods);
+    await putPodAuthMethods(targetUserId, methods);
   } catch (err) {
     res.status(500).json({ error: `Failed to persist passkey to pod: ${(err as Error).message}` });
     return;
   }
-  log(`WebAuthn credential registered for ${userId}`);
+  log(`WebAuthn credential registered for ${targetUserId} (mode=${ch.addDeviceUserId ? 'add-device' : ch.bootstrapUserId ? 'bootstrap' : 'derive'})`);
 
   res.json(issueTokenResponse(user, surfaceAgent));
 });
@@ -825,20 +1065,28 @@ app.post('/auth/webauthn/register', async (req, res) => {
  * Body: { userId, response: AuthenticationResponseJSON }
  */
 app.post('/auth/webauthn/authenticate', async (req, res) => {
-  const { userId, response, surfaceAgent } = req.body;
-  if (!userId || !response) {
-    res.status(400).json({ error: 'userId and response are required' });
+  const { response, surfaceAgent } = req.body ?? {};
+  if (!response?.id) {
+    res.status(400).json({ error: 'response (with credential id) is required' });
+    return;
+  }
+  // Canonical lookup: credential id → userId. We never trust a body-supplied
+  // userId claim; the identity is whichever user owns the credential that
+  // successfully signs the ceremony.
+  const userId = credentialIndex.get(response.id);
+  if (!userId) {
+    res.status(401).json({ error: 'No WebAuthn credential matches this response' });
     return;
   }
   const user = identities.get(userId);
   if (!user || user.type !== 'user') {
-    res.status(404).json({ error: `User '${userId}' not found` });
+    res.status(404).json({ error: `User for credential not found` });
     return;
   }
   const methods = await readAuthMethods(userId);
   const cred = methods.webAuthnCredentials.find(c => c.id === response.id);
   if (!cred) {
-    res.status(401).json({ error: 'No WebAuthn credential matches this response' });
+    res.status(401).json({ error: 'Credential indexed but not on file' });
     return;
   }
 
@@ -850,6 +1098,8 @@ app.post('/auth/webauthn/authenticate', async (req, res) => {
     return;
   }
   const ch = consumeChallenge(expectedChallenge, 'webauthn-authenticate');
+  // If the challenge was scoped to a specific userId at issuance time, it
+  // MUST match the credential's owning userId. No cross-account reuse.
   if (!ch || (ch.userId && ch.userId !== userId)) {
     res.status(401).json({ error: 'Invalid or expired authentication challenge' });
     return;
@@ -908,7 +1158,13 @@ app.post('/auth/webauthn/authenticate', async (req, res) => {
  * }
  */
 app.post('/auth/did', async (req, res) => {
-  const { did, nonce, signature, userId: hintedUserId, name, publicKeyMultibase, surfaceAgent } = req.body;
+  const {
+    did, nonce, signature,
+    name,
+    publicKeyMultibase,
+    bootstrapUserId, bootstrapInvite,
+    surfaceAgent,
+  } = req.body ?? {};
   if (!did || !nonce || !signature) {
     res.status(400).json({ error: 'did, nonce, and signature are required' });
     return;
@@ -964,24 +1220,53 @@ app.post('/auth/did', async (req, res) => {
     return;
   }
 
-  // Find user by registered DID (returning) via index or create (first-time)
+  // Returning user via DID index — no user-claim needed.
   let userId = didIndex.get(did);
   let user = userId ? identities.get(userId) : undefined;
 
+  // Authenticated add-did: bearer token binds this DID to the caller.
   if (!user) {
-    if (!hintedUserId || !name) {
-      res.status(404).json({ error: 'DID not linked. Supply userId + name to register.', did });
-      return;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const tr = verifyToken(authHeader.slice(7));
+      if (tr.valid) {
+        userId = tr.record!.userId;
+        user = identities.get(userId);
+      }
     }
-    if (identities.has(hintedUserId)) {
-      res.status(409).json({ error: `userId '${hintedUserId}' already taken` });
-      return;
+  }
+
+  if (!user) {
+    let targetUserId: string;
+    if (bootstrapUserId || bootstrapInvite) {
+      if (!bootstrapUserId || !bootstrapInvite) {
+        res.status(400).json({ error: 'bootstrapUserId and bootstrapInvite must both be supplied' });
+        return;
+      }
+      const existing = await readAuthMethods(bootstrapUserId, /* allowStale */ true);
+      if (hasAnyCredential(existing)) {
+        res.status(409).json({ error: `User '${bootstrapUserId}' already has credentials — use the add-did flow` });
+        return;
+      }
+      if (!verifyBootstrapInvite(bootstrapUserId, bootstrapInvite)) {
+        res.status(401).json({ error: 'Invalid or consumed bootstrap invite' });
+        return;
+      }
+      targetUserId = bootstrapUserId;
+    } else {
+      targetUserId = deriveUserIdFromDid(did);
     }
-    seedIdentity(hintedUserId, 'user', name);
-    user = identities.get(hintedUserId)!;
-    const agentId = `claude-mobile-${hintedUserId}`;
-    seedIdentity(agentId, 'agent', `Claude Mobile (${name})`, hintedUserId, 'ReadWrite');
-    const methods = emptyAuthMethods(user.id, name, agentId);
+
+    if (!identities.has(targetUserId)) {
+      const displayName = String(name ?? targetUserId);
+      seedIdentity(targetUserId, 'user', displayName);
+      const defaultAgentId = `claude-mobile-${targetUserId}`;
+      seedIdentity(defaultAgentId, 'agent', `Claude Mobile (${displayName})`, targetUserId, 'ReadWrite');
+    }
+    user = identities.get(targetUserId)!;
+    const agentId = [...identities.values()].find(i => i.type === 'agent' && i.owner === targetUserId)?.id
+      ?? `claude-mobile-${targetUserId}`;
+    const methods = emptyAuthMethods(user.id, user.name, agentId);
     methods.didKeys.push({
       did,
       publicKeyMultibase: publicKeyMultibase ?? ('z' + publicKeyRaw.toString('base64url')),
@@ -994,7 +1279,25 @@ app.post('/auth/did', async (req, res) => {
       res.status(500).json({ error: `Failed to persist DID to pod: ${(err as Error).message}` });
       return;
     }
-    log(`First-time DID registration: ${hintedUserId} did=${did}`);
+    log(`First-time DID registration: ${targetUserId} did=${did}`);
+  } else {
+    // Add-did (authenticated) path — append if not already bound.
+    const methods = await readAuthMethods(user.id);
+    if (!methods.didKeys.some(k => k.did === did)) {
+      methods.didKeys.push({
+        did,
+        publicKeyMultibase: publicKeyMultibase ?? ('z' + publicKeyRaw.toString('base64url')),
+        keyType: 'Ed25519VerificationKey2020',
+        createdAt: new Date().toISOString(),
+      });
+      try {
+        await putPodAuthMethods(user.id, methods);
+      } catch (err) {
+        res.status(500).json({ error: `Failed to persist DID to pod: ${(err as Error).message}` });
+        return;
+      }
+      log(`DID ${did} linked to existing user ${user.id}`);
+    }
   }
 
   res.json(issueTokenResponse(user, surfaceAgent));
@@ -1385,22 +1688,35 @@ app.get('/users', (_req, res) => {
  * The user signs a SIWE message proving they own the wallet.
  */
 app.post('/wallet/link', async (req, res) => {
-  const { userId, walletAddress, siweMessage, signature } = req.body;
-  if (!userId || !walletAddress || !siweMessage || !signature) {
-    res.status(400).json({ error: 'userId, walletAddress, siweMessage, and signature are required' });
+  // MUST be authenticated as the target user. Previously any caller could
+  // name an arbitrary userId and attach a valid-but-foreign wallet to it,
+  // which gave that wallet first-class auth into the victim's account on
+  // the next /auth/siwe call.
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Bearer token required to link a wallet. POST /auth/siwe (no userId claim) to bind a fresh wallet to its own derived userId; POST /auth/siwe with Authorization: Bearer <token> to bind an additional wallet to the token\'s user.' });
+    return;
+  }
+  const tr = verifyToken(authHeader.slice(7));
+  if (!tr.valid) { res.status(401).json({ error: `Invalid bearer token: ${tr.reason}` }); return; }
+
+  const { walletAddress, siweMessage, signature } = req.body ?? {};
+  if (!walletAddress || !siweMessage || !signature) {
+    res.status(400).json({ error: 'walletAddress, siweMessage, and signature are required' });
     return;
   }
 
+  const userId = tr.record!.userId;
   const user = identities.get(userId);
   if (!user || user.type !== 'user') {
-    res.status(404).json({ error: `User '${userId}' not found` });
+    res.status(404).json({ error: `User '${userId}' (from token) not found` });
     return;
   }
 
   // Verify the SIWE signature with real ECDSA recovery
   try {
     const recovered = ethers.verifyMessage(siweMessage, signature);
-    if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+    if (recovered.toLowerCase() !== (walletAddress as string).toLowerCase()) {
       res.status(401).json({ error: `Signature mismatch: expected ${walletAddress}, recovered ${recovered}` });
       return;
     }
@@ -1409,7 +1725,6 @@ app.post('/wallet/link', async (req, res) => {
     return;
   }
 
-  // Persist the wallet link to the user's pod, not an in-memory field.
   const addr = (walletAddress as string).toLowerCase();
   const methods = await readAuthMethods(userId);
   if (!methods.walletAddresses.includes(addr)) {
@@ -1428,6 +1743,46 @@ app.post('/wallet/link', async (req, res) => {
     userId,
     walletAddress: addr,
     message: 'Wallet linked. You can now use SIWE to authenticate.',
+  });
+});
+
+/**
+ * GET /auth-methods/me — Return the full auth-methods.jsonld for the
+ * bearer-token's user. Intended for auditing (did anyone else add a
+ * credential to my account?) and for UIs that show "your registered
+ * passkeys / wallets / DIDs".
+ *
+ * We intentionally return ONLY the calling user's own doc — not an
+ * admin dump. No userId path parameter, no lookup by arbitrary id;
+ * the token's userId is authoritative.
+ */
+app.get('/auth-methods/me', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Bearer token required' });
+    return;
+  }
+  const tr = verifyToken(authHeader.slice(7));
+  if (!tr.valid) { res.status(401).json({ error: `Invalid bearer token: ${tr.reason}` }); return; }
+  const userId = tr.record!.userId;
+  const methods = await readAuthMethods(userId);
+  res.json({
+    userId,
+    name: methods.name,
+    agentId: methods.agentId,
+    walletAddresses: methods.walletAddresses,
+    webAuthnCredentials: methods.webAuthnCredentials.map(c => ({
+      id: c.id,
+      createdAt: c.createdAt,
+      transports: c.transports,
+      // NOTE: publicKey + counter intentionally omitted — not useful for
+      // audit and they're stored in the pod anyway.
+    })),
+    didKeys: methods.didKeys.map(k => ({
+      did: k.did,
+      keyType: k.keyType,
+      createdAt: k.createdAt,
+    })),
   });
 });
 
@@ -1490,23 +1845,27 @@ app.get('/connect', (_req, res) => {
 <body>
 <div class="card">
   <h1>Connect Wallet to Interego</h1>
-  <p>Link your Ethereum wallet to your Interego identity. This proves you own the wallet via a SIWE (Sign-In With Ethereum) signature.</p>
+  <p>Your Interego userId is derived from the wallet you sign with. Typing someone else's name cannot bind your wallet to their account.</p>
 
   <div class="step">
-    <label>Your User ID</label>
-    <input id="userId" placeholder="e.g. markj" />
+    <label>Display name (optional)</label>
+    <input id="displayName" placeholder="e.g. Mark J" />
+  </div>
+
+  <div class="step">
+    <label style="color:#8ea0be">Advanced: claim a legacy seeded userId (requires one-time invite)</label>
+    <input id="bootstrapUserId" placeholder="Legacy userId (e.g. markj)" />
+    <input id="bootstrapInvite" placeholder="Bootstrap invite token (out-of-band)" />
+  </div>
+
+  <div class="step">
+    <label style="color:#8ea0be">Advanced: add this wallet to an already-signed-in account (paste bearer token)</label>
+    <input id="addDeviceToken" placeholder="Bearer token from a previous sign-in (optional)" />
   </div>
 
   <div id="step-metamask" class="step">
     <button class="primary" onclick="connectMetaMask()">Connect with MetaMask / Browser Wallet</button>
     <p style="margin-top:8px;margin-bottom:0;">Your wallet will prompt you to sign a message. No transaction, no gas, no cost.</p>
-  </div>
-
-  <div id="step-manual" class="step">
-    <label>Or paste wallet address + signature manually (for CLI users)</label>
-    <input id="manualAddress" placeholder="0x..." />
-    <input id="manualSignature" placeholder="Signature (0x...)" />
-    <button class="secondary" onclick="linkManual()">Link Wallet</button>
   </div>
 
   <div id="status" class="status"></div>
@@ -1523,99 +1882,58 @@ function setStatus(msg, type) {
 
 async function connectMetaMask() {
   if (!window.ethereum) {
-    setStatus('No wallet detected. Install MetaMask or use the manual flow below.', 'error');
+    setStatus('No wallet detected. Install MetaMask.', 'error');
     return;
   }
 
-  const userId = document.getElementById('userId').value.trim();
-  if (!userId) { setStatus('Enter your User ID first.', 'error'); return; }
+  const displayName = document.getElementById('displayName').value.trim();
+  const bootstrapUserId = document.getElementById('bootstrapUserId').value.trim();
+  const bootstrapInvite = document.getElementById('bootstrapInvite').value.trim();
+  const addDeviceToken = document.getElementById('addDeviceToken').value.trim();
+  if ((bootstrapUserId && !bootstrapInvite) || (!bootstrapUserId && bootstrapInvite)) {
+    setStatus('Bootstrap userId and invite must both be supplied.', 'error');
+    return;
+  }
 
   try {
     setStatus('Requesting wallet connection...', 'info');
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     const address = accounts[0];
 
-    // Get nonce from server
-    const nonceResp = await fetch(BASE + '/siwe/nonce', { method: 'POST' });
-    const { nonce } = await nonceResp.json();
+    const chResp = await fetch(BASE + '/challenges', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'siwe' }),
+    });
+    const { nonce } = await chResp.json();
 
-    // Build SIWE message
     const domain = window.location.host;
-    const uri = window.location.origin;
     const issuedAt = new Date().toISOString();
     const siweMessage = domain + ' wants you to sign in with your Ethereum account:\\n'
       + address + '\\n\\n'
-      + 'Link wallet to Interego identity: ' + userId + '\\n\\n'
-      + 'URI: ' + uri + '\\n'
+      + 'Sign in to Interego\\n\\n'
+      + 'URI: ' + window.location.origin + '\\n'
       + 'Version: 1\\n'
       + 'Chain ID: 1\\n'
       + 'Nonce: ' + nonce + '\\n'
       + 'Issued At: ' + issuedAt;
 
     setStatus('Please sign the message in your wallet...', 'info');
-
-    // Request signature
     const signature = await window.ethereum.request({
-      method: 'personal_sign',
-      params: [siweMessage, address],
+      method: 'personal_sign', params: [siweMessage, address],
     });
 
-    // Send to server
-    const linkResp = await fetch(BASE + '/wallet/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        walletAddress: address,
-        siweMessage,
-        signature,
-      }),
-    });
-    const result = await linkResp.json();
+    const body = { message: siweMessage, signature, nonce };
+    if (displayName) body.name = displayName;
+    if (bootstrapUserId) { body.bootstrapUserId = bootstrapUserId; body.bootstrapInvite = bootstrapInvite; }
+    const headers = { 'Content-Type': 'application/json' };
+    if (addDeviceToken) headers['Authorization'] = 'Bearer ' + addDeviceToken;
 
-    if (result.linked) {
-      setStatus('Wallet ' + address + ' linked to ' + userId + ' successfully! You can close this page.', 'success');
+    const authResp = await fetch(BASE + '/auth/siwe', { method: 'POST', headers, body: JSON.stringify(body) });
+    const result = await authResp.json();
+    if (authResp.ok && result.userId && result.token) {
+      setStatus('Signed in as ' + result.userId + '. Bearer token issued; you can close this page.', 'success');
     } else {
-      setStatus('Link failed: ' + (result.error || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    setStatus('Error: ' + err.message, 'error');
-  }
-}
-
-async function linkManual() {
-  const userId = document.getElementById('userId').value.trim();
-  const address = document.getElementById('manualAddress').value.trim();
-  const signature = document.getElementById('manualSignature').value.trim();
-
-  if (!userId || !address || !signature) {
-    setStatus('Fill in all fields: User ID, wallet address, and signature.', 'error');
-    return;
-  }
-
-  // Build the same SIWE message the CLI would build
-  const domain = window.location.host;
-  const siweMessage = domain + ' wants you to sign in with your Ethereum account:\\n'
-    + address + '\\n\\n'
-    + 'Link wallet to Interego identity: ' + userId + '\\n\\n'
-    + 'URI: ' + window.location.origin + '\\n'
-    + 'Version: 1\\n'
-    + 'Chain ID: 1\\n'
-    + 'Nonce: manual\\n'
-    + 'Issued At: ' + new Date().toISOString();
-
-  try {
-    const resp = await fetch(BASE + '/wallet/link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, walletAddress: address, siweMessage, signature }),
-    });
-    const result = await resp.json();
-
-    if (result.linked) {
-      setStatus('Wallet ' + address + ' linked to ' + userId + '!', 'success');
-    } else {
-      setStatus('Link failed: ' + (result.error || 'Unknown error'), 'error');
+      setStatus('Sign-in failed: ' + (result.error || 'Unknown error'), 'error');
     }
   } catch (err) {
     setStatus('Error: ' + err.message, 'error');
@@ -1634,14 +1952,15 @@ app.listen(PORT, () => {
   log(`CSS URL: ${CSS_URL}`);
   log(`WebAuthn RP: id=${RP_ID} origin=${RP_ORIGIN}`);
   log(`Auth: decentralized — user credentials stored per-pod at <pod>/auth-methods.jsonld`);
+  log(`Bootstrap invites: ${BOOTSTRAP_INVITES.size} configured${BOOTSTRAP_INVITES.size > 0 ? ' (' + [...BOOTSTRAP_INVITES.keys()].join(', ') + ')' : ''}`);
   log(`Endpoints:`);
-  log(`  POST /register                        Reserve user+agent (no auth)`);
+  log(`  POST /register                        DEPRECATED (410 Gone) — userId is derived, not claimed`);
   log(`  POST /challenges                      Issue proof-of-possession nonce`);
-  log(`  POST /auth/siwe                       Sign-In With Ethereum`);
-  log(`  POST /auth/webauthn/register-options  Begin passkey enrollment`);
-  log(`  POST /auth/webauthn/register          Finish passkey enrollment`);
-  log(`  POST /auth/webauthn/authenticate      Passkey sign-in`);
-  log(`  POST /auth/did                        Ed25519 DID-signature auth`);
+  log(`  POST /auth/siwe                       Sign-In With Ethereum (derives u-eth-<…> or binds via Bearer/invite)`);
+  log(`  POST /auth/webauthn/register-options  Begin passkey enrollment (Bearer for add-device, invite for seeded)`);
+  log(`  POST /auth/webauthn/register          Finish passkey enrollment (userId derived from credential)`);
+  log(`  POST /auth/webauthn/authenticate      Passkey sign-in (user resolved via credentialIndex, not body)`);
+  log(`  POST /auth/did                        Ed25519 DID-signature auth (derives u-did-<…> or binds via Bearer/invite)`);
   log(`  POST /tokens/verify                   Verify bearer token`);
   log(`  GET  /users/:id/did.json              User DID document`);
   log(`  GET  /users/:id/profile               WebID profile (Turtle)`);
