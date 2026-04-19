@@ -138,23 +138,27 @@ jobs:
               "PUBLIC_RELAY_URL=https://$RELAY_FQDN" \
               "PUBLIC_BASE_URL=https://$DASHBOARD_FQDN" \
             --output none
-          # Force traffic to the latest revision. If the container app is
-          # in Multiple-revision mode (the default after env-var updates),
-          # ingress can otherwise keep serving from the previous revision
-          # and new env vars silently don't take effect.
-          az containerapp ingress traffic set \
-            --name interego-dashboard \
-            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-            --revision-weight latest=100 \
-            --output none
-          # Deactivate all but the newest revision so the app is
-          # effectively single-revision again (matches our provisioning).
-          LATEST=$(az containerapp show --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --query "properties.latestRevisionName" -o tsv)
-          az containerapp revision list --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --query "[?name!='$LATEST' && properties.active].name" -o tsv | while read -r rev; do
-            [ -z "$rev" ] && continue
-            az containerapp revision deactivate --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --revision "$rev" --output none || true
-          done
-          echo "Latest active revision: $LATEST"
+          # In Multiple-revision mode, an env-var update creates a new
+          # revision but ingress keeps serving from the previous one —
+          # explicit traffic-set + deactivate-older is required. In
+          # Single-revision mode, Azure auto-activates the new revision
+          # and the traffic-set API refuses with an error, so we must
+          # branch on the currently-configured mode before calling it.
+          MODE=$(az containerapp show --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --query "properties.configuration.activeRevisionsMode" -o tsv)
+          echo "activeRevisionsMode=$MODE"
+          if [ "$MODE" = "Multiple" ]; then
+            az containerapp ingress traffic set \
+              --name interego-dashboard \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+              --revision-weight latest=100 \
+              --output none
+            LATEST=$(az containerapp show --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --query "properties.latestRevisionName" -o tsv)
+            az containerapp revision list --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --query "[?name!='$LATEST' && properties.active].name" -o tsv | while read -r rev; do
+              [ -z "$rev" ] && continue
+              az containerapp revision deactivate --name interego-dashboard --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --revision "$rev" --output none || true
+            done
+            echo "Latest active revision: $LATEST"
+          fi
 
       - name: Summary
         if: always()
