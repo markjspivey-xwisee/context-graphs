@@ -105,9 +105,20 @@ function broadcast(event: DashEvent): void {
  */
 async function discoverPods(): Promise<string[]> {
   try {
-    const resp = await fetch(CSS_URL, {
-      headers: { 'Accept': 'text/turtle' },
-    });
+    // CSS's file-backed root listing is O(total files); on a long-running
+    // pod with lots of accumulated sub-pods it can take tens of seconds.
+    // Bail out quickly so a slow root listing doesn't wedge the poller.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
+    let resp;
+    try {
+      resp = await fetch(CSS_URL, {
+        headers: { 'Accept': 'text/turtle' },
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!resp.ok) return [...pods.keys()];
 
     const turtle = await resp.text();
@@ -232,11 +243,41 @@ async function fetchManifest(podUrl: string): Promise<PodState['descriptors']> {
   }
 }
 
+// Rediscovery cadence: the CSS root listing is O(total files across all
+// pods) on a file-backed backend — when pods accumulate, it can take
+// tens of seconds per call. Previously we hit it every POLL_INTERVAL;
+// now we run a fresh discovery at most once per DISCOVER_INTERVAL and
+// reuse the cached pod name set in between. Polling known pods stays
+// on the fast 3-second cadence.
+const DISCOVER_INTERVAL_MS = parseInt(process.env['DISCOVER_INTERVAL'] ?? '60000');
+let lastDiscoveredAt = 0;
+let discoveredPodNames: string[] = [];
+
+async function getPodNamesCached(): Promise<string[]> {
+  const now = Date.now();
+  if (discoveredPodNames.length > 0 && (now - lastDiscoveredAt) < DISCOVER_INTERVAL_MS) {
+    return discoveredPodNames;
+  }
+  const fresh = await discoverPods();
+  if (fresh.length > 0) {
+    discoveredPodNames = fresh;
+    lastDiscoveredAt = now;
+  } else if (discoveredPodNames.length > 0) {
+    // Keep the last known list rather than reverting to empty when a
+    // single discovery call times out.
+    return discoveredPodNames;
+  } else {
+    discoveredPodNames = fresh;
+    lastDiscoveredAt = now;
+  }
+  return discoveredPodNames;
+}
+
 /**
  * Poll all pods and emit changes.
  */
 async function pollPods(): Promise<void> {
-  const podNames = await discoverPods();
+  const podNames = await getPodNamesCached();
 
   for (const name of podNames) {
     const podUrl = `${CSS_URL}${name}/`;
