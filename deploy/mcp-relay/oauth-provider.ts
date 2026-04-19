@@ -197,7 +197,15 @@ export class InteregoOAuthProvider implements OAuthServerProvider {
   <div class="method">
     <h3>Passkey</h3>
     <p>Use Face ID / Touch ID / your device's built-in key. Works on iOS, Android, and modern browsers. No extensions needed.</p>
-    <input id="pk-user" type="text" placeholder="Your user ID (e.g. markj)" autocomplete="username">
+    <p style="margin-top:.3em">Your identifier is derived from the passkey itself \u2014 typing someone else's name here cannot bind your passkey to their account.</p>
+    <input id="pk-name" type="text" placeholder="Your name (display only)" autocomplete="name">
+    <details style="margin:.4em 0 .6em">
+      <summary style="cursor:pointer;color:#8ea0be;font-size:.9em">Advanced: claim a seeded legacy userId (requires one-time invite)</summary>
+      <div style="margin-top:.4em;padding:.4em;border:1px dashed #2a3a5a;border-radius:6px">
+        <input id="pk-bs-user" type="text" placeholder="Legacy userId (e.g. markj)" autocomplete="off" style="margin-bottom:.3em">
+        <input id="pk-bs-invite" type="text" placeholder="Bootstrap invite token (out-of-band)" autocomplete="off">
+      </div>
+    </details>
     <div style="display:flex;gap:.5em">
       <button onclick="passkeyLogin()" class="secondary" style="flex:1">Sign in</button>
       <button onclick="passkeyRegister()" style="flex:1">Register new</button>
@@ -263,13 +271,20 @@ async function submitProof(method, body) {
 
 // ── Passkey flows ──────────────────────────────────────────
 async function passkeyRegister() {
-  const userId = document.getElementById('pk-user').value.trim();
-  if (!userId) { setStatus('pk-status', 'Enter a user ID first.', 'err'); return; }
+  const name = (document.getElementById('pk-name').value || '').trim();
+  if (!name) { setStatus('pk-status', 'Enter a display name first.', 'err'); return; }
+  const bootstrapUserId = (document.getElementById('pk-bs-user').value || '').trim();
+  const bootstrapInvite = (document.getElementById('pk-bs-invite').value || '').trim();
+  if ((bootstrapUserId && !bootstrapInvite) || (!bootstrapUserId && bootstrapInvite)) {
+    setStatus('pk-status', 'Bootstrap userId and invite must both be supplied.', 'err'); return;
+  }
   try {
     setStatus('pk-status', 'Creating passkey...', 'info');
+    const body = { name };
+    if (bootstrapUserId) { body.bootstrapUserId = bootstrapUserId; body.bootstrapInvite = bootstrapInvite; }
     const optRes = await fetch(IDENTITY + '/auth/webauthn/register-options', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, name: userId }),
+      body: JSON.stringify(body),
     });
     if (!optRes.ok) throw new Error('register-options: ' + await optRes.text());
     const options = await optRes.json();
@@ -289,25 +304,25 @@ async function passkeyRegister() {
       },
       clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
     };
-    await submitProof('webauthn-register', { userId, response: resp });
+    await submitProof('webauthn-register', { response: resp });
   } catch (e) { setStatus('pk-status', e.message, 'err'); }
 }
 
 async function passkeyLogin() {
-  const userId = document.getElementById('pk-user').value.trim();
-  if (!userId) { setStatus('pk-status', 'Enter a user ID first.', 'err'); return; }
   try {
+    // Discoverable credentials: no userId claim, no allowCredentials. The
+    // browser lets the user pick any passkey registered for this RP.
     setStatus('pk-status', 'Requesting challenge...', 'info');
     const chRes = await fetch(IDENTITY + '/challenges', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ purpose: 'webauthn-authenticate', userId }),
+      body: JSON.stringify({ purpose: 'webauthn-authenticate' }),
     });
     const ch = await chRes.json();
     if (!ch.nonce) throw new Error(ch.error || 'no challenge');
 
     const options = {
       challenge: b64urlToBytes(ch.nonce),
-      allowCredentials: (ch.allowCredentials || []).map(c => ({ ...c, id: b64urlToBytes(c.id) })),
+      allowCredentials: [],
       userVerification: 'preferred',
     };
     const cred = await navigator.credentials.get({ publicKey: options });
@@ -323,7 +338,7 @@ async function passkeyLogin() {
       },
       clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
     };
-    await submitProof('webauthn-authenticate', { userId, response: resp });
+    await submitProof('webauthn-authenticate', { response: resp });
   } catch (e) { setStatus('pk-status', e.message, 'err'); }
 }
 

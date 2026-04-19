@@ -6,7 +6,7 @@ This note captures the first-principles shape of identity in Interego so future 
 
 1. **User sovereignty.** Every private key stays with the user. The server only holds public keys and verifies signatures. There are no passwords anywhere in the system.
 2. **Pod as source of truth.** Each user's credential data (wallet addresses, WebAuthn credentials, DID keys) lives in their own Solid pod at `<pod>/auth-methods.jsonld`, serialized as JSON-LD against the `cg:` + `sec:` vocabularies. The identity server is **stateless** for user data; a container restart loses no durable state.
-3. **DID is canonical.** `did:web:<identity-host>:users:<id>` is the portable identity. WebAuthn, SIWE, and DID-key signatures are *verification methods* registered to that DID — interchangeable, addable, removable without identity-level disruption.
+3. **DID is canonical; userId is derived.** `did:web:<identity-host>:users:<id>` is the portable identity, and `<id>` itself is a deterministic function of the first credential enrolled (`u-pk-<hash>`, `u-eth-<addr-prefix>`, `u-did-<hash>`). **The server never trusts a user-supplied userId claim** — the only strings an unauthenticated caller can influence are their own credential material. WebAuthn, SIWE, and DID-key signatures are *verification methods* registered to that DID — interchangeable, addable, removable without identity-level disruption.
 4. **W3C standards, not bespoke.** DID Core, WebID, Solid, SIWE (ERC-4361), WebAuthn, VC / Verifiable Credentials — every piece of the auth stack maps to a published standard.
 
 ## Layout
@@ -37,9 +37,25 @@ This note captures the first-principles shape of identity in Interego so future 
 
 | Method | Key custody | First-time flow | Repeat sign-in |
 |---|---|---|---|
-| **SIWE** (ERC-4361) | User's Ethereum wallet (MetaMask, Coinbase, hardware, etc.) | Connect wallet → sign SIWE message with fresh nonce → server recovers address via `ethers.verifyMessage` → writes `walletAddresses[]` to pod | Same signature path; pod lookup matches wallet → user |
-| **WebAuthn / passkey** | OS secure enclave (iCloud Keychain / Google Password Manager / hardware key) | `navigator.credentials.create` → `@simplewebauthn/server.verifyRegistrationResponse` → credential stored in pod's `webAuthnCredentials[]` | `navigator.credentials.get` → `verifyAuthenticationResponse`, counter bumped in pod |
-| **DID Ed25519** | User-managed `did:key` or `did:web` with off-server private key | Client signs server nonce with private key → server verifies with public key (decoded from did:key or `publicKeyMultibase`) → writes `didKeys[]` to pod | Same signature path; pod lookup matches DID → user |
+| **SIWE** (ERC-4361) | User's Ethereum wallet (MetaMask, Coinbase, hardware, etc.) | Connect wallet → sign SIWE message with fresh nonce → server recovers address via `ethers.verifyMessage` → mints `u-eth-<addr[0:12]>` userId → writes `walletAddresses[]` to pod | Same signature path; `walletIndex[address]` lookup resolves user |
+| **WebAuthn / passkey** | OS secure enclave (iCloud Keychain / Google Password Manager / hardware key) | `navigator.credentials.create` (userHandle is a transient `u-pend-<rand>` at options time) → `verifyRegistrationResponse` → server derives `u-pk-<sha256(credId)[0:12]>` → credential stored in pod's `webAuthnCredentials[]` | Discoverable credentials: `navigator.credentials.get` with empty `allowCredentials` → `credentialIndex[response.id]` resolves user → `verifyAuthenticationResponse`, counter bumped in pod |
+| **DID Ed25519** | User-managed `did:key` or `did:web` with off-server private key | Client signs server nonce with private key → server verifies with public key → mints `u-did-<sha256(did)[0:12]>` → writes `didKeys[]` to pod | Same signature path; `didIndex[did]` lookup resolves user |
+
+### Three modes of first-enrollment
+
+Every `/auth/*` endpoint picks one of three modes based on the request, and **the mode is fixed at options-time so /register cannot be coerced**:
+
+1. **Fresh user (default).** No `Authorization` header, no `bootstrapUserId`. Server derives the userId from the credential being enrolled. Attacker cannot steal someone else's userId because the userId is a function of a keypair they don't control.
+2. **Add another device to the caller's existing account.** Request carries `Authorization: Bearer <token>` for user *X*. Server binds the new credential to *X*. Used when adding a second passkey / another wallet / another DID to an existing account.
+3. **Bootstrap-claim a seeded legacy userId.** Request carries `{ bootstrapUserId, bootstrapInvite }`. The invite is configured server-side in `BOOTSTRAP_INVITES=userA:tokenA,userB:tokenB` and is single-use — once consumed, or once the seeded user has any credential on file, the invite flow refuses. Used exactly once per legacy user (e.g. `markj`) to bind their very first credential to the seeded pod path. All subsequent devices for that user enroll via mode (2).
+
+### Canonical identity lookup
+
+- `walletIndex: address → userId` (built from all pods' `walletAddresses[]`)
+- `credentialIndex: credentialId → userId` (built from all pods' `webAuthnCredentials[]`)
+- `didIndex: did → userId` (built from all pods' `didKeys[]`)
+
+These indexes are rebuilt on container startup from pod scans. The authenticate endpoints *only* consult these indexes — they do not accept a userId claim in the body. If the signed credential material doesn't match an indexed entry, authentication fails.
 
 ## OAuth 2.1 layer
 
@@ -50,6 +66,29 @@ This note captures the first-principles shape of identity in Interego so future 
   - **Access token** (1h TTL) carrying the user's { userId, agentId, ownerWebId, podUrl } in the token's `extra` field — MCP handlers attribute writes to the real user.
   - **Refresh token** (14d TTL, rotating on every use) for long-running sessions.
 - `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource` let any MCP client auto-discover the auth flow.
+
+## Threat model: userId-claim hijack (closed)
+
+A naïve implementation would let a caller type *any* userId on the enrollment page and bind their own credential to it. That pattern let an attacker who learned a display-alias like `markj` attach their passkey to the real user's account, issue bearer tokens for them, and — because the passkey went into the pod's `auth-methods.jsonld` — survive container restarts indistinguishably from legitimate credentials.
+
+The current code closes this by removing user-supplied userId claims everywhere:
+
+- `/auth/webauthn/register-options` no longer accepts `userId`. It accepts a display `name` and optional bootstrap/bearer proof. The WebAuthn `userHandle` is a transient `u-pend-<rand>` unless mode (2) or (3) applies.
+- `/auth/webauthn/register` derives the final userId from the credential itself and binds it to a seeded userId *only* if a matching single-use bootstrap invite was already validated at options time.
+- `/auth/siwe` and `/auth/did` follow the same three-mode pattern — userId is derived from address / DID unless a bearer token or bootstrap invite authorises binding to a different user.
+- `/auth/webauthn/authenticate` resolves the user via `credentialIndex[response.id]`, ignoring any body-supplied userId hint.
+- `/register` now returns **410 Gone** — there is no reason to reserve a userId without proving key-ownership.
+- `/wallet/link` now requires `Authorization: Bearer <token>` and binds to the token's user (the previous unauthenticated variant let any caller attach a foreign wallet to any user's account).
+
+### Bootstrap invite configuration
+
+```bash
+BOOTSTRAP_INVITES="markj:<long-random-token>,alice:<another-token>"
+```
+
+- Tokens are generated out-of-band (e.g. `openssl rand -hex 32`) and handed to the user via a side channel.
+- An invite is consumed exactly once: on the first successful enrollment for that userId. After consumption — or once the seeded pod has any credential on file — the invite flow refuses, so even a restarted container cannot replay the bootstrap.
+- Not setting `BOOTSTRAP_INVITES` simply means no seeded legacy users can be first-enrolled. New users go straight to `u-pk-…` / `u-eth-…` / `u-did-…` derived identities.
 
 ## Known-good tradeoffs, documented
 
