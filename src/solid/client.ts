@@ -481,11 +481,27 @@ export async function publish(
 // ═════════════════════════════════════════════════════════════
 
 /**
- * Build the Turtle block that links a descriptor to its graph payload.
- * Uses standard DCAT for distribution description + Hydra for affordances
- * + cg: for encryption semantics. Clients follow dcat:accessURL to reach
- * the graph; dcat:mediaType + cg:encrypted tell them how to interpret it;
- * hydra:operation declares what they can do with it.
+ * Build the Turtle block that links a descriptor to its graph payload
+ * using the project's existing affordance + hypermedia ontology.
+ *
+ * Emission shape aligns with:
+ *   - cg:Affordance individuals (cg:canFetchPayload, cg:canDecrypt)
+ *   - cg:affordance object property (from cg.ttl)
+ *   - cgh:Affordance class (harness ontology; rdfs:subClassOf hydra:Operation
+ *     — single block is both a Hydra Operation AND a harness affordance)
+ *   - dcat:Distribution (W3C data-catalog vocab; the facet is also a DCAT
+ *     distribution so DCAT-aware catalogs can ingest it natively)
+ *   - alignment.ttl cross-layer axioms (cg:FederationFacet rdfs:seeAlso
+ *     dcat:Distribution; cgh:Affordance rdfs:subClassOf hydra:Operation)
+ *
+ * The block declares a single affordance that is simultaneously:
+ *   - a cg:Affordance  (discovery-time capability)
+ *   - a cgh:Affordance (execution-time operation, via subclass relation)
+ *   - a hydra:Operation (HATEOAS client dispatch target)
+ *   - a dcat:Distribution (data-catalog compatible)
+ *
+ * Single RDF node carrying the full set of hats — any client that speaks
+ * any of these vocabularies can dispatch against it.
  */
 function buildDistributionBlock(d: {
   graphUrl: string;
@@ -494,10 +510,17 @@ function buildDistributionBlock(d: {
   encryptionAlgorithm?: string;
   recipientCount?: number;
 }): string {
+  const actionIRI = d.encrypted ? 'cg:canDecrypt' : 'cg:canFetchPayload';
+  const returnsClass = d.encrypted ? 'cg:EncryptedGraphEnvelope' : 'cg:GraphPayload';
   const lines: string[] = [
-    '# ── Distribution (HATEOAS link to graph payload) ──────',
-    `<> cg:hasDistribution [`,
-    `    a dcat:Distribution ;`,
+    '# ── Affordance (cg:Affordance, cgh:Affordance, dcat:Distribution, hydra:Operation) ──',
+    `<> cg:affordance [`,
+    `    a cg:Affordance, cgh:Affordance, hydra:Operation, dcat:Distribution ;`,
+    `    cg:action ${actionIRI} ;`,
+    `    hydra:method "GET" ;`,
+    `    hydra:target <${d.graphUrl}> ;`,
+    `    hydra:returns ${returnsClass} ;`,
+    `    hydra:title "${d.encrypted ? 'Fetch encrypted graph envelope' : 'Fetch graph payload'}" ;`,
     `    dcat:accessURL <${d.graphUrl}> ;`,
     `    dcat:mediaType "${d.graphContentType}" ;`,
     `    cg:encrypted ${d.encrypted ? 'true' : 'false'}`,
@@ -508,12 +531,6 @@ function buildDistributionBlock(d: {
   if (d.encrypted && typeof d.recipientCount === 'number') {
     lines.push(`    ; cg:recipientCount ${d.recipientCount}`);
   }
-  lines.push(`    ; hydra:operation [`);
-  lines.push(`        a hydra:Operation ;`);
-  lines.push(`        hydra:method "GET" ;`);
-  lines.push(`        hydra:title "${d.encrypted ? 'Fetch encrypted graph envelope' : 'Fetch graph payload'}" ;`);
-  lines.push(`        hydra:returns ${d.encrypted ? 'cg:EncryptedGraphEnvelope' : 'cg:GraphPayload'}`);
-  lines.push(`    ]`);
   lines.push(`] .`);
   return lines.join('\n');
 }
@@ -526,16 +543,24 @@ export interface DistributionLink {
 }
 
 /**
- * Parse `cg:hasDistribution [...]` blocks out of a descriptor's Turtle
- * and return the graph payload's accessURL + media type + encryption
- * status. Returns null when no distribution is declared (e.g. descriptors
- * published before the hypermedia-linking change).
+ * Parse a descriptor's affordance block and return the graph payload's
+ * accessURL + media type + encryption status. Matches the canonical
+ * `cg:affordance [...]` form plus a legacy `cg:hasDistribution [...]`
+ * form (preserved for descriptors written before the ontology
+ * realignment). Returns null when no linkage is declared.
  */
 export function parseDistributionFromDescriptorTurtle(turtle: string): DistributionLink | null {
-  const match = turtle.match(/cg:hasDistribution\s*\[([\s\S]*?)\]/);
+  // Canonical form: cg:affordance [ ... a dcat:Distribution ... ]
+  // Legacy form:    cg:hasDistribution [ ... a dcat:Distribution ... ]
+  // Try canonical first; fall back to legacy.
+  let match = turtle.match(/cg:affordance\s*\[([\s\S]*?)\]/);
+  if (!match) match = turtle.match(/cg:hasDistribution\s*\[([\s\S]*?)\]/);
   if (!match) return null;
   const block = match[1]!;
-  const accessUrlMatch = block.match(/dcat:accessURL\s+<([^>]+)>/);
+  // Prefer hydra:target over dcat:accessURL (they're synonymous in our
+  // emission, but hydra:target is the operation-centric view for
+  // dispatch; dcat:accessURL is the catalog-centric view. Either works).
+  const accessUrlMatch = block.match(/hydra:target\s+<([^>]+)>/) || block.match(/dcat:accessURL\s+<([^>]+)>/);
   const mediaTypeMatch = block.match(/dcat:mediaType\s+"([^"]+)"/);
   const encryptedMatch = block.match(/cg:encrypted\s+(true|false)/);
   const algoMatch = block.match(/cg:encryptionAlgorithm\s+"([^"]+)"/);
