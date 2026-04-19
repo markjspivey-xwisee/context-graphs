@@ -52,6 +52,7 @@ import {
   generateKeyPair,
   fetchGraphContent,
   type EncryptionKeyPair,
+  resolveRecipients,
 } from '@interego/core';
 
 import type {
@@ -306,6 +307,22 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     .filter(a => !a.revoked && a.encryptionPublicKey)
     .map(a => a.encryptionPublicKey!) as string[];
   if (!recipients.includes(relayAgentKey.publicKey)) recipients.push(relayAgentKey.publicKey);
+
+  // Cross-pod selective sharing: resolve each share_with handle to their
+  // pod's authorized agents, union their keys into recipients. Their
+  // agents can then decrypt THIS graph without any pod-level ACL change.
+  const shareWith = (args.share_with as string[] | undefined) ?? [];
+  const shareResolved: { handle: string; podUrl: string; agentCount: number }[] = [];
+  if (shareWith.length > 0) {
+    const resolved = await resolveRecipients(shareWith, { fetch: solidFetch });
+    for (const r of resolved) {
+      shareResolved.push({ handle: r.handle, podUrl: r.podUrl, agentCount: r.agentEncryptionKeys.length });
+      for (const key of r.agentEncryptionKeys) {
+        if (!recipients.includes(key)) recipients.push(key);
+      }
+    }
+  }
+
   const publishOptions: Parameters<typeof publish>[3] = recipients.length > 0
     ? { fetch: solidFetch, encrypt: { recipients, senderKeyPair: relayAgentKey } }
     : { fetch: solidFetch };
@@ -336,6 +353,7 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     graphUrl: result.graphUrl,
     encrypted: result.encrypted ?? false,
     recipients: recipients.length,
+    sharedWith: shareResolved.length > 0 ? shareResolved : undefined,
     manifestUrl: result.manifestUrl,
     ipfs,
   });
@@ -635,6 +653,11 @@ const TOOL_SCHEMAS = [
         valid_until: { type: 'string', description: 'ISO 8601 end of validity (optional)' },
         modal_status: { type: 'string', enum: ['Asserted', 'Hypothetical', 'Counterfactual'], description: 'Semiotic modal status (default: Asserted)' },
         confidence: { type: 'number', description: 'Epistemic confidence 0.0-1.0 (default: 0.85)' },
+        share_with: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional list of external identity handles (did:web:..., WebID URLs, or acct:user@host). Each is resolved to its pod, and their authorized agents\' X25519 keys are added as recipients on the envelope — per-graph cross-pod sharing without any pod-level ACL change. Use to share a specific graph with another person while keeping your other graphs private.',
+        },
       },
       required: ['graph_iri', 'graph_content'],
     },
