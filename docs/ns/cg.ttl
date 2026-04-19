@@ -372,6 +372,34 @@ cg:affordance a owl:ObjectProperty ;
     rdfs:comment "Declares an affordance (capability) that this resource supports." ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
 
+cg:action a owl:ObjectProperty , owl:FunctionalProperty ;
+    rdfs:label "action" ;
+    rdfs:comment "Names the cg:Affordance individual this affordance block instantiates (e.g. cg:canFetchPayload, cg:canDecrypt, cg:canPublish). Lets a Hydra operation carry a stable cg: identifier alongside the operation-specific hydra:method / hydra:target, so discovery clients can reference the affordance vocabulary without string-matching free-text titles." ;
+    rdfs:domain cg:Affordance ;
+    rdfs:range cg:Affordance ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:encrypted a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:label "encrypted" ;
+    rdfs:comment "Whether the declared distribution's payload is encrypted. When true, clients must decrypt locally using a key registered as an authorized recipient (see cg:encryptionAlgorithm + envelope wrappedKeys)." ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:encryptionAlgorithm a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:label "encryption algorithm" ;
+    rdfs:comment "The envelope's KDF + AEAD suite, e.g. 'X25519-XSalsa20-Poly1305'. Identifies the crypto-primitive combination so clients know which library/mode to use." ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:string ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:recipientCount a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:label "recipient count" ;
+    rdfs:comment "Count of wrapped keys inside the encrypted envelope. Discoverable metadata (doesn't leak identities) so clients can reason about key fan-out / audience size without decrypting." ;
+    rdfs:domain dcat:Distribution ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
 cg:outputPort a owl:ObjectProperty ;
     rdfs:label "output port" ;
     rdfs:comment "DPROD alignment: output distribution endpoint for a data product." ;
@@ -536,3 +564,11 @@ cg:canDiscover a cg:Affordance ;
 cg:canSubscribe a cg:Affordance ;
     rdfs:label "Can Subscribe" ;
     rdfs:comment "This endpoint supports WebSocket subscription for live notifications.".
+
+cg:canFetchPayload a cg:Affordance ;
+    rdfs:label "Can Fetch Payload" ;
+    rdfs:comment "This descriptor declares a graph payload retrievable at an accessURL. The client follows the hydra:target / dcat:accessURL of the attached cgh:Affordance (Hydra Operation) to retrieve the payload. Works for plaintext (TriG) and encrypted (JOSE envelope) distributions uniformly.".
+
+cg:canDecrypt a cg:Affordance ;
+    rdfs:label "Can Decrypt" ;
+    rdfs:comment "The declared graph payload is encrypted; clients whose X25519 key is in the envelope's recipient list can decrypt locally. The cg:encryptionAlgorithm on the dcat:Distribution tells clients which KDF / AEAD pair to use. Only present when the Distribution is encrypted.".
