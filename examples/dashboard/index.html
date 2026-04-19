@@ -516,24 +516,18 @@ async function fetchRdf(url) {
   }
 }
 
-// ── PGSL polling (reads stats from the pod directly) ─
+// ── PGSL polling (one server-side request — server fans out across pods) ─
 async function pollPgsl() {
-  // Try each known pod for pgsl-stats.json
-  for (const [url, pod] of Object.entries(podState)) {
-    try {
-      const relPath = url.replace(/^https?:\/\/[^/]+\//, '') + 'pgsl-stats.json';
-      const resp = await fetch('/api/resource/' + relPath);
-      if (!resp.ok) continue;
-      const text = await resp.text();
-      const data = JSON.parse(text);
-      if (data.totalNodes !== undefined) {
-        pgslData = data;
-        document.getElementById('sPgsl').textContent = data.totalNodes;
-        renderPgsl(data);
-        return; // found it
-      }
-    } catch { continue; }
-  }
+  try {
+    const resp = await fetch('/api/pgsl-stats');
+    if (!resp.ok) return;
+    const body = await resp.json();
+    if (body && body.stats && body.stats.totalNodes !== undefined) {
+      pgslData = body.stats;
+      document.getElementById('sPgsl').textContent = body.stats.totalNodes;
+      renderPgsl(body.stats);
+    }
+  } catch { /* silent */ }
 }
 
 function renderPgsl(data) {
