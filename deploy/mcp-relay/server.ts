@@ -88,11 +88,61 @@ const PUBLIC_BASE_URL = process.env['PUBLIC_BASE_URL'] ?? '';
 
 // Surface-agent prefix this relay uses when minting per-user agents on
 // identity. Every user who authenticates through this relay gets a
-// distinct `<RELAY_SURFACE_AGENT>-<userId>` agent on their pod (own DID,
-// own X25519 key, own revocation point). Deployments that want separate
-// agents for e.g. a dedicated mobile relay vs a web relay can set this
-// per-instance via env.
-const RELAY_SURFACE_AGENT = process.env['RELAY_SURFACE_AGENT'] ?? 'claude-mobile';
+// distinct `<surface>-<userId>` agent on their pod (own DID, own X25519
+// key, own revocation point).
+//
+// By default the surface is auto-detected from the OAuth client's
+// DCR-registered `client_name` (see `surfaceAgentFromClient` below).
+// RELAY_DEFAULT_SURFACE_AGENT overrides the fallback used when the
+// client name matches nothing known — set it per-deployment if you want
+// a fixed label (e.g. a dedicated mobile relay). Previous deployments
+// set this to `claude-mobile`; the new default is the generic
+// `mcp-client` so unknown clients don't masquerade as Claude.
+const RELAY_DEFAULT_SURFACE_AGENT = process.env['RELAY_DEFAULT_SURFACE_AGENT']
+  ?? process.env['RELAY_SURFACE_AGENT']   // legacy env name
+  ?? 'mcp-client';
+
+// Best-effort client-name → surface-slug mapping. We match on a
+// lowercased, trimmed version of `client_name` so small spelling
+// variations all collapse to the same slug. Keep the slug in the
+// `^[a-z][a-z0-9-]*$` shape so it's safe as part of an agent IRI path.
+// Ordering matters: first substring match wins. Fall back to
+// RELAY_DEFAULT_SURFACE_AGENT if no pattern matches.
+const SURFACE_PATTERNS: Array<[RegExp, string]> = [
+  // Anthropic Claude surfaces — leave room to split further by platform
+  // hint words ("mobile", "desktop", "web", "code", "vscode", "cli").
+  [/claude.*code.*(vscode|vs\s*code)/i, 'claude-code-vscode'],
+  [/claude.*code/i, 'claude-code'],
+  [/claude.*(desktop|mac|windows)/i, 'claude-desktop'],
+  [/claude.*(mobile|ios|android|phone)/i, 'claude-mobile'],
+  [/claude/i, 'claude'],
+  // OpenAI surfaces
+  [/chatgpt/i, 'chatgpt'],
+  [/openai.*codex/i, 'openai-codex'],
+  [/\bcodex\b/i, 'codex'],
+  [/openai/i, 'openai'],
+  // Other popular MCP clients
+  [/\bcursor\b/i, 'cursor'],
+  [/\bwindsurf\b/i, 'windsurf'],
+  [/\bcline\b/i, 'cline'],
+  [/\bzed\b/i, 'zed'],
+  [/continue\b/i, 'continue'],
+];
+
+function surfaceAgentFromClient(clientName: string | undefined): string {
+  if (!clientName) return RELAY_DEFAULT_SURFACE_AGENT;
+  const name = clientName.trim();
+  if (!name) return RELAY_DEFAULT_SURFACE_AGENT;
+  for (const [re, slug] of SURFACE_PATTERNS) {
+    if (re.test(name)) return slug;
+  }
+  // Unknown client: slugify the name if it's reasonable, otherwise fall
+  // back to the generic default. We don't want arbitrary attacker-
+  // controlled client_name strings landing as pod-path components.
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (slug && /^[a-z][a-z0-9-]{1,31}$/.test(slug)) return slug;
+  return RELAY_DEFAULT_SURFACE_AGENT;
+}
 
 // Singleton OAuth provider. Auth is delegated to the identity server — the
 // provider's login form collects userId+password, server.ts /oauth/login
@@ -1018,12 +1068,19 @@ app.post('/oauth/verify', async (req, res) => {
     podUrl?: string;
     error?: string;
   };
+  // Detect the calling MCP client from its DCR-registered client_name so
+  // identity mints a surface-specific agent (chatgpt-<userId>,
+  // codex-<userId>, cursor-<userId>, etc.) instead of a single relay-wide
+  // default. Falls back to RELAY_DEFAULT_SURFACE_AGENT when the
+  // client_name is missing / unrecognised — which defaults to the
+  // generic `mcp-client`, deliberately NOT `claude-*`, so an unknown
+  // client isn't silently attributed to Claude.
+  const pending = oauthProvider.getPendingAuthorization(pending_id);
+  const clientName = pending?.client?.client_name;
+  const surfaceAgent = surfaceAgentFromClient(clientName);
+
   try {
-    // Tell identity which surface this auth came from so it mints / reuses
-    // a per-surface agent (e.g. claude-mobile-<userId>) instead of
-    // collapsing onto whatever seeded agent happens to be first for this
-    // user. Matches the "every surface is its own agent" principle.
-    const bodyWithSurface = { ...proofBody, surfaceAgent: RELAY_SURFACE_AGENT };
+    const bodyWithSurface = { ...proofBody, surfaceAgent };
     const r = await fetch(`${IDENTITY_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
