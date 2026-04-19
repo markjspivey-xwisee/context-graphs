@@ -453,11 +453,14 @@ Each agent owns their Solid pod. Federation is discovery-based.
 
 | Operation | Function | Description |
 |-----------|----------|-------------|
-| Publish | `publish(descriptor, graph, podUrl)` | Write descriptor + graph to pod |
+| Publish | `publish(descriptor, graph, podUrl, { encrypt })` | Write descriptor + graph to pod. When `encrypt` is set, wraps the graph in an X25519 envelope + appends a `cg:affordance` hypermedia block to the descriptor |
 | Discover | `discover(podUrl, filters)` | Query pod manifest with facet filters |
 | Subscribe | `subscribe(podUrl, callback)` | Solid Notifications subscription |
 | Directory | `publishToDirectory()` | Advertise pod in directory |
 | WebFinger | `resolveWebFinger(account)` | DNS-rooted agent discovery |
+| Cross-pod sharing | `resolveRecipients(handles)` | Resolve DIDs / WebIDs / acct: handles to their pods + authorized agents' X25519 keys for selective envelope recipient inclusion |
+
+**Cross-pod selective sharing:** `publish()` accepts `options.encrypt.recipients` as an explicit key list. The library helper `resolveRecipients(handles, fetch)` (in `solid/sharing.ts`) turns a list of external identity handles (`did:web:...`, `https://.../profile#me`, `acct:bob@host`) into their pods' authorized agents' keys. Union that with your own pod's recipient set when you want a specific graph readable by a specific other person — no pod-level ACL change required. See [`docs/e2ee.md`](../docs/e2ee.md) §"The recipient set" for the composition rules.
 
 **Trust escalation:**
 
@@ -894,13 +897,33 @@ All real implementations. No mocks.
   ECDSA signature over descriptor content
 - **Verification:** `verifyDescriptorSignature(id, turtle, signature)`
 
-### 5.2 E2E Encryption
+### 5.2 End-to-End Encryption
 
 - **Library:** tweetnacl (X25519 + XSalsa20-Poly1305)
 - **Key exchange:** `generateKeyPair()` --- X25519 keypairs
 - **Encrypt:** `createEncryptedEnvelope(content, recipientKeys, sender)`
 - **Decrypt:** `openEncryptedEnvelope(envelope, recipient)`
 - Multi-recipient: content key wrapped per recipient
+
+**Three encryption surfaces** (all using the same envelope format):
+
+| Surface | What's encrypted | Where emitted |
+|---|---|---|
+| Graph envelope | Full named-graph payload behind a descriptor | `publish()` when `options.encrypt` is set |
+| Facet value | Individual sensitive field inside a facet | `encryptFacetValue()` in `crypto/facet-encryption.ts` |
+| PGSL atom | Content of a single lattice atom | `mintEncryptedAtom()` in `pgsl/lattice.ts` |
+
+**Recipient set composition** (graph envelope):
+
+1. Every non-revoked `cg:AuthorizedAgent` on the target pod with a registered `cg:encryptionPublicKey`.
+2. The publishing agent's own X25519 key (always included).
+3. Any `share_with` handles resolved to external pods' authorized agents (see §3.8 Federation).
+
+**Per-agent, not per-device**: each surface (stdio, relay, future clients) holds its own X25519 keypair; the user's pod lists every surface as a first-class `cg:AuthorizedAgent`. Revocation is per-surface. The envelope format is identical whether the key lives on a user's device, a server-side agent host, or a future hardware-backed wallet.
+
+**Wire format**: the envelope is a JSON document served at `<slug>-graph.envelope.jose.json` with `Content-Type: application/jose+json`. Structure: `{ content: { ciphertext, nonce, algorithm }, wrappedKeys: [{ recipientPublicKey, wrappedKey, nonce, senderPublicKey }], algorithm: "X25519-XSalsa20-Poly1305", version: 1 }`. See [`docs/e2ee.md`](../docs/e2ee.md) for the full architecture.
+
+**Descriptor link to envelope** (HATEOAS — see §6): every descriptor Turtle embeds a `cg:affordance` block that is simultaneously `cg:Affordance`, `cgh:Affordance`, `hydra:Operation`, and `dcat:Distribution`. Clients follow `hydra:target` / `dcat:accessURL` — no filename convention. Described further in §6.4.
 
 ### 5.3 Zero-Knowledge Proofs
 
@@ -991,6 +1014,72 @@ Controls are fully-specified hypermedia forms:
 
 Authorization determines which controls are visible. Unverified coherence
 state restricts available controls.
+
+### 6.4 Descriptor Affordance (Hypermedia link to graph payload)
+
+Every `cg:ContextDescriptor` emitted by `publish()` carries a self-describing
+affordance block that is simultaneously:
+
+- `cg:Affordance`      — discovery-time capability declaration (matches
+                          `cg:canPublish` / `cg:canDiscover` /
+                          `cg:canSubscribe` pattern)
+- `cgh:Affordance`     — harness-execution-time affordance for
+                          decorator pipelines
+- `hydra:Operation`    — HATEOAS client dispatch target
+- `dcat:Distribution`  — DCAT-3 compatible for external catalog ingestion
+
+```turtle
+<> cg:affordance [
+    a cg:Affordance, cgh:Affordance, hydra:Operation, dcat:Distribution ;
+    cg:action cg:canDecrypt ;   # or cg:canFetchPayload for plaintext
+    hydra:method "GET" ;
+    hydra:target <.../slug-graph.envelope.jose.json> ;
+    hydra:returns cg:EncryptedGraphEnvelope ;
+    hydra:title "Fetch encrypted graph envelope" ;
+    dcat:accessURL <.../slug-graph.envelope.jose.json> ;
+    dcat:mediaType "application/jose+json" ;
+    cg:encrypted true ;
+    cg:encryptionAlgorithm "X25519-XSalsa20-Poly1305" ;
+    cg:recipientCount 3
+] .
+```
+
+Four compatible types on one RDF node — any client speaking any one of
+these vocabularies can dispatch the retrieval without Interego-specific
+understanding. DCAT-aware catalogs ingest the descriptor as a dataset;
+Hydra clients auto-generate UI; harness agents integrate it into
+affordance-decorator pipelines; cg: discovery sees it as a capability.
+
+**No filename conventions.** Clients follow `hydra:target` /
+`dcat:accessURL`. The companion envelope's location is declared in the
+descriptor itself — rename it, move it to a different pod, host it via
+a different URI scheme — every consumer updates automatically because
+the descriptor is the source of truth.
+
+`parseDistributionFromDescriptorTurtle()` in `@interego/core` (exported
+from the top-level index) extracts `{ accessURL, mediaType, encrypted,
+encryptionAlgorithm }` from any descriptor Turtle so library consumers
+and MCP tools follow the link the same way.
+
+### 6.5 Per-surface agent identity
+
+Each surface a user operates from (Claude Code VS Code, Claude Desktop,
+Claude Mobile via OAuth, claude.ai web, any future client) registers
+as its own first-class `cg:AuthorizedAgent` on the user's pod, with:
+
+- Its own `did:web:<identity-host>:agents:<surface-id>` DID
+- Its own persisted X25519 keypair for envelope decryption
+- Its own delegation credential at `/credentials/<agent-id>.jsonld`
+- Its own `cg:encryptionPublicKey` in the pod's agent registry
+
+The identity server's OAuth `/auth/*` endpoints accept a `surfaceAgent`
+hint (e.g. `claude-mobile`) from the relay; identity mints or reuses
+`<hint>-<userId>` as the per-surface agent. Every descriptor this
+surface writes attributes to its surface DID via `prov:wasAssociatedWith`.
+
+Pod attribution, envelope recipient sets, and revocation are all
+per-surface — no agent piggybacks on another surface's delegation,
+and any surface can be revoked independently.
 
 ---
 

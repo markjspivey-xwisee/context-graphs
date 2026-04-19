@@ -269,7 +269,9 @@ Feed content into the PGSL lattice. The system tokenizes, builds atoms, chains, 
 
 ### 6. Publish to Pod
 
-Write context-annotated knowledge to a Solid pod:
+Write context-annotated knowledge to a Solid pod. The publish flow has three modes — plaintext, encrypted-to-own-agents, and cross-pod-shared — depending on which options you pass.
+
+#### 6a. Plaintext publish (simplest case)
 
 ```typescript
 import { publish, ContextDescriptor, toTurtle } from '@interego/core';
@@ -281,15 +283,110 @@ const desc = ContextDescriptor.create('urn:cg:obs-1')
 .selfAsserted('did:web:lrs.example.com')
 .build();
 
-const turtle = toTurtle(desc);
-
-await publish(
-  'http://localhost:3456/markj/',
+const result = await publish(
   desc,
   '<urn:graph:chen-training> { <urn:chen> <urn:completed> <urn:ils-approach>. }',
+  'http://localhost:3456/markj/',
   { fetch: authenticatedFetch }
 );
+
+console.log(result.descriptorUrl, result.graphUrl, result.encrypted); // false
 ```
+
+Writes the graph as TriG at `<slug>-graph.trig`. Plaintext metadata + plaintext graph; anyone reading the pod can read the content.
+
+#### 6b. End-to-end encrypted publish (recommended for private content)
+
+```typescript
+import {
+  publish,
+  generateKeyPair,
+  readAgentRegistry,
+} from '@interego/core';
+
+const myKeyPair = generateKeyPair(); // X25519 — persist this securely
+
+// Gather every authorized agent's key from the pod's registry —
+// everyone who's registered can decrypt anything written this way.
+const profile = await readAgentRegistry('http://localhost:3456/markj/', {
+  fetch: authenticatedFetch,
+});
+const recipients = (profile?.authorizedAgents ?? [])
+  .filter(a => !a.revoked && a.encryptionPublicKey)
+  .map(a => a.encryptionPublicKey!);
+if (!recipients.includes(myKeyPair.publicKey)) {
+  recipients.push(myKeyPair.publicKey);
+}
+
+const result = await publish(
+  desc,
+  '<urn:graph:chen-training> { <urn:chen> <urn:completed> <urn:ils-approach>. }',
+  'http://localhost:3456/markj/',
+  {
+    fetch: authenticatedFetch,
+    encrypt: { recipients, senderKeyPair: myKeyPair },
+  }
+);
+
+console.log(result.encrypted); // true
+console.log(result.graphUrl);  // .../<slug>-graph.envelope.jose.json
+```
+
+The graph is wrapped in an `X25519 + XSalsa20-Poly1305` envelope before PUT; each recipient's public key wraps the content key. The descriptor Turtle gains a `cg:affordance [ a dcat:Distribution, hydra:Operation, ... ]` block pointing at the envelope URL — clients follow this link; no filename convention required.
+
+The MCP `publish_context` tool handles all of this automatically — it auto-registers your agent on the pod if missing, reads the registry for every call, and defaults to encrypted-mode whenever any agent has a registered encryption key.
+
+#### 6c. Cross-pod selective sharing
+
+Include someone else's agents as recipients for a specific graph — they can decrypt *this* graph, no other graphs on your pod:
+
+```typescript
+import { publish, resolveRecipients } from '@interego/core';
+
+const shares = await resolveRecipients(
+  ['acct:bob@bobs-server.com', 'did:web:alice.example.com:users:alice'],
+  { fetch: authenticatedFetch },
+);
+
+const shareKeys = shares.flatMap(s => s.agentEncryptionKeys);
+
+const result = await publish(
+  desc,
+  graphTurtle,
+  'http://localhost:3456/markj/',
+  {
+    fetch: authenticatedFetch,
+    encrypt: {
+      recipients: [...myRecipients, ...shareKeys],
+      senderKeyPair: myKeyPair,
+    },
+  }
+);
+```
+
+WebFinger / DID-resolution happens under the hood; `resolveRecipient(handle)` also works for single-handle lookups. The MCP tool `publish_context` accepts `share_with: [...]` directly.
+
+#### 6d. Fetching + decrypting via hypermedia
+
+The library exports `parseDistributionFromDescriptorTurtle(turtle)` → `{ accessURL, mediaType, encrypted, encryptionAlgorithm }` and `fetchGraphContent(url, { recipientKeyPair })` → `{ content, encrypted, mediaType }`. Together:
+
+```typescript
+import {
+  parseDistributionFromDescriptorTurtle,
+  fetchGraphContent,
+} from '@interego/core';
+
+const descTurtle = await (await fetch(descriptorUrl)).text();
+const link = parseDistributionFromDescriptorTurtle(descTurtle);
+if (link) {
+  const { content, encrypted } = await fetchGraphContent(link.accessURL, {
+    recipientKeyPair: myKeyPair,
+  });
+  console.log(encrypted ? 'decrypted' : 'plaintext', content);
+}
+```
+
+No filename knowledge required. The descriptor tells the client where to fetch, what media type to expect, whether to decrypt, and what algorithm. See [`docs/e2ee.md`](e2ee.md) for the full architecture.
 
 ### 7. Discover Others
 
