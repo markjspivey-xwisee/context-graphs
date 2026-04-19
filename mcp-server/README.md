@@ -25,7 +25,7 @@ Edit `~/.claude.json` (or your project's `.claude/mcp.json`):
 ```jsonc
 {
   "mcpServers": {
-    "context-graphs": {
+    "interego": {
       "command": "npx",
       "args": ["-y", "@interego/mcp"]
     }
@@ -33,7 +33,7 @@ Edit `~/.claude.json` (or your project's `.claude/mcp.json`):
 }
 ```
 
-Restart Claude Code. The tools will appear under the `mcp__context-graphs__*` prefix.
+Restart Claude Code. The tools will appear under the `mcp__interego__*` prefix.
 
 ### Claude Desktop
 
@@ -42,7 +42,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 ```jsonc
 {
   "mcpServers": {
-    "context-graphs": {
+    "interego": {
       "command": "npx",
       "args": ["-y", "@interego/mcp"]
     }
@@ -57,7 +57,7 @@ Add to `.cursor/mcp.json` in your workspace:
 ```jsonc
 {
   "mcpServers": {
-    "context-graphs": {
+    "interego": {
       "command": "npx",
       "args": ["-y", "@interego/mcp"]
     }
@@ -72,7 +72,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 ```jsonc
 {
   "mcpServers": {
-    "context-graphs": {
+    "interego": {
       "command": "npx",
       "args": ["-y", "@interego/mcp"]
     }
@@ -87,12 +87,29 @@ Once configured, your AI agent has these 25 tools available:
 | Category | Tools |
 |---|---|
 | **Identity** | `setup_identity`, `link_wallet`, `register_agent`, `verify_agent`, `revoke_agent` |
-| **Publishing** | `publish_context`, `publish_directory` |
+| **Publishing** | `publish_context` (with optional `share_with`), `publish_directory` |
 | **Discovery** | `discover_context`, `discover_all`, `discover_directory`, `get_descriptor`, `resolve_webfinger`, `list_known_pods`, `get_pod_status` |
 | **Federation** | `add_pod`, `remove_pod`, `subscribe_to_pod`, `subscribe_all` |
 | **PGSL substrate** | `pgsl_ingest`, `pgsl_resolve`, `pgsl_lattice_status`, `pgsl_meet`, `pgsl_to_turtle` |
 | **Reasoning** | `analyze_question` |
 | **Wallet** | `check_balance` |
+
+### What `publish_context` actually does
+
+Not just a Solid PUT. Each call:
+
+1. **Encrypts the graph payload** as an X25519 envelope (`nacl.box` + XSalsa20-Poly1305). Every non-revoked `cg:AuthorizedAgent` on the target pod with a registered `cg:encryptionPublicKey` becomes a recipient — same content readable from every one of your surfaces (VS Code, Desktop, Mobile, claude.ai), unreadable by anyone else including the storage provider.
+2. **Auto-registers this agent** on the target pod if it isn't already, with its X25519 public key + a delegation credential. Per-surface identity (`claude-code:vscode` vs `claude-mobile:markj`) — each surface is a first-class recipient with its own DID.
+3. **Appends a hypermedia block** (`cg:affordance`) to the descriptor that is simultaneously `cg:Affordance` + `cgh:Affordance` + `hydra:Operation` + `dcat:Distribution`. Clients follow `hydra:target` / `dcat:accessURL` — no filename conventions, no Interego-specific contract. DCAT-aware catalogs can ingest the descriptor natively.
+4. **Pins the descriptor to IPFS** (Pinata) and writes an anchor receipt at `/anchors/<timestamp>.json` for content-addressed verification.
+
+### Cross-pod sharing (one graph, specific other people)
+
+`publish_context` accepts `share_with: ["did:web:...", "acct:bob@example.com", "https://bob.example.com/profile#me", ...]`. Each handle is resolved via DID resolution or WebFinger (RFC 7033) to the other person's pod; their authorized agents' encryption keys are pulled and added as recipients on *that one graph's* envelope. No pod-level ACL change; your other graphs stay encrypted only to your own agents.
+
+### `get_descriptor` follows hypermedia links
+
+When you pass a descriptor `.ttl` URL, `get_descriptor` parses the `cg:affordance` block, follows the `dcat:accessURL` to the envelope, decrypts using this agent's X25519 key, and returns **both** the descriptor metadata and the decrypted payload in one response. No separate fetch step.
 
 ## Example prompts
 
@@ -147,6 +164,22 @@ npm install   # picks up the rest of the deps
 npm run build
 node dist/server.js
 ```
+
+## Remote MCP for mobile / claude.ai
+
+The stdio server in this package is for desktop clients that can spawn a subprocess. For **claude.ai mobile / web custom connectors** (which speak MCP over HTTPS and require OAuth), use the cloud-hosted `interego-relay` instead.
+
+- **Connector URL:** your deployment's relay, e.g. `https://interego-relay.<your-env>.azurecontainerapps.io/mcp`
+- **Authentication:** OAuth 2.1 + PKCE + Dynamic Client Registration. The relay's `/authorize` page offers three passwordless sign-in methods: **passkey** (WebAuthn), **Ethereum wallet** (SIWE), and **did:key** (Ed25519 signature). No shared secrets anywhere.
+- **Per-surface agent:** each OAuth-connected surface auto-registers on the user's pod as its own `cg:AuthorizedAgent` with its own X25519 key — mobile doesn't piggyback on desktop's delegation.
+
+See [`deploy/mcp-relay/`](../deploy/mcp-relay/) in the parent repo for deployment; [`deploy/identity/AUTH-ARCHITECTURE.md`](../deploy/identity/AUTH-ARCHITECTURE.md) for the full auth flow.
+
+## Documentation
+
+- **Architecture:** [`docs/e2ee.md`](../docs/e2ee.md) — envelope format, recipient sets, hypermedia link pattern, key lifecycle.
+- **Ontology:** [`docs/ns/README.md`](../docs/ns/README.md) — 12 ontologies, 607 defined terms, CI-gated consistency.
+- **Auth:** [`deploy/identity/AUTH-ARCHITECTURE.md`](../deploy/identity/AUTH-ARCHITECTURE.md) — SIWE / WebAuthn / did:key flows, DID as canonical identity.
 
 ## License
 
