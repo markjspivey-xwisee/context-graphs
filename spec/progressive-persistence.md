@@ -1,10 +1,10 @@
 # Interego 1.0: Progressive Persistence Tier System
 
-**W3C Community Group Draft Specification Addendum**
+**Draft Specification Addendum**
 
 **Latest version:** This document
 
-**Editors:** Interego Community Group
+**Editors:** Interego
 
 **Abstract:** This document specifies the progressive persistence tier system
 for Interego 1.0. Content-addressed PGSL nodes may reside at one or more
@@ -13,8 +13,7 @@ proof of existence. The URI of a node is derived from its content hash and is
 invariant across tiers. What changes between tiers: availability, durability,
 resolution requirements, and trust proof strength.
 
-**Status:** Draft. This specification addendum is intended for discussion within
-the W3C Interego Community Group.
+**Status:** Draft.
 
 ---
 

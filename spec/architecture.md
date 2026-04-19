@@ -1,6 +1,6 @@
 # Interego 1.0 --- System Architecture
 
-**W3C Community Group Draft Specification**
+**Draft Specification**
 
 **Latest version:** This document
 
@@ -12,8 +12,7 @@ over RDF 1.2 Named Graphs. It describes the complete system as implemented in
 the `@interego/core` reference implementation: a zero-dependency
 TypeScript library (ESM, Node 20+) totaling 22,636 lines across 66 modules.
 
-**Status:** Draft. Intended for discussion within the W3C Interego
-Community Group.
+**Status:** Draft.
 
 ---
 
@@ -1474,7 +1473,7 @@ specification:
 
 ## References
 
-- **[CG-CORE]** Interego 1.0 Core Specification. W3C Community Group Draft.
+- **[CG-CORE]** Interego 1.0 Core Specification. Draft.
 - **[CG-PARADIGM]** Interego 1.0: Paradigm Constraints, Emergent Semantics, and Coherence Verification.
 - **[CG-PERSIST]** Interego 1.0: Progressive Persistence Tier System.
 - **[PGSL]** PGSL: Content-Addressed Lattice for Structured Knowledge.
