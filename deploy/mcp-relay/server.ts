@@ -426,7 +426,29 @@ async function handleGetDescriptor(args: ToolArgs): Promise<string> {
   if (!resp.ok) {
     return JSON.stringify({ error: `${resp.status} ${resp.statusText}` });
   }
-  return JSON.stringify({ url, turtle: await resp.text() });
+  const turtle = await resp.text();
+
+  // Convenience: when the descriptor URL is requested, also fetch + decrypt
+  // the companion graph envelope and include both in the response. Avoids
+  // making callers hunt for the graph URL separately and remember that the
+  // payload is in a different file. Silently skips when no companion or when
+  // the relay isn't a recipient — descriptor alone is still returned.
+  let graph: { url: string; encrypted: boolean; content: string | null } | undefined;
+  if (url.endsWith('.ttl')) {
+    const envelopeUrl = url.replace(/\.ttl$/, '-graph.envelope.jose.json');
+    try {
+      const probe = await solidFetch(envelopeUrl, { method: 'GET' });
+      if (probe.ok) {
+        const { content, encrypted } = await fetchGraphContent(envelopeUrl, {
+          fetch: solidFetch,
+          recipientKeyPair: relayAgentKey,
+        });
+        graph = { url: envelopeUrl, encrypted, content };
+      }
+    } catch { /* companion missing or unreadable — return descriptor only */ }
+  }
+
+  return JSON.stringify({ url, turtle, ...(graph ? { graph } : {}) });
 }
 
 async function handleGetPodStatus(args: ToolArgs): Promise<string> {

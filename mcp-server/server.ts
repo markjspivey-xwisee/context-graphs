@@ -672,7 +672,30 @@ async function toolGetDescriptor(args: { url: string }): Promise<string> {
     return `Failed to fetch ${args.url}: ${resp.status} ${resp.statusText}`;
   }
   const turtle = await resp.text();
-  return `Descriptor at ${args.url} (${turtle.length} bytes):\n\n${turtle}`;
+
+  // Convenience: if the caller passed a descriptor .ttl URL, also try to
+  // fetch + decrypt the companion graph envelope so a single call returns
+  // both the descriptor metadata and the decrypted payload.
+  let graphBlock = '';
+  if (args.url.endsWith('.ttl')) {
+    const envelopeUrl = args.url.replace(/\.ttl$/, '-graph.envelope.jose.json');
+    try {
+      const probe = await fetch(envelopeUrl, { method: 'HEAD' });
+      if (probe.ok) {
+        const { content, encrypted } = await fetchGraphContent(envelopeUrl, {
+          fetch: solidFetch,
+          recipientKeyPair: agentKeyPair,
+        });
+        if (content !== null) {
+          graphBlock = `\n\n── Graph payload (${encrypted ? 'decrypted envelope' : 'plaintext'}, ${content.length} bytes) ──\n${envelopeUrl}\n\n${content}`;
+        } else if (encrypted) {
+          graphBlock = `\n\n── Graph payload at ${envelopeUrl}: encrypted, this agent is not a recipient ──`;
+        }
+      }
+    } catch { /* companion missing — return descriptor alone */ }
+  }
+
+  return `Descriptor at ${args.url} (${turtle.length} bytes):\n\n${turtle}${graphBlock}`;
 }
 
 async function toolGetPodStatus(args: { pod_url?: string }): Promise<string> {
