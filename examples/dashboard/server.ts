@@ -380,6 +380,29 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
+  // API: find the pgsl-stats.json file across any known pod and return
+  // its parsed JSON (or null). Moves the polling fanout here so the
+  // browser makes one request per tick instead of N, and so transient
+  // 404s for pods without PGSL content don't spam the devtools console.
+  if (url === '/api/pgsl-stats' && method === 'GET') {
+    for (const podUrl of pods.keys()) {
+      try {
+        const resp = await fetch(`${podUrl}pgsl-stats.json`);
+        if (!resp.ok) continue;
+        const body = await resp.text();
+        try {
+          const data = JSON.parse(body);
+          if (data && data.totalNodes !== undefined) {
+            json(res, { pod: podUrl, stats: data });
+            return;
+          }
+        } catch { /* non-JSON — skip */ }
+      } catch { /* network error — skip */ }
+    }
+    json(res, { pod: null, stats: null });
+    return;
+  }
+
   // API: fetch a specific resource from the CSS (proxy)
   if (url.startsWith('/api/resource/') && method === 'GET') {
     const resourcePath = decodeURIComponent(url.slice('/api/resource/'.length));
