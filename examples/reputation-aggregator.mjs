@@ -104,13 +104,38 @@ const manifestTtl = await fetchText(MANIFEST_URL);
 const entries = parseManifestEntries(manifestTtl);
 console.log(`Walking ${entries.length} manifest entries...\n`);
 
+// Parallel fetch with bounded concurrency — the old sequential loop
+// scaled O(N) × per-request latency and hit the 60s ceiling at ~90
+// descriptors. Pool of 16 in-flight is CSS-gentle and tractable.
+async function fetchInPool(urls, poolSize, timeoutMs) {
+  const out = new Array(urls.length);
+  let next = 0;
+  async function worker() {
+    for (;;) {
+      const i = next++;
+      if (i >= urls.length) return;
+      out[i] = await fetchText(urls[i], timeoutMs);
+    }
+  }
+  await Promise.all(Array.from({ length: poolSize }, worker));
+  return out;
+}
+
+const ttls = await fetchInPool(entries.map(e => e.descriptorUrl), 16, 5000);
 const allDescs = [];
 const shapeCache = new Map();
-for (const e of entries) {
-  const t = await fetchText(e.descriptorUrl, 5000);
+for (let i = 0; i < entries.length; i++) {
+  const t = ttls[i];
   if (!t) continue;
-  const d = { ...e, ...parseDescriptor(t) };
-  allDescs.push(d);
+  allDescs.push({ ...entries[i], ...parseDescriptor(t) });
+}
+
+// Pre-fetch every distinct conformsTo shape in parallel so the
+// per-issuer loop below is pure local work.
+const distinctSchemas = [...new Set(allDescs.flatMap(d => d.conformsTo))];
+const shapeTtls = await fetchInPool(distinctSchemas, 8, 4000);
+for (let i = 0; i < distinctSchemas.length; i++) {
+  shapeCache.set(distinctSchemas[i], shapeTtls[i] ? parseShape(shapeTtls[i]) : null);
 }
 
 // ── Compute per-issuer metrics ──────────────────────────────
@@ -132,14 +157,10 @@ for (const [issuer, claims] of byIssuer.entries()) {
 
   const schemas = new Set(claims.flatMap(c => c.conformsTo));
 
-  // Compute shape-violation rate across all claims whose schemas we can resolve.
+  // Shape-violation rate using the pre-fetched shape cache (no HTTP here).
   let checked = 0, violators = 0;
   for (const c of claims) {
     for (const s of c.conformsTo) {
-      if (!shapeCache.has(s)) {
-        const t = await fetchText(s, 4000);
-        shapeCache.set(s, t ? parseShape(t) : null);
-      }
       const sh = shapeCache.get(s);
       if (!sh) continue;
       checked++;
@@ -180,8 +201,16 @@ for (const r of reputations) {
 console.log('');
 
 // ── Publish each reputation as an ERC-8004 attestation ─────
+//
+// Batching strategy: PUT all attestation bodies in parallel, then
+// build ONE manifest-append block and PUT the manifest once. The
+// old code did fetch+PUT of the full manifest per attestation,
+// which is O(N²) in manifest size. 12 attestations with a 100-entry
+// manifest ≈ 12 × (fetch 50KB + PUT 50KB) = ~60s just for manifest.
 
 const ts = Date.now();
+const attestJobs = [];
+let combinedManifestEntries = '';
 for (const r of reputations) {
   const id = `urn:cg:attest:${ts}-${r.issuer.split(':').pop().slice(0, 24)}`;
   const graphIri = `urn:graph:attest:${encodeURIComponent(r.issuer)}:${ts}`;
@@ -246,11 +275,9 @@ ${derivedLines}
     ] .
 `;
 
-  const ok = await putText(url, ttl);
-  console.log(`   ${ok ? '✓' : '✗'} attest → ${url.split('/').pop()}`);
+  attestJobs.push({ url, ttl, slug: url.split('/').pop() });
 
-  // Append manifest entry.
-  const entry = `
+  combinedManifestEntries += `
 
 <${url}> a cg:ManifestEntry ;
     cg:describes <${graphIri}> ;
@@ -260,9 +287,17 @@ ${derivedLines}
     cg:modalStatus cg:Asserted ;
     cg:trustLevel cg:SelfAsserted .
 `;
-  const cur = await fetchText(MANIFEST_URL);
-  await putText(MANIFEST_URL, (cur ?? '') + entry);
 }
+
+// Batch-PUT all attestations in parallel.
+const results = await Promise.all(
+  attestJobs.map(j => putText(j.url, j.ttl).then(ok => ({ ok, slug: j.slug })))
+);
+for (const r of results) console.log(`   ${r.ok ? '✓' : '✗'} attest → ${r.slug}`);
+
+// ONE manifest fetch + PUT for all entries.
+const currentManifest = await fetchText(MANIFEST_URL);
+await putText(MANIFEST_URL, (currentManifest ?? '') + combinedManifestEntries);
 
 console.log('');
 console.log(`── Published ${reputations.length} ERC-8004 T0 attestations.`);

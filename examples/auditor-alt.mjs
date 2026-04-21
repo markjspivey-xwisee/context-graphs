@@ -52,20 +52,22 @@ async function auditStrict(target) {
   const checks = {};
   let score = 0, weights = 0;
 
+  // Fetch all wasDerivedFrom evidence ONCE, in parallel, and reuse.
+  // The previous code double-fetched each citation (one for phantom
+  // check, one for COI) sequentially → N×2 round-trips.
+  const evidenceTtls = await Promise.all(
+    target.wasDerivedFrom.map(ev => fetchText(ev, 4000))
+  );
+
   // Phantom-evidence (weight 0.4; hard-fail on any broken citation)
-  let broken = 0;
-  for (const ev of target.wasDerivedFrom) {
-    const t = await fetchText(ev, 4000);
-    if (!t) broken++;
-  }
+  const broken = evidenceTtls.filter(t => !t).length;
   checks.phantomEvidence = broken === 0 ? 'pass' : `fail: ${broken}/${target.wasDerivedFrom.length} broken`;
   score += (broken === 0 ? 1 : 0) * 0.4;
   weights += 0.4;
 
   // Conflict of interest (weight 0.3; FAIL if overlap, not just flag)
   const evidenceIssuers = new Set();
-  for (const ev of target.wasDerivedFrom) {
-    const t = await fetchText(ev, 4000);
+  for (const t of evidenceTtls) {
     if (t) { const p = parseDescriptor(t); if (p.issuer) evidenceIssuers.add(p.issuer); }
   }
   const hasCOI = evidenceIssuers.has(target.issuer);
@@ -115,9 +117,15 @@ const entries = parseManifestEntries(manifestTtl);
 const auditEntries = entries.filter(e => e.conformsTo.includes(AUDIT_SHAPE));
 console.log(`Found ${auditEntries.length} audit descriptors to re-audit (strict).\n`);
 
+// Pre-fetch all audit target Turtles in parallel.
+const targetTtls = await Promise.all(
+  auditEntries.map(e => fetchText(e.descriptorUrl, 5000))
+);
+
 const reports = [];
-for (const e of auditEntries) {
-  const ttl = await fetchText(e.descriptorUrl);
+for (let i = 0; i < auditEntries.length; i++) {
+  const e = auditEntries[i];
+  const ttl = targetTtls[i];
   if (!ttl) continue;
   const target = parseDescriptor(ttl);
   const { checks, score } = await auditStrict(target);
