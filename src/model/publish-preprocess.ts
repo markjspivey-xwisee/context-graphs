@@ -70,10 +70,15 @@ export function normalizePublishInputs(inputs: PublishInputs): PreprocessedPubli
   // else Hypothetical — leave undefined (three-valued)
 
   const graphContent = inputs.graphContent ?? '';
-  const revokedIf = extractRevocationConditions(graphContent);
-  const wasDerivedFrom = extractIRIList(graphContent, 'prov:wasDerivedFrom');
-  const supersedes = extractIRIList(graphContent, 'cg:supersedes');
-  const conformsTo = extractIRIList(graphContent, 'dct:conformsTo');
+  // Strip Turtle string literals + comments so IRIs mentioned inside a
+  // quoted SPARQL query (e.g. the successorQuery of a revokedIf block)
+  // do not get mis-lifted as top-level descriptor facts. Surfaced by
+  // the 2026-04-21 scientific-debate stress test.
+  const cleaned = stripStringsAndComments(graphContent);
+  const revokedIf = extractRevocationConditions(graphContent, cleaned);
+  const wasDerivedFrom = extractIRIList(cleaned, 'prov:wasDerivedFrom');
+  const supersedes = extractIRIList(cleaned, 'cg:supersedes');
+  const conformsTo = extractIRIList(cleaned, 'dct:conformsTo');
 
   const semiotic: PreprocessedPublish['semiotic'] = groundTruth === undefined
     ? (revokedIf.length > 0
@@ -88,16 +93,28 @@ export function normalizePublishInputs(inputs: PublishInputs): PreprocessedPubli
 
 /**
  * Extract cg:revokedIf / cg:revokedBy RevocationCondition blocks from
- * caller-supplied Turtle graph content. Regex-based rather than
- * full-parser; the shape coverage is small and conformance fixtures
- * pin the expected format.
+ * caller-supplied Turtle graph content.
+ *
+ * Two-pass design: find block boundaries in the *cleaned* turtle (so a
+ * `cg:revokedIf` string literal can't masquerade as a block opener and
+ * brackets inside strings don't confuse the matcher), then extract the
+ * *raw* body between those brackets because the successorQuery body
+ * legitimately lives inside a `"""..."""` literal that the cleaned pass
+ * would have blanked out.
  */
-export function extractRevocationConditions(turtle: string): RevocationConditionData[] {
+export function extractRevocationConditions(
+  turtle: string,
+  cleaned?: string,
+): RevocationConditionData[] {
   const results: RevocationConditionData[] = [];
-  const blockRe = /cg:(?:revokedIf|revokedBy)\s*\[([^\]]*)\]/g;
+  const clean = cleaned ?? stripStringsAndComments(turtle);
+  const headRe = /cg:(?:revokedIf|revokedBy)\s*\[/g;
   let m: RegExpExecArray | null;
-  while ((m = blockRe.exec(turtle)) !== null) {
-    const body = m[1] ?? '';
+  while ((m = headRe.exec(clean)) !== null) {
+    const openIdx = m.index + m[0].length - 1; // index of '['
+    const closeIdx = findMatchingBracket(clean, openIdx);
+    if (closeIdx < 0) continue;
+    const body = turtle.slice(openIdx + 1, closeIdx);
     const qMatch = body.match(/cg:successorQuery\s+"""([\s\S]*?)"""/)
       ?? body.match(/cg:successorQuery\s+"([^"]*)"/);
     if (!qMatch?.[1]) continue;
@@ -126,6 +143,10 @@ export function extractRevocationConditions(turtle: string): RevocationCondition
  * predicate matches the qualified name. Used for predicates that take
  * an IRI value and can legitimately repeat (prov:wasDerivedFrom,
  * cg:supersedes, dct:conformsTo). De-duplicated.
+ *
+ * Callers MUST pass turtle that has already had string literals and
+ * comments blanked via `stripStringsAndComments` so IRIs inside quoted
+ * SPARQL queries are not spuriously lifted.
  */
 function extractIRIList(turtle: string, predicate: string): IRI[] {
   const escaped = predicate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -136,4 +157,94 @@ function extractIRIList(turtle: string, predicate: string): IRI[] {
     if (m[1]) seen.add(m[1]);
   }
   return [...seen].map(s => s as IRI);
+}
+
+/**
+ * Blank out Turtle string literals (`"..."`, `'...'`, `"""..."""`,
+ * `'''...'''`) and `#` line comments, preserving the rest of the input
+ * character-for-character. Returns a string of identical length — so
+ * indices into the cleaned version are valid indices into the raw
+ * version.
+ *
+ * Zero-dep: no parser. The goal is narrow: let extractor regexes see
+ * through non-descriptive text so IRIs inside SPARQL ASK queries or
+ * comments don't get treated as first-class cross-descriptor links.
+ *
+ * Exported so it can be pinned by the conformance suite.
+ */
+export function stripStringsAndComments(turtle: string): string {
+  const n = turtle.length;
+  const out: string[] = [];
+  let i = 0;
+  while (i < n) {
+    const c = turtle[i];
+    // Comment: # to end-of-line. Inside an IRI `<...>` a literal `#`
+    // is legal (fragment). We avoid that by handling `<...>` first.
+    if (c === '#') {
+      out.push(' ');
+      i++;
+      while (i < n && turtle[i] !== '\n') { out.push(' '); i++; }
+      continue;
+    }
+    // IRI `<...>` — pass through. Never contains line breaks.
+    if (c === '<') {
+      out.push('<');
+      i++;
+      while (i < n && turtle[i] !== '>' && turtle[i] !== '\n') {
+        out.push(turtle[i]!);
+        i++;
+      }
+      if (i < n && turtle[i] === '>') { out.push('>'); i++; }
+      continue;
+    }
+    // Triple-quoted string: `"""..."""` or `'''...'''`
+    if ((c === '"' || c === "'")
+        && turtle[i + 1] === c
+        && turtle[i + 2] === c) {
+      out.push(c, c, c);
+      i += 3;
+      while (i < n && !(turtle[i] === c && turtle[i + 1] === c && turtle[i + 2] === c)) {
+        // Preserve newlines so downstream line-based diagnostics still
+        // line up with the raw input.
+        out.push(turtle[i] === '\n' ? '\n' : ' ');
+        i++;
+      }
+      if (i + 2 < n) { out.push(c, c, c); i += 3; }
+      continue;
+    }
+    // Single-quoted string: `"..."` or `'...'`. Turtle forbids raw
+    // newlines inside single-quoted strings; we terminate on EOL too
+    // to keep a malformed input from swallowing the rest of the file.
+    if (c === '"' || c === "'") {
+      const q = c;
+      out.push(q);
+      i++;
+      while (i < n && turtle[i] !== q && turtle[i] !== '\n') {
+        if (turtle[i] === '\\' && i + 1 < n) {
+          out.push(' ', ' ');
+          i += 2;
+        } else {
+          out.push(' ');
+          i++;
+        }
+      }
+      if (i < n) { out.push(turtle[i]!); i++; }
+      continue;
+    }
+    out.push(c!);
+    i++;
+  }
+  return out.join('');
+}
+
+/** Given `[` at openIdx, return index of matching `]`, or -1. */
+function findMatchingBracket(s: string, openIdx: number): number {
+  let depth = 1;
+  let i = openIdx + 1;
+  while (i < s.length && depth > 0) {
+    if (s[i] === '[') depth++;
+    else if (s[i] === ']') { depth--; if (depth === 0) return i; }
+    i++;
+  }
+  return -1;
 }
