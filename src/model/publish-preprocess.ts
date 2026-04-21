@@ -140,21 +140,35 @@ export function extractRevocationConditions(
 
 /**
  * Extract every `<predicate> <iri>` object from Turtle content where
- * predicate matches the qualified name. Used for predicates that take
- * an IRI value and can legitimately repeat (prov:wasDerivedFrom,
- * cg:supersedes, dct:conformsTo). De-duplicated.
+ * predicate matches the qualified name. Handles Turtle's object-list
+ * shorthand — `predicate <a> , <b> , <c>` produces three IRIs, not
+ * one. Used for predicates that take an IRI value and can legitimately
+ * repeat (prov:wasDerivedFrom, cg:supersedes, dct:conformsTo).
+ * De-duplicated.
  *
  * Callers MUST pass turtle that has already had string literals and
  * comments blanked via `stripStringsAndComments` so IRIs inside quoted
- * SPARQL queries are not spuriously lifted.
+ * SPARQL queries are not spuriously lifted. Surfaced 2026-04-21 by
+ * the emergent-semiotics demo where a synthesis descriptor's
+ * `prov:wasDerivedFrom <a>, <b>, <c>` only lifted the first IRI.
  */
 function extractIRIList(turtle: string, predicate: string): IRI[] {
   const escaped = predicate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`${escaped}\\s+<([^>]+)>`, 'g');
+  // Match the predicate followed by an object list:
+  //   <iri>  |  <iri> , <iri>  |  <iri> , <iri> , <iri>  ...
+  // Whitespace around commas is permitted (incl. newlines, since
+  // strippingStringsAndComments preserves newline structure).
+  const re = new RegExp(`${escaped}\\s+(<[^>]+>(?:\\s*,\\s*<[^>]+>)*)`, 'g');
+  const iriRe = /<([^>]+)>/g;
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = re.exec(turtle)) !== null) {
-    if (m[1]) seen.add(m[1]);
+    const list = m[1] ?? '';
+    iriRe.lastIndex = 0;
+    let im: RegExpExecArray | null;
+    while ((im = iriRe.exec(list)) !== null) {
+      if (im[1]) seen.add(im[1]);
+    }
   }
   return [...seen].map(s => s as IRI);
 }

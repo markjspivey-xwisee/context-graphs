@@ -137,6 +137,47 @@ describe('normalizePublishInputs — cleartext mirror', () => {
     });
     expect(result.supersedes).toEqual(['urn:old']);
   });
+
+  it('handles Turtle object-list shorthand: predicate <a>, <b>, <c>', () => {
+    // Surfaced 2026-04-21 by the emergent-semiotics demo: a synthesis
+    // descriptor cited three contributors via `prov:wasDerivedFrom <a>,
+    // <b>, <c>` and only the first IRI was lifted.
+    const result = normalizePublishInputs({
+      graphContent: `
+        @prefix prov: <http://www.w3.org/ns/prov#> .
+        <urn:synthesis> prov:wasDerivedFrom
+          <urn:contributor:a> ,
+          <urn:contributor:b> ,
+          <urn:contributor:c> .
+      `,
+    });
+    expect(result.wasDerivedFrom).toContain('urn:contributor:a');
+    expect(result.wasDerivedFrom).toContain('urn:contributor:b');
+    expect(result.wasDerivedFrom).toContain('urn:contributor:c');
+    expect(result.wasDerivedFrom.length).toBe(3);
+  });
+
+  it('object-list still respects string-literal boundaries', () => {
+    // Combined regression: object-list extraction must not be tricked
+    // into matching commas inside SPARQL strings either.
+    const result = normalizePublishInputs({
+      graphContent: `
+        @prefix cg: <https://markjspivey-xwisee.github.io/interego/ns/cg#> .
+        @prefix prov: <http://www.w3.org/ns/prov#> .
+        <urn:synthesis> prov:wasDerivedFrom <urn:real:a> , <urn:real:b> ;
+          cg:revokedIf [
+            cg:successorQuery """
+              SELECT * WHERE {
+                ?d prov:wasDerivedFrom <urn:fake:x> , <urn:fake:y> .
+              }
+            """ ;
+            cg:evaluationScope cg:LocalPod ;
+            cg:onRevocation cg:MarkInvalid
+          ] .
+      `,
+    });
+    expect(result.wasDerivedFrom).toEqual(['urn:real:a', 'urn:real:b']);
+  });
 });
 
 describe('extractRevocationConditions — bracket matching', () => {
