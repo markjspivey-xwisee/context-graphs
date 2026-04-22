@@ -149,6 +149,32 @@ An inventory of the primary artifacts and their layers, for review and gradual c
 
 Gradual migration is acceptable. New work MUST be layer-tagged from the start.
 
+### 6.1 Derivation discipline (additive)
+
+Layer discipline says "don't bundle layers." Derivation discipline
+(see [`DERIVATION.md`](DERIVATION.md)) says "every non-primitive
+term at L2/L3 MUST be grounded in L1."
+
+Grounding means one of:
+  (a) `owl:equivalentClass <L1-or-W3C-term>`
+  (b) `rdfs:subClassOf <L1-or-W3C-term-or-same-file-grounded-class>`
+  (c) `cg:constructedFrom (<primitive> ...)` with a corresponding
+      runtime constructor in the reference implementation
+  (d) Explicit primitive marker (`rdfs:comment` contains "primitive")
+
+`tools/derivation-lint.mjs` enforces (a)-(d) across every L2/L3
+`.ttl`. CI blocks on ungrounded classes. Current status: **41/41
+classes grounded**.
+
+Why: the whole point of L1 being the normative protocol is that
+higher constructs EMERGE from it via composition. A
+`sat:SemiosisEndofunctor` or `amta:Reputation` that's introduced
+as a novel primitive at L2/L3 is a covert L1 extension. Grounding
+requires you to show your work: either the term specializes an L1
+type (a/b), or it's constructible at runtime from L1 primitives
+(c, with an actual function in `src/model/derivation.ts`), or
+you've declared it primitive (d) and taken responsibility for why.
+
 ---
 
 ## 7. Why this matters

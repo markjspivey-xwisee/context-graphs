@@ -100,8 +100,9 @@ hyprcat:Mesh a owl:Class ;
 # ── Three-world federation boundary ───────────────────────────
 
 hyprcat:World a owl:Class ;
+    rdfs:subClassOf cg:FederationFacet ;
     rdfs:label "World" ;
-    rdfs:comment "A federation boundary that grounds trust and access decisions. HyprCat defines three canonical worlds — User, Agent, Service — to distinguish human-first contexts from autonomous-agent contexts from shared-service contexts. Individual resources declare their world via hyprcat:world; cross-world access triggers explicit policy." ;
+    rdfs:comment "A federation boundary that grounds trust and access decisions. HyprCat defines three canonical worlds — User, Agent, Service — to distinguish human-first contexts from autonomous-agent contexts from shared-service contexts. A specialization of cg:FederationFacet carrying a world tag; individual resources declare their world via hyprcat:world, and cross-world access triggers explicit policy." ;
     skos:note "Inspired by Popper's three worlds (physical, mental, objective knowledge) but grounded in concrete participation: who ultimately is responsible for this resource?" .
 
 hyprcat:UserWorld a hyprcat:World ;

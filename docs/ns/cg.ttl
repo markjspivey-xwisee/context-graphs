@@ -192,6 +192,11 @@ cg:supersedes a owl:ObjectProperty ;
     rdfs:range cg:ContextDescriptor ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
 
+cg:constructedFrom a owl:ObjectProperty ;
+    rdfs:label "constructed from" ;
+    rdfs:comment "Derivation-discipline predicate (spec/DERIVATION.md). Declares that the subject class / property is constructed at runtime from the named L1 primitives. Objects are typically an rdf:List of one or more L1 class or property IRIs. Used by tools/derivation-lint.mjs to verify every L2/L3 term is grounded in the L1 substrate." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
 # ── Temporal properties ───────────────────────────────────────
 
 cg:validFrom a owl:DatatypeProperty ;

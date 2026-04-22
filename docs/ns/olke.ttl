@@ -46,7 +46,8 @@
 
 olke:KnowledgeStage a owl:Class ;
     rdfs:label "Knowledge Stage" ;
-    rdfs:comment "Abstract parent of the four canonical OLKE stages (Tacit / Articulate / Collective / Institutional)." .
+    rdfs:comment "Abstract parent of the four canonical OLKE stages. A stage is a classification on cg:ContextDescriptor (carried via olke:stage); knowledge stages are epistemic lenses over descriptors." ;
+    rdfs:subClassOf cg:SemioticFacet .
 
 olke:Tacit a olke:KnowledgeStage ;
     rdfs:label "Tacit" ;
@@ -66,7 +67,8 @@ olke:Institutional a olke:KnowledgeStage ;
 
 olke:Transition a owl:Class ;
     rdfs:label "Knowledge Transition" ;
-    rdfs:comment "A recorded transition of a cg:ContextDescriptor from one olke:KnowledgeStage to another. Timestamped; carries provenance to the agent that promoted it." .
+    rdfs:comment "A recorded transition of a cg:ContextDescriptor from one olke:KnowledgeStage to another. Realized as a cg:ContextDescriptor with cg:supersedes pointing at the prior stage's descriptor, and PROV attribution to the promoting agent." ;
+    rdfs:subClassOf cg:ProvenanceFacet .
 
 olke:stage a owl:ObjectProperty ;
     rdfs:label "stage" ;

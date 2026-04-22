@@ -50,37 +50,43 @@
 
 sat:Situation a owl:Class ;
     rdfs:label "Situation" ;
-    rdfs:comment "A context in which meaning-making occurs. Inputs to Σ; each situation has a Semiotic Field of possible interpretations, actions, and meaning assignments." .
+    rdfs:comment "A context in which meaning-making occurs. Inputs to Σ; each situation has a Semiotic Field of possible interpretations, actions, and meaning assignments." ;
+    rdfs:subClassOf cg:ContextDescriptor .
 
 sat:SemioticField a owl:Class ;
     rdfs:label "Semiotic Field" ;
-    rdfs:comment "The output of Σ(situation) — the space of meaning-making possibilities available in a given context. Each action an agent takes is a choice from this space." .
+    rdfs:comment "The output of Σ(situation) — the space of meaning-making possibilities available in a given context." ;
+    rdfs:subClassOf cg:SemioticFacet .
 
 sat:SemioticFieldFunctor a owl:Class ;
     rdfs:label "Semiotic Field Functor" ;
     rdfs:comment "The functor Σ : Situations → SemioticFields that defines the semiotic topos. Projection of Σ onto a specific graph yields a cg:SemioticFacet." ;
-    skos:closeMatch cg:SemioticFacet .
+    owl:equivalentClass cg:SemioticFacet .
 
 sat:Interpretant a owl:Class ;
     rdfs:label "Interpretant" ;
-    rdfs:comment "Peircean interpretant — the agent's instantiated meaning-assignment in a given situation. Morphism from sign to object (via interpretant) forms the triadic sign relation." .
+    rdfs:comment "Peircean interpretant — the agent's instantiated meaning-assignment. Every cg:SemioticFacet IS an interpretant (the facet carries the modal status + confidence that realize the interpretant for a specific sign)." ;
+    rdfs:subClassOf cg:SemioticFacet .
 
 sat:Sign a owl:Class ;
     rdfs:label "Sign" ;
-    rdfs:comment "Peircean representamen — the signal that gets interpreted. Maps to pgsl:sign at the substrate layer." ;
+    rdfs:comment "Peircean representamen — the signal that gets interpreted. Every cg:ContextDescriptor IS a sign (graph = representamen, object = referent, facets = interpretant)." ;
+    rdfs:subClassOf cg:ContextDescriptor ;
     rdfs:seeAlso pgsl:sign .
 
 sat:Object a owl:Class ;
     rdfs:label "Semiotic Object" ;
-    rdfs:comment "The thing the sign is about. In a context graph this is typically the named-graph IRI (cg:describes target)." .
+    rdfs:comment "The thing the sign is about — external referent. Primitive (external to the category of cg: descriptors); in a context graph this is typically the named-graph IRI (cg:describes target)." .
 
 sat:Semiosis a owl:Class ;
     rdfs:label "Semiosis" ;
-    rdfs:comment "The process of interpretation itself — endofunctor iterating triadic sign relations until a stable interpretant emerges. At limits, yields stable meanings; away from limits, yields open / contested semiosis." .
+    rdfs:comment "The process of interpretation itself — endofunctor iterating triadic sign relations until a stable interpretant emerges. Constructed by iterating sat:SemioticFieldFunctor over sat:Interpretant." ;
+    cg:constructedFrom ( sat:SemioticFieldFunctor sat:Interpretant ) .
 
 sat:EmergentMeaning a owl:Class ;
     rdfs:label "Emergent Meaning" ;
-    rdfs:comment "Meaning arising from multi-agent semiosis that is not reducible to any single agent's interpretant. Computed as the sheafification of interpretant assignments across a sheaf over situations." .
+    rdfs:comment "Meaning arising from multi-agent semiosis; sheafification of interpretant assignments. Constructed from a set of sat:Interpretant over a sat:SemioticField via categorical colimit." ;
+    cg:constructedFrom ( sat:Interpretant sat:SemioticField ) .
 
 sat:appliesTo a owl:ObjectProperty ;
     rdfs:label "applies to" ;

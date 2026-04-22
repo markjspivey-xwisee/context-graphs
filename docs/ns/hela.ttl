@@ -58,19 +58,22 @@ hela:Actor a owl:Class ;
 
 hela:Verb a owl:Class ;
     rdfs:label "HELA Verb" ;
-    rdfs:comment "The action type in an xAPI statement (experienced, completed, attempted, passed). Verbs form a partially ordered set used as morphisms between statements." .
+    rdfs:comment "The action type in an xAPI statement (experienced, completed, attempted, passed). Primitive; serves as morphism-label between hela:Statement objects." .
 
 hela:LearningObject a owl:Class ;
     rdfs:label "HELA Learning Object" ;
-    rdfs:comment "The object of an xAPI statement — what the actor experienced / did. Typed as a sub-presheaf so aggregation (e.g. 'all of course C') is categorical." .
+    rdfs:comment "The object of an xAPI statement — what the actor experienced / did. As a sub-presheaf of hela:Trace." ;
+    rdfs:subClassOf cg:ContextDescriptor .
 
 hela:Trace a owl:Class ;
     rdfs:label "HELA Trace" ;
-    rdfs:comment "A learner's full sequence of statements over time. As a sub-presheaf, it supports categorical comparison (overlap, refinement) with other learners' traces." .
+    rdfs:comment "A learner's full sequence of statements over time — a presheaf ℰ : 𝒞_xAPI^op → Set. Realized as a cg:ContextDescriptor whose facets carry the PROV + Temporal structure." ;
+    rdfs:subClassOf cg:ContextDescriptor .
 
 hela:SubobjectClassifier a owl:Class ;
     rdfs:label "Subobject Classifier" ;
-    rdfs:comment "The Ω of the topos ℰ — classifies which subsets of statements constitute 'valid' or 'complete' views for a given learner / certificate. Used when sheafifying divergent records." .
+    rdfs:comment "The Ω of the topos ℰ — classifies which subsets of statements constitute 'valid' or 'complete' views for a given learner / certificate. Constructed at runtime from a pgsl:Fragment (the trace structure) and a cg:SemioticFacet (the validity criterion). See src/pgsl/classifier.ts." ;
+    cg:constructedFrom ( pgsl:Fragment cg:SemioticFacet ) .
 
 hela:presheafOf a owl:ObjectProperty ;
     rdfs:label "presheaf of" ;
