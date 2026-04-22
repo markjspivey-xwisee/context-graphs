@@ -49,26 +49,28 @@
 
 cts:Tuple a owl:Class ;
     rdfs:label "Tuple" ;
-    rdfs:comment "A single usage record: a sequence of positions, each filled by a specific filler, observed in a specific context. The atomic unit of the CTS. Every utterance / tool-call / fragment-construction is a Tuple." .
+    rdfs:comment "A single usage record: a sequence of positions, each filled by a specific filler, observed in a specific context. Realized as a pgsl:Fragment — the atomic unit of the CTS." ;
+    rdfs:subClassOf pgsl:Fragment .
 
 cts:Position a owl:Class ;
     rdfs:label "Position" ;
-    rdfs:comment "A slot in a tuple where a filler may appear. Positions are ordered (1st, 2nd, ...) and typed by the paradigm set of fillers admissible there." .
+    rdfs:comment "A slot in a tuple where a filler may appear. Positions are ordered and typed by the paradigm set of fillers admissible there. A structural coordinate in a pgsl:Fragment." ;
+    rdfs:subClassOf pgsl:Atom .
 
 cts:Filler a owl:Class ;
     rdfs:label "Filler" ;
     rdfs:comment "A value occupying a position in a tuple. Can be a pgsl:Atom, a cg:ContextDescriptor, a WebID, or any IRI-addressable entity." ;
-    rdfs:seeAlso pgsl:Atom .
+    rdfs:subClassOf pgsl:Atom .
 
 cts:Context a owl:Class ;
     rdfs:label "Usage Context" ;
-    rdfs:comment "The surrounding environment of a tuple — time, place, agents present, prior tuples, task being performed. Two syntactically identical tuples in different contexts count as distinct usage events for pattern inference." ;
-    rdfs:seeAlso cg:ContextDescriptor .
+    rdfs:comment "The surrounding environment of a tuple — time, place, agents present, prior tuples, task being performed. Realized as a cg:ContextDescriptor that accompanies the tuple." ;
+    rdfs:subClassOf cg:ContextDescriptor .
 
 cts:Pattern a owl:Class ;
     rdfs:label "Usage Pattern" ;
-    rdfs:comment "A statistical regularity across tuples — e.g. 'position 1 is almost always filled by a hela:Actor' or 'position 3 and position 5 correlate'. Patterns are learned, not declared; they change as usage evolves." ;
-    skos:closeMatch cg:SyntagmaticPattern .
+    rdfs:comment "A statistical regularity across tuples — e.g. 'position 1 is almost always filled by a hela:Actor' or 'position 3 and position 5 correlate'. Learned from observed tuples, not declared." ;
+    owl:equivalentClass cg:SyntagmaticPattern .
 
 cts:ParadigmSet a owl:Class ;
     rdfs:subClassOf cg:ParadigmSet ;
@@ -77,7 +79,8 @@ cts:ParadigmSet a owl:Class ;
 
 cts:Emergence a owl:Class ;
     rdfs:label "Emergence" ;
-    rdfs:comment "The phenomenon by which interoperability between agents arises without explicit schema agreement. Two agents using the same tuples converge on compatible patterns; the emergence is the quantitative observation that their patterns align over time." .
+    rdfs:comment "The phenomenon by which interoperability between agents arises without explicit schema agreement. Two agents using the same tuples converge on compatible patterns; the emergence is the quantitative observation that their patterns align over time. Constructed from sets of cts:Pattern via cross-agent comparison." ;
+    cg:constructedFrom ( cts:Pattern cts:Pattern ) .
 
 # ── Properties ────────────────────────────────────────────────
 

@@ -51,23 +51,28 @@ amta:Attestation a owl:Class ;
 
 amta:CompetenceRating a owl:Class ;
     rdfs:label "Competence Rating" ;
-    rdfs:comment "Rating of the subject's ability to produce correct claims in the relevant domain. Ordinal 0.0 - 1.0." .
+    rdfs:comment "Rating of the subject's ability to produce correct claims in the relevant domain. Ordinal 0.0 - 1.0. A lens on cg:SemioticFacet.epistemicConfidence filtered to the attestor's domain." ;
+    rdfs:subClassOf cg:SemioticFacet .
 
 amta:HonestyRating a owl:Class ;
     rdfs:label "Honesty Rating" ;
-    rdfs:comment "Rating of the subject's faithful reporting — do their claims reflect their actual state, or are they incentivized to misrepresent?" .
+    rdfs:comment "Rating of the subject's faithful reporting. Specialization of cg:TrustFacet for a per-axis honesty signal." ;
+    rdfs:subClassOf cg:TrustFacet .
 
 amta:RelevanceRating a owl:Class ;
     rdfs:label "Relevance Rating" ;
-    rdfs:comment "Rating of whether the subject's expertise is germane to the specific claim being attested. An agent may be highly competent in one domain but not in the one being evaluated." .
+    rdfs:comment "Rating of whether the subject's expertise is germane to the specific claim being attested." ;
+    rdfs:subClassOf cg:TrustFacet .
 
 amta:RecencyRating a owl:Class ;
     rdfs:label "Recency Rating" ;
-    rdfs:comment "Rating derived from time-since-attestation. Older attestations decay; clients can set a recency threshold in policy." .
+    rdfs:comment "Rating derived from time-since-attestation. Constructed from cg:TemporalFacet.validFrom + an attestation's provenance timestamp." ;
+    cg:constructedFrom ( cg:TemporalFacet cg:TrustFacet ) .
 
 amta:Reputation a owl:Class ;
     rdfs:label "Reputation" ;
-    rdfs:comment "The aggregate of attestations an agent has received — a distribution rather than a scalar. Enables policies like 'require median competence > 0.7 across last 20 attestations'." .
+    rdfs:comment "The aggregate of attestations an agent has received. Constructed at runtime from a set of amta:Attestation descriptors via statistical aggregation; see examples/reputation-aggregator.mjs for a reference realization." ;
+    cg:constructedFrom ( amta:Attestation ) .
 
 amta:attestor a owl:ObjectProperty ;
     rdfs:label "attestor" ;

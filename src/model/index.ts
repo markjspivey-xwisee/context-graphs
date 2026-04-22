@@ -50,6 +50,23 @@ export {
 } from './semiotic.js';
 export type { SignMorphism } from './semiotic.js';
 export {
+  constructOmega,
+  makeGeometricMorphism,
+  ModalAlgebra,
+  facetModal,
+  descriptorModal,
+  composeFacetTransformations,
+  identityFacetTransformation,
+} from './derivation.js';
+export type {
+  Omega,
+  OmegaVerdict,
+  PodView,
+  GeometricMorphism,
+  ModalValue,
+  FacetTransformation,
+} from './derivation.js';
+export {
   normalizePublishInputs,
   extractRevocationConditions,
 } from './publish-preprocess.js';

@@ -8,6 +8,98 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-04-22 (later) — derivation discipline
+
+Higher layers now built from lower layers, operationally. Every
+L2/L3 ontology class has explicit L1 grounding; every
+construction named in the ontology has a runtime constructor.
+
+### Added (L1 — Protocol)
+
+- **`spec/DERIVATION.md`** — normative construction rules for
+  L1 → L2 → L3. A class is grounded if it has
+  `owl:equivalentClass` / `rdfs:subClassOf` / `cg:constructedFrom`
+  or is explicitly marked primitive. Dependencies are
+  machine-checkable via `tools/derivation-lint.mjs`.
+- **`cg:constructedFrom`** predicate added to `docs/ns/cg.ttl`.
+  Declares that a class is constructed at runtime from named L1
+  primitives.
+
+### Added (L2/L3 — Ontology grounding)
+
+All seven L2/L3 ontology files now fully grounded (41/41 classes):
+
+- **SAT** (8/8) — Situation, SemioticField, Interpretant, Sign
+  all `rdfs:subClassOf cg:*`; Semiosis + EmergentMeaning
+  `cg:constructedFrom`.
+- **HELA** (6/6) — Trace, LearningObject subclass cg:ContextDescriptor;
+  Omega `cg:constructedFrom (pgsl:Fragment cg:SemioticFacet)`.
+- **CTS** (7/7) — Tuple subclass pgsl:Fragment; Position/Filler
+  subclass pgsl:Atom; Pattern `owl:equivalentClass cg:SyntagmaticPattern`.
+- **OLKE** (2/2) — KnowledgeStage subclass cg:SemioticFacet;
+  Transition subclass cg:ProvenanceFacet.
+- **AMTA** (6/6) — every rating subclass cg:TrustFacet or
+  cg:SemioticFacet; Reputation `cg:constructedFrom (amta:Attestation)`.
+- **HyprCat** (6/6) — World now subclass cg:FederationFacet;
+  others transitively via same-file subclassing.
+- **HyprAgent** (6/6) — already grounded.
+
+### Added (L3 — Implementation, `src/model/derivation.ts`)
+
+Runtime constructors for every `cg:constructedFrom`-tagged term:
+
+- **`constructOmega(name, candidates, validityFn)`** — subobject
+  classifier for a presheaf topos. Returns three-valued
+  `OmegaVerdict` (true / false / indeterminate) consistent with
+  the modal algebra.
+- **`makeGeometricMorphism(podA, podB)`** — cross-pod citation
+  relation (honestly labelled as weaker than a true adjunction
+  in the doc comment; the substrate is bipartite-symmetric, not
+  directional, which holds monotonicity + emptiness laws but
+  not full f* ⊣ f_*).
+- **`ModalAlgebra`** — three-valued Heyting algebra on
+  {Asserted, Hypothetical, Counterfactual} with meet, join,
+  intuitionistic negation, Heyting implication. Modal
+  reasoning is now compositional with the bounded-lattice
+  composition operators.
+- **`FacetTransformation<F>`** — natural-transformation typing
+  for merge operations; `composeFacetTransformations` forms a
+  monoid.
+
+### Added (Tests + Tooling)
+
+- **`tests/derivation.test.ts`** — 17 tests covering Ω
+  classification, geometric-morphism monotonicity, modal-algebra
+  laws (idempotence + commutativity + absorption + intuitionistic
+  double-negation + Heyting implication reductions), and
+  FacetTransformation composition.
+- **`tools/derivation-lint.mjs`** — checks every L2/L3 class is
+  grounded. Currently passes 41/41; fails CI with a non-zero
+  exit if any class becomes ungrounded.
+
+### Closed honest limits from earlier
+
+- ✓ Natural-transformation typing of merge strategies
+  (FacetTransformation<F> with monoid laws in code).
+- ✓ Ω as a runtime object (constructOmega).
+- ✓ Geometric morphisms exist — with an honest caveat that our
+  citation-relation model doesn't satisfy full adjunction;
+  monotonicity + emptiness laws do hold.
+- ✓ Modal Kripke-like semantics via Heyting algebra.
+
+### Remaining (future)
+
+- True directional geometric morphism over a pod inclusion
+  (requires refactoring pod representation).
+- Full subobject-classifier transport across pods (builds on
+  the above).
+- Spec-as-descriptor bootstrap (tabled).
+
+Test totals: 694/694 passing. Ontology-lint clean.
+Derivation-lint: 41/41 classes grounded.
+
+---
+
 ## 2026-04-22 — protocol streamlining pass
 
 Full-stack audit addressing real gaps surfaced by the "is it

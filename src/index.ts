@@ -71,10 +71,25 @@ export {
   // Publish-input preprocessing (modal-truth + cleartext mirror)
   normalizePublishInputs,
   extractRevocationConditions,
+  // Derivation (spec/DERIVATION.md) — runtime constructors for
+  // higher-level ontology terms tagged cg:constructedFrom
+  constructOmega,
+  makeGeometricMorphism,
+  ModalAlgebra,
+  facetModal,
+  descriptorModal,
+  composeFacetTransformations,
+  identityFacetTransformation,
 } from './model/index.js';
 export type {
   PublishInputs,
   PreprocessedPublish,
+  Omega,
+  OmegaVerdict,
+  PodView,
+  GeometricMorphism,
+  ModalValue,
+  FacetTransformation,
 } from './model/index.js';
 
 // ── Causality (Pearl's SCM Framework) ───────────────────────
