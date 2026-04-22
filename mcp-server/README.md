@@ -192,7 +192,7 @@ See [`deploy/mcp-relay/`](../deploy/mcp-relay/) in the parent repo for deploymen
 
 ## License
 
-CC-BY-4.0 — see [LICENSE](../LICENSE) in the parent repository.
+MIT — see [LICENSE](../LICENSE) in the parent repository.
 
 ## Issues and contributions
 

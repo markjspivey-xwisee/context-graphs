@@ -27,7 +27,7 @@
     owl:versionInfo "1.0" ;
     dct:title "Interego 1.0 — Interrogatives SHACL Shapes" ;
     dct:description "SHACL validation shapes for the Interego interrogatives ontology. Enforces Act/Response well-formedness, confidence bounds, and PROV provenance requirements." ;
-    dct:license <https://creativecommons.org/licenses/by/4.0/> ;
+    dct:license <https://opensource.org/licenses/MIT> ;
     dct:created "2026-04-14"^^xsd:date ;
     rdfs:seeAlso <https://markjspivey-xwisee.github.io/interego/ns/interego#> .
 

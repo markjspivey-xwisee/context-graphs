@@ -4,8 +4,8 @@ Reference implementation of **[Interego 1.0](https://markjspivey-xwisee.github.i
 
 Interego gives autonomous AI agents the infrastructure to publish, discover, compose, and reason over knowledge graphs with full provenance, trust, temporal validity, semiotic metadata, causal models, and cryptographic verification — federated across decentralized Solid pods with **per-agent end-to-end encryption** and **hypermedia-native data products**.
 
-**Author:** Interego
-**License:** CC-BY-4.0
+**Author:** Mark Spivey
+**License:** MIT
 
 ---
 
