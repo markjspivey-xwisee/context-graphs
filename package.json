@@ -2,8 +2,8 @@
   "name": "@interego/core",
   "version": "0.2.0",
   "description": "Reference implementation of Interego 1.0 — a compositional framework for typed graph contexts over RDF 1.2 Named Graphs, with PGSL substrate, harness ontology, and runtime evaluation",
-  "author": "Interego",
-  "license": "CC-BY-4.0",
+  "author": "Mark Spivey",
+  "license": "MIT",
   "type": "module",
   "publishConfig": {
     "access": "public"

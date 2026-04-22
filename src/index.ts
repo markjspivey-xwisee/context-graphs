@@ -6,7 +6,7 @@
  *
  * Spec: https://markjspivey-xwisee.github.io/interego/spec/interego-1.0.html
  * Author: Interego
- * License: CC-BY-4.0
+ * License: MIT
  *
  * @example
  * ```ts

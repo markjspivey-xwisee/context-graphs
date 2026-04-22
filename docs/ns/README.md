@@ -194,4 +194,4 @@ npx vitest run tests/static-ontology    # just the ontology tests (34 tests)
 
 ## License
 
-All ontology files are licensed **CC-BY-4.0**. You are free to reuse, extend, and redistribute them with attribution.
+All ontology files are licensed **MIT**. Free to reuse, extend, redistribute, relicense, and use commercially; see [LICENSE](../../LICENSE) for the full text.
