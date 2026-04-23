@@ -19,7 +19,7 @@
  */
 
 export { evaluate, evaluateSingle, validateAgainstShape } from './evaluator.js';
-export { resolveAttributes, extractAttribute } from './attribute-resolver.js';
+export { resolveAttributes, extractAttribute, filterAttributeGraph } from './attribute-resolver.js';
 export { createDecisionCache, defaultValidUntil } from './cache.js';
 export type {
   AttributeGraph,
