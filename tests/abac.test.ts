@@ -24,6 +24,7 @@ import {
   evaluateSingle,
   resolveAttributes,
   extractAttribute,
+  filterAttributeGraph,
   createDecisionCache,
   defaultValidUntil,
   type PolicyContext,
@@ -285,6 +286,74 @@ describe('ABAC decision cache', () => {
       validUntil: defaultValidUntil(NOW, 60),
     });
     expect(cache.size()).toBe(1);
+  });
+});
+
+describe('ABAC — filterAttributeGraph (sybil resistance)', () => {
+  it('drops facets whose source does not satisfy the predicate', () => {
+    const trusted = { type: 'Trust', trustLevel: 'HighAssurance', issuer: 'urn:agent:bob' } as ContextFacetData;
+    const untrusted = { type: 'Trust', trustLevel: 'SelfAsserted', issuer: 'urn:agent:sybil' } as ContextFacetData;
+    const trustedSrc = 'urn:desc:bob-signed' as IRI;
+    const untrustedSrc = 'urn:desc:sybil-signed' as IRI;
+    const graph: AttributeGraph = {
+      subject: SUBJECT,
+      facets: [trusted, untrusted],
+      sources: new Map<ContextFacetData, IRI>([[trusted, trustedSrc], [untrusted, untrustedSrc]]),
+    };
+    const filtered = filterAttributeGraph(graph, (_f, src) => src === trustedSrc);
+    expect(filtered.facets).toHaveLength(1);
+    expect(filtered.facets[0]).toBe(trusted);
+    expect(filtered.sources.get(trusted)).toBe(trustedSrc);
+  });
+
+  it('sybil-flood attack is blocked by issuer-trust filter', () => {
+    // Make 5 sybil attestations + 0 real — policy fires without filter,
+    // fails with filter.
+    const sybilFacets = Array.from({ length: 5 }, (_, i) => ({
+      type: 'Trust' as const,
+      trustLevel: 'PeerAttested' as IRI,
+      issuer: `urn:agent:sybil${i}` as IRI,
+      amtaAxes: { codeQuality: 0.95 + i * 0.005 },
+    })) as ContextFacetData[];
+    const sybilDescs = sybilFacets.map((f, i) => ({
+      id: `urn:desc:sybil${i}->alice` as IRI,
+      describes: [SUBJECT],
+      facets: [f],
+    }));
+    const highTrustIssuers = new Set<string>(); // empty — no issuer is high-trust
+    const graph = resolveAttributes(SUBJECT, sybilDescs);
+    expect(graph.facets).toHaveLength(5);
+
+    const qualityShape: PolicyPredicateShape = {
+      iri: 'urn:shape:Quality' as IRI,
+      constraints: [{ path: 'amta:codeQuality', minCount: 2, minInclusive: 0.8 }],
+    };
+    const permit: AccessControlPolicyData = {
+      id: 'urn:policy:p' as IRI,
+      policyPredicateShape: qualityShape.iri,
+      governedAction: ACTION,
+      deonticMode: 'Permit',
+    };
+    const preds = new Map([[qualityShape.iri, qualityShape]]);
+
+    // Without filter: attack succeeds
+    const attackDecision = evaluate([permit], preds, {
+      subject: SUBJECT, subjectAttributes: graph,
+      resource: RESOURCE, action: ACTION, now: NOW,
+    });
+    expect(attackDecision.verdict).toBe('Allowed');
+
+    // With issuer-trust filter: attack blocked
+    const filtered = filterAttributeGraph(graph, (f) => {
+      const issuer = (f as { issuer?: string }).issuer;
+      return issuer ? highTrustIssuers.has(issuer) : false;
+    });
+    expect(filtered.facets).toHaveLength(0);
+    const defendedDecision = evaluate([permit], preds, {
+      subject: SUBJECT, subjectAttributes: filtered,
+      resource: RESOURCE, action: ACTION, now: NOW,
+    });
+    expect(defendedDecision.verdict).toBe('Indeterminate');
   });
 });
 

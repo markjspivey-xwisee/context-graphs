@@ -15,6 +15,37 @@ import type { IRI, ContextFacetData, ContextDescriptorData } from '../model/type
 import type { AttributeGraph } from './types.js';
 
 /**
+ * Filter an attribute graph down to facets whose source descriptor
+ * satisfies a predicate. The predicate is a function from
+ * `(facet, sourceDescriptorId, sourceIndex)` to boolean. Useful for
+ * sybil-resistant evaluation: filter attestations to only those
+ * whose issuers themselves meet a trust threshold, so a flood of
+ * fake attestations from low-trust issuers has no effect on the
+ * decision.
+ *
+ * The caller supplies the map from source-descriptor-IRI to that
+ * descriptor (or whatever predicate semantics they want). This keeps
+ * the resolver pure — knowing WHICH descriptors should count is a
+ * policy question, not a resolver question.
+ */
+export function filterAttributeGraph(
+  graph: AttributeGraph,
+  predicate: (facet: ContextFacetData, sourceDescriptorId: IRI) => boolean,
+): AttributeGraph {
+  const keptFacets: ContextFacetData[] = [];
+  const keptSources = new Map<ContextFacetData, IRI>();
+  for (const f of graph.facets) {
+    const src = graph.sources.get(f);
+    if (!src) continue;
+    if (predicate(f, src)) {
+      keptFacets.push(f);
+      keptSources.set(f, src);
+    }
+  }
+  return { subject: graph.subject, facets: keptFacets, sources: keptSources };
+}
+
+/**
  * Build a subject's AttributeGraph from a pool of descriptors.
  * Every facet of every descriptor that is attributed to the subject
  * (either via AgentFacet or as the descriptor's `describes` IRI)

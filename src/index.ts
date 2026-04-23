@@ -727,6 +727,7 @@ export {
   validateAgainstShape as validateAbacShape,
   resolveAttributes,
   extractAttribute,
+  filterAttributeGraph,
   createDecisionCache,
   defaultValidUntil,
 } from './abac/index.js';
