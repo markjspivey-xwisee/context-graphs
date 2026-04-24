@@ -195,7 +195,14 @@ export {
   fromJsonLd,
   CONTEXT_GRAPHS_JSONLD_CONTEXT,
   CONTEXT_GRAPHS_JSONLD_CONTEXT_URL,
+  // RDF 1.2 helpers
+  langString,
+  parseLangString,
+  withRdf12VersionDirective,
+  detectRdf12Features,
+  RDF12_VERSION_DIRECTIVE,
 } from './rdf/index.js';
+export type { BaseDirection } from './rdf/index.js';
 
 // ── Namespaces ───────────────────────────────────────────────
 export {
