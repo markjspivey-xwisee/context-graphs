@@ -273,3 +273,137 @@ export function composeFacetTransformations<F extends ContextFacetData>(
 export function identityFacetTransformation<F extends ContextFacetData>(): FacetTransformation<F> {
   return (inputs) => inputs;
 }
+
+// ══════════════════════════════════════════════════════════════
+// Temporal Modal Operators (LTL-style extensions)
+// ══════════════════════════════════════════════════════════════
+//
+// The base ModalAlgebra reasons over a static three-valued lattice
+// (Asserted, Hypothetical, Counterfactual). Temporal modal operators
+// reason over how that modal value EVOLVES across time given:
+//   - validUntil intervals (already in TemporalFacet)
+//   - validUntilEvent / sinceEvent (event-bounded validity, cg.ttl)
+//   - validWhile shape (validity contingent on shape satisfaction)
+//   - alwaysValid / eventuallyValid LTL markers
+//
+// This file implements the runtime evaluator. It maps a descriptor +
+// (a clock or event-stream) to the descriptor's *current* effective
+// modal value.
+
+/** Snapshot of the world at evaluation time. */
+export interface TemporalContext {
+  /** ISO 8601 instant. */
+  readonly now: string;
+  /** Set of event IRIs that have occurred (for event-bounded modal). */
+  readonly observedEvents: ReadonlySet<IRI>;
+  /** Optional: shape-evaluator hook for validWhile. Returns whether
+   *  the named shape is satisfied by the descriptor's subject at `now`.
+   *  If absent, validWhile is treated as ALWAYS satisfied (best-case
+   *  default). */
+  readonly shapeSatisfied?: (shapeIri: IRI, subject: IRI) => boolean;
+}
+
+/** Per-facet temporal annotations the evaluator inspects. */
+export interface TemporalAnnotations {
+  readonly validFrom?: string;
+  readonly validUntil?: string;
+  readonly validUntilEvent?: IRI;
+  readonly sinceEvent?: IRI;
+  readonly validWhile?: IRI;
+  readonly alwaysValid?: boolean;
+  readonly eventuallyValid?: boolean;
+}
+
+/** Extract temporal annotations from a descriptor's TemporalFacet. */
+export function temporalAnnotations(d: ContextDescriptorData): TemporalAnnotations {
+  const t = d.facets.find(f => f.type === 'Temporal') as
+    & TemporalAnnotations
+    & ContextFacetData
+    | undefined;
+  if (!t) return {};
+  return {
+    validFrom: t.validFrom,
+    validUntil: t.validUntil,
+    validUntilEvent: (t as { validUntilEvent?: IRI }).validUntilEvent,
+    sinceEvent: (t as { sinceEvent?: IRI }).sinceEvent,
+    validWhile: (t as { validWhile?: IRI }).validWhile,
+    alwaysValid: (t as { alwaysValid?: boolean }).alwaysValid,
+    eventuallyValid: (t as { eventuallyValid?: boolean }).eventuallyValid,
+  };
+}
+
+/**
+ * Evaluate a descriptor's effective modal status at a given time +
+ * event state. Returns:
+ *   - The descriptor's stated modal status if all temporal conditions
+ *     are satisfied at `now`.
+ *   - Hypothetical if the descriptor was published but its predicate
+ *     is no longer satisfied (e.g. validWhile shape failed) — claim
+ *     becomes uncertain rather than negated.
+ *   - Counterfactual if validUntil has passed AND no validUntilEvent
+ *     reset, OR if a sinceEvent has not yet occurred. Past-tense or
+ *     not-yet-true.
+ *   - 'pending' (special) if eventuallyValid + currently Hypothetical
+ *     and the predicted condition has not occurred.
+ *
+ * The function is total: every descriptor + context yields a result,
+ * never throws.
+ */
+export type EffectiveModal = ModalValue | 'pending';
+
+export function effectiveModal(
+  d: ContextDescriptorData,
+  ctx: TemporalContext,
+  subjectFor?: (d: ContextDescriptorData) => IRI,
+): EffectiveModal {
+  const baseModal = descriptorModal(d);
+  const ann = temporalAnnotations(d);
+
+  // alwaysValid: short-circuits to baseModal regardless of clock.
+  if (ann.alwaysValid === true) return baseModal;
+
+  // sinceEvent: not yet observed → claim hasn't started.
+  if (ann.sinceEvent && !ctx.observedEvents.has(ann.sinceEvent)) {
+    return 'Counterfactual';
+  }
+
+  // validUntilEvent: observed → claim has ended.
+  if (ann.validUntilEvent && ctx.observedEvents.has(ann.validUntilEvent)) {
+    return 'Counterfactual';
+  }
+
+  // validUntil: passed → claim expired.
+  if (ann.validUntil && ann.validUntil <= ctx.now) {
+    return 'Counterfactual';
+  }
+
+  // validFrom: not yet → claim hasn't started.
+  if (ann.validFrom && ctx.now < ann.validFrom) {
+    return 'Counterfactual';
+  }
+
+  // validWhile: shape currently NOT satisfied → claim becomes uncertain.
+  if (ann.validWhile && ctx.shapeSatisfied) {
+    const subject = subjectFor ? subjectFor(d) : (d.describes[0] as IRI | undefined);
+    if (subject && !ctx.shapeSatisfied(ann.validWhile, subject)) {
+      return 'Hypothetical';
+    }
+  }
+
+  // eventuallyValid: marker says it WILL be Asserted; if currently
+  // Hypothetical and condition not met, return 'pending' to surface
+  // the prediction state distinctly from a stable Hypothetical.
+  if (ann.eventuallyValid === true && baseModal === 'Hypothetical') {
+    return 'pending';
+  }
+
+  return baseModal;
+}
+
+/** Build a TemporalContext for "now" with a list of observed events. */
+export function temporalNow(observedEventList: readonly IRI[] = []): TemporalContext {
+  return {
+    now: new Date().toISOString(),
+    observedEvents: new Set(observedEventList),
+  };
+}

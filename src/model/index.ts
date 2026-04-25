@@ -57,6 +57,9 @@ export {
   descriptorModal,
   composeFacetTransformations,
   identityFacetTransformation,
+  effectiveModal,
+  temporalAnnotations,
+  temporalNow,
 } from './derivation.js';
 export type {
   Omega,
@@ -65,6 +68,9 @@ export type {
   GeometricMorphism,
   ModalValue,
   FacetTransformation,
+  EffectiveModal,
+  TemporalContext,
+  TemporalAnnotations,
 } from './derivation.js';
 export {
   normalizePublishInputs,
