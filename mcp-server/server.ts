@@ -103,6 +103,9 @@ import {
   resolveRecipients,
   // Publish-input preprocessing
   normalizePublishInputs,
+  // Privacy hygiene (pre-publish content screening)
+  screenForSensitiveContent,
+  formatSensitivityWarning,
 } from '@interego/core';
 
 import type {
@@ -476,6 +479,14 @@ async function toolPublishContext(args: {
   const descId = (args.descriptor_id ?? `urn:cg:${POD_NAME}:${Date.now()}`) as IRI;
   const now = new Date().toISOString();
 
+  // Privacy-hygiene preflight: scan content for credentials, PII, etc.
+  // We always WARN. We don't block automatically — the calling agent
+  // decides. The warning is appended to the response so any LLM in the
+  // loop sees it and can decide to surface to the user. See
+  // docs://interego/playbook §2 for the agent-side guidance.
+  const sensitivityFlags = screenForSensitiveContent(args.graph_content ?? '');
+  const sensitivityWarning = formatSensitivityWarning(sensitivityFlags);
+
   // Auto-supersede: if previous descriptor(s) on this pod describe the
   // same graph_iri, our new one supersedes them. Disabled with
   // auto_supersede_prior: false. Failure is non-fatal — we just publish
@@ -657,6 +668,15 @@ async function toolPublishContext(args: {
   }
 
   lines.push('', 'Turtle:', turtle);
+
+  // Append privacy-hygiene preflight warning (if any) so the calling
+  // agent — and any LLM in the loop — sees that sensitive content was
+  // detected. We don't block; the agent + user decide. See
+  // docs://interego/playbook §2.
+  if (sensitivityWarning) {
+    lines.push(sensitivityWarning);
+  }
+
   return lines.filter(Boolean).join('\n');
 }
 
@@ -1623,17 +1643,43 @@ for multi-agent shared memory. Every agent acts on behalf of a human
 or organization (the pod owner); descriptors carry attribution, trust,
 provenance, semiotic frame, and federation metadata.
 
-WHEN TO USE THIS SERVER:
-- The user wants to remember something across sessions or surfaces
-  → use publish_context to persist it as a typed descriptor on their pod.
-- The user references something they (or another agent) shared before
-  → use discover_pod or get_descriptor to find it.
-- The user wants to share context with a specific other person/agent
-  → use share_context_with (cross-pod, end-to-end-encrypted).
-- The user wants to compose multiple contexts into one view
-  → use compose_contexts (union / intersection / restriction / override).
-- The user wants to know who's in the federation or what's shared with them
-  → use list_known_pods or subscribe_to_pod.
+PROACTIVE TRIGGERS — listen for these and use Interego unprompted:
+- "remember/save/log this" → publish_context (use publish-memory prompt)
+- "what did we say about X" → discover_context FIRST; don't assume no memory
+- "share this with [person]" → publish_context with share_with: [...]
+- "what's been shared with me" → discover_all + filter to recipient
+- "who said that" / "where did this come from" → get_descriptor → trace prov
+- "is this still true" → check cg:modalStatus + cg:supersedes chain
+- the user references prior sessions / other AI tools → search the pod first
+
+WHEN TO USE EACH TOOL FAMILY:
+- publish_context → persist memory + cross-pod E2EE share
+- discover_context / discover_all / get_descriptor → search pods + read
+- compose_contexts → union / intersection / restriction / override
+- list_known_pods / subscribe_to_pod → federation surface
+- register_agent / verify_agent → identity ops
+
+PRIVACY HYGIENE (before publishing):
+- The MCP runs a screenForSensitiveContent preflight. If it flags HIGH
+  severity (API keys, JWTs, private keys), STOP and confirm with user.
+- Default to owner-only; only use share_with when the user explicitly
+  asks to share. Confirm WHO before publishing.
+- Never publish: credentials, content the user marked confidential,
+  inferred personal facts they didn't volunteer, your own reasoning chains.
+
+MODAL STATUS (don't drift to "Asserted for safety"):
+- Asserted: you commit to truth. Use for verified facts.
+- Hypothetical: tentative, inferred, predicted. USE THIS DEFAULT for inferences.
+- Counterfactual: explicitly negated / retracted. Rare.
+
+VERSIONING (auto_supersede_prior=true is the right default):
+- Leave true when updating, sharing, or republishing the same memory.
+- Set false ONLY for genuine sibling descriptors (e.g., multi-agent perspectives).
+
+ERRORS — don't pretend success:
+- Pod unreachable → tell the user; this stays in-conversation only.
+- Validation failed → show the error + propose a fix.
+- Cross-pod share resolved 0 agents → recipient unreachable; ask user.
 
 KEY INVARIANTS (do not violate):
 - Pods are the source of truth. Identity server is stateless.
@@ -1645,6 +1691,7 @@ KEY INVARIANTS (do not violate):
   verifiable-stale, not silent.
 
 DEEPER REFERENCE (fetch via resources/read when you need it):
+- docs://interego/playbook        — agent-side concrete "when X do Y" rules
 - docs://interego/overview        — what Interego is, top-level
 - docs://interego/architecture    — protocol architecture + facets
 - docs://interego/layers          — L1 protocol vs L2 patterns vs L3 domains
@@ -1653,7 +1700,10 @@ DEEPER REFERENCE (fetch via resources/read when you need it):
 - docs://interego/code-domain     — example L3 domain ontology
 
 If the user is asking general questions about the protocol, fetch the
-relevant doc resource rather than answering from inferred knowledge.`;
+relevant doc resource rather than answering from inferred knowledge.
+
+If you're acting on Interego for the first time in a session and aren't
+sure WHEN/HOW to use a tool, fetch docs://interego/playbook first.`;
 
 const mcpServer = new Server(
   { name: '@interego/mcp', version: '0.5.0' },
@@ -2093,6 +2143,20 @@ interface DocResource {
 
 const DOC_RESOURCES: readonly DocResource[] = [
   {
+    uri: 'docs://interego/playbook',
+    name: 'Interego — Agent Playbook (when X do Y)',
+    description: 'Operational playbook for AI agents using the Interego MCP. Covers proactive triggers, privacy hygiene, modal-status selection, versioning defaults, error handling, cross-surface continuity, ABAC. Fetch this on first use of Interego in a session.',
+    mimeType: 'text/markdown',
+    segments: ['docs', 'AGENT-PLAYBOOK.md'],
+  },
+  {
+    uri: 'docs://interego/integration-guide',
+    name: 'Interego — Integration Guide for Agent Frameworks',
+    description: 'One-page integrator guide for AI agent harnesses (OpenClaw, Cursor, Cline, Aider, custom). System-prompt snippet to embed, optional native library integration, conformance levels, brand-neutral framing.',
+    mimeType: 'text/markdown',
+    segments: ['docs', 'AGENT-INTEGRATION-GUIDE.md'],
+  },
+  {
     uri: 'docs://interego/overview',
     name: 'Interego — Overview',
     description: 'Top-level project README: what Interego is, who it\'s for, key features.',
@@ -2258,6 +2322,28 @@ interface PromptDef {
 }
 
 const PROMPTS: readonly PromptDef[] = [
+  {
+    name: 'whats-on-my-pod',
+    description: 'Quick orientation: enumerate, summarize, and present what context descriptors currently live on the user\'s home pod. Run this when the user asks "what do you remember?" / "what\'s there?" / "what\'s on my pod".',
+    arguments: [
+      { name: 'limit', description: 'Maximum descriptors to surface (default 25).', required: false },
+      { name: 'topic_filter', description: 'Optional substring to filter descriptors by graph IRI or content.', required: false },
+    ],
+    build: (a) => `Use discover_context to enumerate descriptors on the user's home pod${a.topic_filter ? ` (filtering for "${a.topic_filter}")` : ''}.
+
+For each descriptor you find (up to ${a.limit ?? '25'}):
+- Surface the graph_iri + descriptor URL
+- Note the modal status (Asserted / Hypothetical / Counterfactual)
+- Note who attributed it (prov:wasAttributedTo)
+- Note when it was published (validFrom)
+- If the content is small, include a one-line summary; otherwise just the topic
+
+Group the results by either author or topic, whichever produces a clearer picture.
+
+End with a short summary of total descriptor count + notable patterns (most recent topics, dominant authors, anything Hypothetical or Counterfactual that might warrant the user's attention).
+
+Cite descriptor URLs so the user can drill in via get_descriptor on anything interesting.`,
+  },
   {
     name: 'publish-memory',
     description: 'Publish a typed memory descriptor to the user\'s home pod so it survives across sessions and is discoverable by other agents.',
