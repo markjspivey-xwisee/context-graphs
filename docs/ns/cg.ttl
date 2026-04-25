@@ -265,6 +265,43 @@ cg:temporalRelation a owl:ObjectProperty ;
     rdfs:comment "OWL-Time relation to another temporal entity." ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
 
+# ── Temporal modal operators (LTL-style) ─────────────────────
+#
+# Beyond fixed validFrom/validUntil intervals, descriptors MAY
+# carry temporal modal operators describing conditions over time:
+# "valid until X happens", "valid as long as Y is true", "always
+# valid in this scope", "eventually true". These extend the modal
+# logic from a static three-valued lattice to one that reasons
+# about temporal evolution of claims.
+
+cg:validUntilEvent a owl:ObjectProperty ;
+    rdfs:label "valid until event" ;
+    rdfs:comment "The descriptor's claim holds until the named event occurs (e.g. an attestation revocation, a successor descriptor publication, or an external trigger). Object is the IRI of an event-class or specific event instance." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:validWhile a owl:ObjectProperty ;
+    rdfs:label "valid while" ;
+    rdfs:comment "The descriptor's claim holds as long as the named SHACL shape is satisfied by the subject's attribute graph. When the shape stops being satisfied, the descriptor's modal status auto-shifts to Hypothetical (or Counterfactual under explicit retraction). Object is a sh:NodeShape IRI." ;
+    rdfs:range sh:NodeShape ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:alwaysValid a owl:DatatypeProperty ;
+    rdfs:label "always valid" ;
+    rdfs:comment "Atemporal claim: this descriptor is true at every time within the federation's interpretation. Use sparingly — most claims are temporally-scoped. xsd:boolean." ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:eventuallyValid a owl:DatatypeProperty ;
+    rdfs:label "eventually valid" ;
+    rdfs:comment "LTL-style 'eventually': the descriptor's modal claim WILL become Asserted at some future time, given the system's expected evolution. Currently typically Hypothetical with this marker; flips to Asserted when the predicted condition obtains." ;
+    rdfs:range xsd:boolean ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:sinceEvent a owl:ObjectProperty ;
+    rdfs:label "since event" ;
+    rdfs:comment "Symmetric to validUntilEvent — the descriptor's claim has held since the named event occurred. Object is an event IRI. Composes with validUntilEvent to express bounded intervals defined by events rather than dates." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
 # ── Provenance properties ─────────────────────────────────────
 
 cg:provenanceChain a owl:ObjectProperty ;

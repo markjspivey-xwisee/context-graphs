@@ -634,3 +634,71 @@ amta:Attestation rdfs:subClassOf cg:TrustFacet ;
 
 amta:Reputation rdfs:seeAlso cg:TrustFacet ;
     rdfs:comment "An agent's reputation is the aggregate distribution of amta:Attestation instances it has received over time; materializes into a cg:TrustFacet on the agent's registry entry.".
+
+# ── Schema-evolution bridges ─────────────────────────────────
+#
+# When a namespace is updated (new term added, term renamed,
+# semantics narrowed), pods/agents using the old shape need a
+# bridge to the new one. align: provides four bridge classes that
+# subClass owl:Class so they're queryable.
+
+align:NamespaceBridge a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Namespace Bridge" ;
+    rdfs:comment "A first-class descriptor that documents an alignment between two namespaces (or two versions of one namespace). Carries source + target prefixes, the per-term mapping, and a confidence/exact-match flag per pair. Bridges are themselves linked data — versionable, citable, queryable.".
+
+align:TermMapping a owl:Class ;
+    rdfs:label "Term Mapping" ;
+    rdfs:comment "A single mapping between a source term and a target term, with a relation (owl:equivalentClass / rdfs:subClassOf / skos:closeMatch / skos:relatedMatch). Encoded as a node in the bridge's graph.".
+
+align:VersionMigration a owl:Class ;
+    rdfs:subClassOf align:NamespaceBridge ;
+    rdfs:label "Version Migration" ;
+    rdfs:comment "A specialized bridge between two versions of the SAME namespace (e.g. cg:1.0 → cg:2.0). Carries per-term added / removed / renamed / narrowed / widened classifications so consumers can detect breaking changes.".
+
+align:DeprecationMarker a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Deprecation Marker" ;
+    rdfs:comment "Attaches to a term descriptor to signal it has been deprecated. Carries the replacement term IRI (if any), the deprecation date, and the version after which the term is removed. Modal status is Counterfactual on the term's claim of being currently-valid.".
+
+# Properties for bridges
+
+align:sourceNamespace a owl:ObjectProperty ;
+    rdfs:domain align:NamespaceBridge ;
+    rdfs:label "source namespace" .
+
+align:targetNamespace a owl:ObjectProperty ;
+    rdfs:domain align:NamespaceBridge ;
+    rdfs:label "target namespace" .
+
+align:hasMapping a owl:ObjectProperty ;
+    rdfs:domain align:NamespaceBridge ;
+    rdfs:range align:TermMapping ;
+    rdfs:label "has mapping" .
+
+align:sourceTerm a owl:ObjectProperty ;
+    rdfs:domain align:TermMapping ;
+    rdfs:label "source term" .
+
+align:targetTerm a owl:ObjectProperty ;
+    rdfs:domain align:TermMapping ;
+    rdfs:label "target term" .
+
+align:mappingRelation a owl:ObjectProperty ;
+    rdfs:domain align:TermMapping ;
+    rdfs:label "mapping relation" ;
+    rdfs:comment "owl:equivalentClass | rdfs:subClassOf | skos:closeMatch | skos:relatedMatch | align:Renamed | align:Narrowed | align:Widened" .
+
+align:replacementTerm a owl:ObjectProperty ;
+    rdfs:domain align:DeprecationMarker ;
+    rdfs:label "replacement term" .
+
+align:deprecatedAt a owl:DatatypeProperty ;
+    rdfs:domain align:DeprecationMarker ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "deprecated at" .
+
+align:removalVersion a owl:DatatypeProperty ;
+    rdfs:domain align:DeprecationMarker ;
+    rdfs:range xsd:string ;
+    rdfs:label "removal version" .

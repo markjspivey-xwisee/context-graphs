@@ -80,6 +80,10 @@ export {
   descriptorModal,
   composeFacetTransformations,
   identityFacetTransformation,
+  // Temporal modal operators (LTL-style)
+  effectiveModal,
+  temporalAnnotations,
+  temporalNow,
 } from './model/index.js';
 export type {
   PublishInputs,
@@ -90,6 +94,9 @@ export type {
   GeometricMorphism,
   ModalValue,
   FacetTransformation,
+  EffectiveModal,
+  TemporalContext,
+  TemporalAnnotations,
 } from './model/index.js';
 
 // ── Causality (Pearl's SCM Framework) ───────────────────────
