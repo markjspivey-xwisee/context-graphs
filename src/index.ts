@@ -754,6 +754,40 @@ export type {
   AggregationPolicy,
 } from './registry/index.js';
 
+// ── Constitutional Layer (self-amending policy) ─────────────
+export {
+  proposeAmendment,
+  vote,
+  tryRatify,
+  communityModal,
+  forkConstitution,
+  DEFAULT_RULES,
+} from './constitutional/index.js';
+export type {
+  ConstitutionalPolicy,
+  RatificationRule,
+  Amendment,
+  AmendmentDiff,
+  Vote,
+  ConstitutionalFork,
+  Tier,
+} from './constitutional/index.js';
+
+// ── Federated transactions (saga pattern) ───────────────────
+export {
+  createTransaction,
+  executeTransaction,
+  transactionStatus,
+} from './transactions/index.js';
+export type {
+  Transaction,
+  TransactionStep,
+  TxnResult,
+  TxnState,
+  StepState,
+  IsolationLevel,
+} from './transactions/index.js';
+
 // ── Passport (capability passport, persistent biography) ────
 export {
   createPassport,
