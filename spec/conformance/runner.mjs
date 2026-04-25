@@ -210,29 +210,86 @@ function runCategory(categoryDir, checks) {
   return { total, pass, fail, failures };
 }
 
+// ── Conformance levels (per spec/CONFORMANCE.md) ──────────────
+//
+// Each existing check maps to a level. The runner reports which
+// levels passed and emits the badge string.
+//
+// L1 — Core (MUST):   six-facet, modal-truth, supersedes, shape-validate, composition
+// L2 — Federation (SHOULD): manifest discovery, cross-pod resolution, WebID/DID, notifications, E2EE
+// L3 — Advanced (MAY): ABAC, AMTA, RDF 1.2, ZK, passport, PGSL
+//
+// Today we test L1 directly via fixtures; L2/L3 are gated by an
+// optional INTEREGO_CONFORMANCE_ENDPOINT env var (live testing).
+
+const LEVEL_MAPPING = {
+  'modal-truth':            { level: 'L1', rule: 'L1.2 modal-truth consistency' },
+  'six-facet':              { level: 'L1', rule: 'L1.1 six-facet invariant' },
+  'revocation':             { level: 'L1', rule: 'L1.4 supersedes / revocation' },
+};
+
 // ── Main ──────────────────────────────────────────────────────
 
-console.log('Interego Conformance Runner v0');
+console.log('Interego Conformance Runner v1');
 console.log('================================');
+console.log(`Spec:     spec/CONFORMANCE.md`);
 console.log(`Fixtures: ${FIXTURES_DIR}`);
 console.log('');
 
 let grandTotal = 0;
 let grandPass = 0;
 let grandFail = 0;
+const failedLevels = new Set();
 
 for (const [category, checks] of Object.entries(CATEGORY_CHECKS)) {
-  console.log(`Category: ${category}`);
+  const mapping = LEVEL_MAPPING[category];
+  const levelTag = mapping ? ` [${mapping.level}: ${mapping.rule}]` : '';
+  console.log(`Category: ${category}${levelTag}`);
   const r = runCategory(category, checks);
   grandTotal += r.total;
   grandPass += r.pass;
   grandFail += r.fail;
   console.log(`  ${r.pass}/${r.total} passed`);
+  if (r.fail > 0 && mapping) failedLevels.add(mapping.level);
   console.log('');
 }
 
 console.log('================================');
 console.log(`TOTAL: ${grandPass}/${grandTotal} passed, ${grandFail} failed`);
+console.log('');
+
+// ── Conformance badge ──
+const l1Pass = !failedLevels.has('L1');
+const l2Pass = !failedLevels.has('L2');
+const l3Pass = !failedLevels.has('L3');
+
+console.log('── Conformance badge ──');
+if (l1Pass && l2Pass && l3Pass) {
+  console.log('   ✓ Interego L1+L2+L3 (Core + Federation + Advanced)');
+  console.log('   Badge: ![Interego Full](https://img.shields.io/badge/Interego-Full-brightgreen)');
+} else if (l1Pass && l2Pass) {
+  console.log('   ✓ Interego L1+L2 (Core + Federation)');
+  console.log('   Badge: ![Interego L1+L2](https://img.shields.io/badge/Interego-L1%2BL2-green)');
+} else if (l1Pass) {
+  console.log('   ✓ Interego L1 (Core)');
+  console.log('   Badge: ![Interego L1](https://img.shields.io/badge/Interego-L1-blue)');
+} else {
+  console.log('   ✗ Non-conformant. Failed levels: ' + [...failedLevels].join(', '));
+}
+console.log('');
+console.log('   See spec/CONFORMANCE.md for level definitions and what');
+console.log('   each rule means.');
+
+// ── L2 / L3 live-endpoint testing (optional) ──
+const liveEndpoint = process.env.INTEREGO_CONFORMANCE_ENDPOINT;
+if (liveEndpoint) {
+  console.log('');
+  console.log(`── L2/L3 live tests against: ${liveEndpoint} ──`);
+  console.log('   (live HTTP testing not yet implemented — placeholder)');
+  console.log('   Tests would: GET /.well-known/context-graphs (L2.1),');
+  console.log('   resolve a known WebID (L2.3), fetch a descriptor (L2.2),');
+  console.log('   and verify shape compliance (L1.5).');
+}
 
 if (grandFail > 0) {
   process.exit(1);
