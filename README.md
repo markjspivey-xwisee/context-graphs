@@ -9,9 +9,28 @@ Interego gives autonomous AI agents the infrastructure to publish, discover, com
 
 ---
 
+## Recent additions
+
+The protocol surface has grown substantially. Highlights:
+
+- **[Attribute-Based Access Control](docs/ns/abac.ttl) (L2 `abac:`)** — policies are typed context descriptors with SHACL predicates; attributes resolve cross-pod; sybil-resistant via `filterAttributeGraph`. See `examples/demo-abac-cross-pod.mjs`, `demo-abac-sybil-resistance.mjs`, `demo-abac-zk-proof.mjs`, `demo-abac-emergent-policy.mjs`, `demo-abac-policy-supersession.mjs`.
+- **[Public Agent Attestation Registry](docs/ns/registry.ttl) (L2 `registry:`)** — federated NPM-for-AI-agents primitive; multiple registries co-exist; reputation aggregates cross-registry. See `examples/demo-agent-registry.mjs`.
+- **[Capability Passport](docs/ns/passport.ttl) (L2 `passport:`)** — agent biographical identity that survives infrastructure migration (framework / pod / model changes).
+- **[Code domain ontology](docs/ns/code.ttl) (L3 `code:`)** — first L3 domain example: Repository / Commit / Branch / PullRequest / Review / Defect, all grounded in L1. See `examples/demo-code-domain.mjs`.
+- **[RDF 1.2 + SHACL 1.2 alignment](docs/ns/cg-shapes-1.2.ttl)** — triple-term annotations (`{| ... |}`), directional language tags, `sh:reifierShape` validation per April 2026 CR/WD.
+- **[Conformance test suite](spec/CONFORMANCE.md)** — three levels (L1 Core / L2 Federation / L3 Advanced) with badge output. Run `node spec/conformance/runner.mjs`.
+- **[Federated transactions](spec/FEDERATED-TRANSACTIONS.md)** — saga-pattern atomic writes across multiple pods.
+- **[Constitutional layer](spec/CONSTITUTIONAL-LAYER.md)** — self-amending policies with tiered ratification and graceful forks.
+- **[CRDT offline merge spec](spec/CRDT-OFFLINE-MERGE.md)** + **[DP+ZK aggregate spec](spec/AGGREGATE-PRIVACY.md)** + **[TLA+ proof outlines](spec/proofs/)** — protocol-level guarantees and design specs.
+- **17+ runnable demo scripts** in [`examples/`](examples/) including emergence demos (vocabulary alignment, mediator pullback, stigmergic colony, localized closed-world), Idehen-inspired (federated reasoning, nanotation pipeline), Verborgh-inspired (distributed affordances, cross-app interop, pod-as-graph views).
+
+For dated detail see [`CHANGELOG.md`](CHANGELOG.md).
+
+---
+
 ## Features
 
-For recent changes see [`CHANGELOG.md`](CHANGELOG.md). For runnable demos of the trust substrate (auditor, ERC-8004 T0-T2, x402, affordance bridge, federation health check) see [`examples/SEMANTIC-ALIGNMENT-README.md`](examples/SEMANTIC-ALIGNMENT-README.md).
+For runnable demos of the trust substrate (auditor, ERC-8004 T0-T2, x402, affordance bridge, federation health check) see [`examples/SEMANTIC-ALIGNMENT-README.md`](examples/SEMANTIC-ALIGNMENT-README.md).
 
 ### Storage & content
 
@@ -39,9 +58,11 @@ For recent changes see [`CHANGELOG.md`](CHANGELOG.md). For runnable demos of the
 
 ### Ontology & protocol discipline
 
-- **Twelve formal ontologies** covering core (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), federation mesh (`hyprcat:`, `hypragent:`), and adjacent frameworks (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`). See [`docs/ns/README.md`](docs/ns/README.md). **607 defined terms, enforced by CI lint.**
+- **Sixteen formal ontologies** covering L1 protocol (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), L2 architecture patterns (`hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`), L3 implementation/domain (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`, `code:`). See [`docs/ns/README.md`](docs/ns/README.md). All terms enforced by CI lint.
 - **CI ontology-lint gate.** `tools/ontology-lint.mjs` scans TS source for `<prefix>:<Term>` emissions and verifies each against its corresponding `docs/ns/<prefix>.ttl`. New code cannot land `cg:NewType` without a matching OWL declaration.
-- **Layering discipline** (L1 protocol / L2 architecture / L3 implementation). See [`spec/LAYERS.md`](spec/LAYERS.md).
+- **CI derivation-lint gate.** `tools/derivation-lint.mjs` enforces that every L2/L3 ontology class has explicit L1 grounding (`owl:equivalentClass` / `rdfs:subClassOf` / `cg:constructedFrom` / declared primitive). Currently 66/66 grounded.
+- **Layering discipline** (L1 protocol / L2 architecture / L3 implementation). See [`spec/LAYERS.md`](spec/LAYERS.md). Namespace is the boundary contract — domain terms stay out of core namespaces.
+- **Conformance test suite** ([`spec/CONFORMANCE.md`](spec/CONFORMANCE.md)) defines L1 / L2 / L3 conformance levels with badge output. Third-party implementations can claim a level by passing the suite against their serialized output.
 
 ---
 
@@ -105,16 +126,42 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │   │                 paradigm constraints (5 set operations, emergent typing),
 │   │                 progressive persistence (memory→local→pod→IPFS→chain),
 │   │                 lazy lattice construction (deferred chains, level capping)
-├── mcp-server/       MCP server (24 tools) for Claude Code / AI agents
+├── src/abac/         Attribute-Based Access Control evaluator —
+│                     evaluate(), filterAttributeGraph (sybil-resistant),
+│                     resolveAttributes (federated), createDecisionCache
+├── src/registry/     Public agent attestation registry —
+│                     createRegistry, registerAgent, refreshReputation,
+│                     federateLookup, aggregateReputation
+├── src/passport/     Capability passport (persistent agent biography) —
+│                     migrateInfrastructure, recordLifeEvent, stateValue,
+│                     passportToDescriptor, passportSummary
+├── src/transactions/ Federated saga-pattern transactions —
+│                     createTransaction, executeTransaction (with
+│                     reverse-compensation on failure)
+├── src/constitutional/ Self-amending policies — proposeAmendment, vote,
+│                     tryRatify (tier-aware), forkConstitution
+├── mcp-server/       MCP server (25+ tools) — stdio + SSE + Streamable HTTP.
+│                     v0.5.0 ships system-level instructions, doc resources,
+│                     workflow prompts so connecting agents understand the
+│                     system without trial-and-error tool calls.
 ├── deploy/           Dockerfiles, Azure Container Apps, identity server, relay
 │   ├── identity/     WebID + DID + Ed25519 + WebFinger + bearer tokens + SIWE
-│   ├── mcp-relay/    HTTP/REST bridge with auth, X402 payments, IPFS pinning
+│   ├── mcp-relay/    HTTP/SSE bridge — v0.3.0 mirrors stdio discoverability
+│   │                 (instructions / doc resources / prompts) for claude.ai
+│   │                 and other web-based MCP clients
 │   └── css-config/   Community Solid Server configuration
-├── examples/
-│   ├── multi-agent/  Team audit + TLA/xAPI/LERS demo + Coherence demo
-│   └── pgsl-browser/ 8-tab observatory (Federation, Descriptors, Trust, Composition, SPARQL, SHACL, Coherence, Decisions)
+├── examples/         17+ runnable demos — emergence (vocabulary alignment,
+│                     mediator pullback, stigmergic colony, localized
+│                     closed-world), ABAC (cross-pod, sybil-resistance, ZK,
+│                     emergent policy, supersession), code domain, agent
+│                     registry, distributed affordances, cross-app interop,
+│                     pod-as-graph views, federated reasoning, nanotation
+│                     pipeline, scripts/ for multi-CLI-session orchestration
+├── spec/             Specs: architecture, LAYERS, DERIVATION, CONFORMANCE,
+│                     FEDERATED-TRANSACTIONS, CONSTITUTIONAL-LAYER,
+│                     CRDT-OFFLINE-MERGE, AGGREGATE-PRIVACY, proofs/ (TLA+)
 ├── benchmarks/       LongMemEval (89.2% agentic, 92.4% raw) evaluation suite
-└── tests/            608 tests across 19 suites
+└── tests/            772 tests across 27 files
 ```
 
 ### Design Principles
@@ -753,7 +800,7 @@ Deploys: CSS (Solid server), Dashboard (observation UI), MCP Relay (HTTP bridge)
 ```bash
 npm install
 npm run build        # TypeScript → dist/
-npm test             # 608 tests across 19 suites
+npm test             # 772 tests across 27 files
 npm run test:watch   # Watch mode
 ```
 
@@ -788,9 +835,19 @@ npm run test:watch   # Watch mode
 | Document | What it covers |
 |----------|---------------|
 | [Interego 1.0 WD](https://markjspivey-xwisee.github.io/interego/spec/interego-1.0.html) | Core spec: descriptors, facets, composition, serialization |
-| [Paradigm Constraints](spec/paradigm-constraints.md) | Emergent semantics, coherence verification, decision functor, causal integration |
+| [`spec/architecture.md`](spec/architecture.md) | Architecture overview + RDF 1.2 / SHACL 1.2 alignment statement |
+| [`spec/LAYERS.md`](spec/LAYERS.md) | Layering discipline (L1 / L2 / L3); namespace-as-projection-contract; drift triggers |
+| [`spec/DERIVATION.md`](spec/DERIVATION.md) | Construction rules: every L2/L3 class must ground in L1 (CI-enforced) |
+| [`spec/CONFORMANCE.md`](spec/CONFORMANCE.md) | Three-level conformance test suite + badge program |
+| [`spec/FEDERATED-TRANSACTIONS.md`](spec/FEDERATED-TRANSACTIONS.md) | Saga pattern for cross-pod atomic writes; isolation levels; failure modes |
+| [`spec/CONSTITUTIONAL-LAYER.md`](spec/CONSTITUTIONAL-LAYER.md) | Self-amending policies; tiered ratification; graceful forks |
+| [`spec/CRDT-OFFLINE-MERGE.md`](spec/CRDT-OFFLINE-MERGE.md) | Descriptor-fragment-level CRDTs for offline-first collaboration |
+| [`spec/AGGREGATE-PRIVACY.md`](spec/AGGREGATE-PRIVACY.md) | Privacy-preserving aggregate queries (DP + ZK) across pods |
+| [`spec/proofs/`](spec/proofs/) | TLA+ formal-spec outlines (modal lattice, supersession, ABAC composition) |
+| [Paradigm Constraints](spec/paradigm-constraints.md) | Emergent semantics, coherence verification, decision functor |
 | [Progressive Persistence](spec/progressive-persistence.md) | 5-tier persistence, URI invariance, structural encryption |
 | [Presentation Notes](spec/presentation-notes.md) | 10-slide W3C presentation outline with demo instructions |
+| [`docs/EMERGENCE.md`](docs/EMERGENCE.md) | Four emergent-property demos with falsifiable success criteria |
 
 ---
 

@@ -7,6 +7,24 @@ This document defines the three layers of work that sit under the Interego umbre
 
 ---
 
+## 0. Motivating principle: a namespace is a domain's boundary contract
+
+Every namespace in this project (`cg:`, `pgsl:`, `code:`, `med:`, `learning:`, ...) is the published interface of one domain to all others. The terms inside a namespace are what that domain commits to expose; everything else stays inside the domain's own implementation.
+
+This produces three concrete consequences that the rest of this document operationalises:
+
+1. **Domain-specific terms stay out of core namespaces.** `cg:CodeReview` is wrong because the L1 protocol shouldn't know about source code. The right home is `code:Review` in its own L3 ontology that grounds back to L1 via `rdfs:subClassOf` / `cg:constructedFrom`. The protocol's surface area is the contract it offers; if domain terms creep into it, every consumer has to understand every domain.
+
+2. **What's in the ontology is the public commitment.** A `cg:` term that exists in the ontology is something every conformant implementation must understand. A term that's emitted in TS code without an ontology declaration is implicit drift — invisible to outside readers, undocumented, ungraspable by other implementations. The CI lint enforces this asymmetry.
+
+3. **Versioning + deprecation are first-class.** Because the namespace is a contract, changing it is a breaking change to that contract. The `align:` schema-evolution machinery (NamespaceBridge / VersionMigration / DeprecationMarker) gives ratifiable, queryable migration paths so the contract can evolve without silently breaking consumers.
+
+The three layers below are the operational form of this principle: L1 is the universal contract, L2 is patterns over that contract, L3 is per-domain extensions that publish their own contracts grounded in L1.
+
+For background on the broader thesis — how interfaces and projection schemas relate to federated knowledge graphs — see Cagle & Shannon, ["The Interface Is the Contract"](https://theontologist.substack.com/p/the-interface-is-the-contract) (2026).
+
+---
+
 ## 1. The three layers
 
 ### Layer 1 — Protocol
