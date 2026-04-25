@@ -118,6 +118,18 @@ cg:Duty a cg:DeonticMode ;
     rdfs:comment "The policy attaches an obligation that MUST be fulfilled alongside the governed action when the predicate is satisfied. Duties accumulate across matching rules." ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
 
+cg:ConstitutionalPolicy a owl:Class ;
+    rdfs:subClassOf cg:AccessControlPolicy ;
+    rdfs:label "Constitutional Policy" ;
+    rdfs:comment "A policy that governs other policies. Carries a tier (cg:tier) and an amendment process (cg:amendmentProcess). See spec/CONSTITUTIONAL-LAYER.md." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:Amendment a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Constitutional Amendment" ;
+    rdfs:comment "A proposed change to a constitutional policy. Carries the diff (added/removed/modified rules), the proponent, the vote descriptors collected, and the ratification status. Built on cg:supersedes for the eventual replacement of the prior policy version." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
 cg:SemioticFacet a owl:Class ;
     rdfs:subClassOf cg:ContextFacet ;
     rdfs:label "Semiotic Facet" ;
@@ -383,6 +395,32 @@ cg:policyDuty a owl:DatatypeProperty ;
     rdfs:comment "A human-readable obligation attached to a Duty-mode policy. Multiple duties accumulate. Interoperability with ODRL odrl:duty is expected at the evaluator layer." ;
     rdfs:domain cg:AccessControlPolicy ;
     rdfs:range xsd:string ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:tier a owl:DatatypeProperty ;
+    rdfs:label "constitutional tier" ;
+    rdfs:comment "Tier 0..4 for ConstitutionalPolicy. Tier 0 = bedrock (the spec itself); Tier 1 = community charter; Tier 2 = bylaws; Tier 3 = day-to-day policy; Tier 4 = individual preference. Higher tier governs lower." ;
+    rdfs:domain cg:ConstitutionalPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:amendmentProcess a owl:ObjectProperty ;
+    rdfs:label "amendment process" ;
+    rdfs:comment "Reference to the descriptor describing how this constitutional policy itself can be amended (vote threshold, quorum, ratification window, etc.). Typically another cg:ConstitutionalPolicy at a higher tier." ;
+    rdfs:domain cg:ConstitutionalPolicy ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:ratificationVote a owl:ObjectProperty ;
+    rdfs:label "ratification vote" ;
+    rdfs:comment "A descriptor recording one ratification vote on this amendment. Composes via ModalAlgebra (Asserted=for, Counterfactual=against, Hypothetical=abstain)." ;
+    rdfs:domain cg:Amendment ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
+
+cg:ratifiedAt a owl:DatatypeProperty ;
+    rdfs:label "ratified at" ;
+    rdfs:comment "Instant ratification became effective. Before this, the amendment is a proposal; after, it supersedes the prior policy version." ;
+    rdfs:domain cg:Amendment ;
+    rdfs:range xsd:dateTime ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/cg#>.
 
 # ── Semiotic properties ───────────────────────────────────────
