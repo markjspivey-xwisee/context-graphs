@@ -773,6 +773,17 @@ export type {
   Tier,
 } from './constitutional/index.js';
 
+// ── Privacy hygiene (pre-publish content screening) ─────────
+export {
+  screenForSensitiveContent,
+  formatSensitivityWarning,
+  shouldBlockOnSensitivity,
+} from './privacy/index.js';
+export type {
+  SensitivityFlag,
+  SensitivityKind,
+} from './privacy/index.js';
+
 // ── Federated transactions (saga pattern) ───────────────────
 export {
   createTransaction,

@@ -22,6 +22,8 @@ COPY spec/architecture.md /relay-docs/architecture.md
 COPY spec/LAYERS.md /relay-docs/LAYERS.md
 COPY spec/DERIVATION.md /relay-docs/DERIVATION.md
 COPY docs/EMERGENCE.md /relay-docs/EMERGENCE.md
+COPY docs/AGENT-PLAYBOOK.md /relay-docs/AGENT-PLAYBOOK.md
+COPY docs/AGENT-INTEGRATION-GUIDE.md /relay-docs/AGENT-INTEGRATION-GUIDE.md
 COPY docs/ns/abac.ttl /relay-docs/abac.ttl
 COPY docs/ns/code.ttl /relay-docs/code.ttl
 
