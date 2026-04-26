@@ -43,6 +43,10 @@ const OWNED_NAMESPACES = {
   passport:   'docs/ns/passport.ttl',
   // Domain ontologies (L3)
   code:       'docs/ns/code.ttl',
+  // Compliance / regulatory mapping (L3)
+  'eu-ai-act': 'docs/ns/eu-ai-act.ttl',
+  'nist-rmf':  'docs/ns/nist-rmf.ttl',
+  soc2:       'docs/ns/soc2.ttl',
 };
 
 // Known-external prefixes we don't own — references are always valid

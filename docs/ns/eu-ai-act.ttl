@@ -1,0 +1,140 @@
+@prefix eu-ai-act: <https://markjspivey-xwisee.github.io/interego/ns/eu-ai-act#> .
+@prefix cg:        <https://markjspivey-xwisee.github.io/interego/ns/cg#> .
+@prefix rdf:       <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:      <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:       <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:       <http://www.w3.org/2002/07/owl#> .
+@prefix dct:       <http://purl.org/dc/terms/> .
+@prefix prov:      <http://www.w3.org/ns/prov#> .
+@prefix vann:      <http://purl.org/vocab/vann/> .
+
+# ══════════════════════════════════════════════════════════════
+#  eu-ai-act: — EU AI Act mapping ontology (L3)
+# ══════════════════════════════════════════════════════════════
+#
+#  Maps Interego's typed-context primitives onto categories from
+#  Regulation (EU) 2024/1689 (the "AI Act"). Lets a compliance
+#  team query "show me all high-risk-system actions that lack a
+#  human-in-the-loop attestation" using the regulation's own
+#  vocabulary, against a customer's pod, in standard SPARQL.
+#
+#  Coverage in this v1:
+#    - Article 6 — High-risk system classification
+#    - Article 9 — Risk management system
+#    - Article 10 — Data + data governance
+#    - Article 12 — Record-keeping (logs)
+#    - Article 13 — Transparency to deployers
+#    - Article 14 — Human oversight
+#    - Article 15 — Accuracy, robustness, cybersecurity
+#    - Article 50 — Transparency obligations for certain AI systems
+#
+#  Each Article-mapped class is a cg:SemioticFacet subclass — its
+#  instances annotate descriptors with "this action conforms to
+#  Article X requirement Y" (Asserted) or "this action requires
+#  Article X but lacks the required attestation" (Counterfactual).
+#  Compliance reports walk the federation and aggregate.
+
+<https://markjspivey-xwisee.github.io/interego/ns/eu-ai-act>
+    a owl:Ontology ;
+    dct:title "EU AI Act mapping ontology" ;
+    dct:description "L3 mapping of Interego context primitives to EU AI Act articles. v1 covers Articles 6, 9, 10, 12, 13, 14, 15, 50." ;
+    vann:preferredNamespacePrefix "eu-ai-act" ;
+    vann:preferredNamespaceUri "https://markjspivey-xwisee.github.io/interego/ns/eu-ai-act#" ;
+    owl:imports <https://markjspivey-xwisee.github.io/interego/ns/cg> .
+
+# ── Risk classification (Article 6) ────────────────────────
+
+eu-ai-act:RiskClassification a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "AI system risk classification" ;
+    rdfs:comment "Classifies an AI system's risk tier per Article 6: prohibited / high-risk / limited-risk / minimal-risk. Attaches as a semiotic facet on a cg:ContextDescriptor that describes a system or action. Drives which other Articles' obligations apply." .
+
+eu-ai-act:HighRiskSystem a owl:NamedIndividual ;
+    rdfs:label "High-risk AI system" ;
+    rdfs:comment "Annex III categories: biometrics, critical infrastructure, education, employment, essential services, law enforcement, migration, justice + democratic processes." .
+
+eu-ai-act:LimitedRiskSystem a owl:NamedIndividual ;
+    rdfs:label "Limited-risk AI system" .
+
+eu-ai-act:MinimalRiskSystem a owl:NamedIndividual ;
+    rdfs:label "Minimal-risk AI system" .
+
+# ── Risk management (Article 9) ────────────────────────────
+
+eu-ai-act:RiskManagementRecord a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Risk management record (Article 9)" ;
+    rdfs:comment "Records the establishment and operation of a continuous, iterative risk management system. Each record cites prior versions via cg:supersedes; the chain IS the audit trail." .
+
+# ── Data + data governance (Article 10) ────────────────────
+
+eu-ai-act:DataGovernanceAttestation a owl:Class ;
+    rdfs:subClassOf cg:TrustFacet ;
+    rdfs:label "Data governance attestation (Article 10)" ;
+    rdfs:comment "Attests that training/validation/testing datasets meet Article 10 quality criteria (relevance, representativeness, freedom from errors, statistical properties). Issuer typically a data steward." .
+
+# ── Record-keeping (Article 12) ────────────────────────────
+
+eu-ai-act:LoggedAction a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Logged action (Article 12)" ;
+    rdfs:comment "An action descriptor that satisfies Article 12 record-keeping: includes attributed agent, timestamp, input + output references, model identifier, and a tamper-evident anchor (cg:supersedes chain + ZK or blockchain anchor)." .
+
+# ── Transparency to deployers (Article 13) ─────────────────
+
+eu-ai-act:TransparencyDisclosure a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Transparency disclosure (Article 13)" ;
+    rdfs:comment "Records that the deployer was provided with the instructions, capabilities, limitations, and accuracy expectations of the AI system at deployment time." .
+
+# ── Human oversight (Article 14) ───────────────────────────
+
+eu-ai-act:HumanOversightCheckpoint a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Human oversight checkpoint (Article 14)" ;
+    rdfs:comment "A descriptor recording that a human reviewed an AI action prior to consequential effect. Carries the reviewer's identity (AgentFacet), decision (SemioticFacet modal: Asserted=approved, Counterfactual=rejected), and timestamp. Required for high-risk system actions per Article 14." .
+
+eu-ai-act:hasHumanReviewer a owl:ObjectProperty ;
+    rdfs:domain eu-ai-act:HumanOversightCheckpoint ;
+    rdfs:label "human reviewer" .
+
+# ── Accuracy + robustness (Article 15) ─────────────────────
+
+eu-ai-act:AccuracyAttestation a owl:Class ;
+    rdfs:subClassOf cg:TrustFacet ;
+    rdfs:label "Accuracy + robustness attestation (Article 15)" ;
+    rdfs:comment "Attests measured accuracy/robustness/cybersecurity properties of an AI system per Article 15. Issuer is the conformity assessment body." .
+
+# ── Article 50 transparency (chatbot disclosure, etc.) ─────
+
+eu-ai-act:Article50Disclosure a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Article 50 disclosure" ;
+    rdfs:comment "End-user-facing disclosure: this content was produced by an AI system, this image is synthetic, this chatbot is not a human, etc. Each customer-facing AI interaction descriptor SHOULD carry one." .
+
+# ── Conformity assessment ──────────────────────────────────
+
+eu-ai-act:ConformityAssessment a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Conformity assessment record" ;
+    rdfs:comment "The output of a Title III Chapter 5 conformity assessment procedure. Cites all underlying attestations (DataGovernance, Accuracy, RiskManagement) via prov:wasDerivedFrom. The composed certificate descriptor IS the assessment." .
+
+# ── Properties ─────────────────────────────────────────────
+
+eu-ai-act:appliesToSystem a owl:ObjectProperty ;
+    rdfs:label "applies to system" ;
+    rdfs:comment "Links a regulatory annotation to the AI system descriptor it concerns." .
+
+eu-ai-act:assessedAt a owl:DatatypeProperty ;
+    rdfs:label "assessed at" ;
+    rdfs:range xsd:dateTime .
+
+eu-ai-act:articleReference a owl:DatatypeProperty ;
+    rdfs:label "article reference" ;
+    rdfs:comment "Free-text article + paragraph reference, e.g. 'Art 14(4)(a)' for granular pinning." ;
+    rdfs:range xsd:string .
+
+# ── Alignments ─────────────────────────────────────────────
+
+eu-ai-act:LoggedAction rdfs:seeAlso cg:ProvenanceFacet ;
+    rdfs:comment "Article 12 logging requirements are satisfied by Interego's standard ProvenanceFacet + cg:supersedes chain — the regulation's record-keeping is just the federation's normal operating mode, given a signed-by-default mode." .

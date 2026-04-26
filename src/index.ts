@@ -773,6 +773,22 @@ export type {
   Tier,
 } from './constitutional/index.js';
 
+// ── Compliance (regulatory framework checks + lineage walk) ─
+export {
+  checkComplianceInputs,
+  generateFrameworkReport,
+  walkLineage,
+  FRAMEWORK_CONTROLS,
+} from './compliance/index.js';
+export type {
+  ComplianceFramework,
+  ComplianceCheckResult,
+  FrameworkReport,
+  FrameworkReportEntry,
+  AuditableDescriptor,
+  LineageNode,
+} from './compliance/index.js';
+
 // ── Privacy hygiene (pre-publish content screening) ─────────
 export {
   screenForSensitiveContent,

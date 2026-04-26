@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interego — Compliance Dashboard</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --code-bg: #1f242b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .subtitle { color: var(--muted); font-size: 13px; }
+  .controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .controls input, .controls select {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+  }
+  .controls input { min-width: 380px; }
+  .controls button {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 7px 14px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .controls button:hover { opacity: 0.85; }
+  .layout {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel.full { grid-column: 1 / -1; }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+  .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+  .control-row {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) 80px 100px 80px;
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    background: var(--code-bg);
+    font-size: 12px;
+    align-items: center;
+  }
+  .status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .status-satisfied { background: rgba(63, 185, 80, 0.2); color: var(--good); }
+  .status-partial { background: rgba(210, 153, 34, 0.2); color: var(--warn); }
+  .status-missing { background: rgba(248, 81, 73, 0.2); color: var(--bad); }
+  .summary-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .summary-stat:last-child { border-bottom: none; }
+  .summary-stat .label { color: var(--muted); }
+  .summary-stat .value { font-weight: 600; }
+  .score-bar-bg {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .score-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--bad) 0%, var(--warn) 50%, var(--good) 100%);
+  }
+  .event-row {
+    padding: 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    background: var(--code-bg);
+    font-size: 11px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--muted);
+  }
+  .event-row .iri { color: var(--accent); display: block; margin-bottom: 2px; }
+  .modal-Asserted { color: var(--good); }
+  .modal-Hypothetical { color: var(--warn); }
+  .modal-Counterfactual { color: var(--bad); }
+  footer {
+    padding: 14px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  footer a { color: var(--accent); }
+  .error {
+    color: var(--bad);
+    background: rgba(248, 81, 73, 0.1);
+    padding: 10px;
+    border-radius: 4px;
+    margin: 8px 0;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Interego — Compliance Dashboard</h1>
+  <div class="subtitle">
+    Per-pod regulatory evidence aggregation. Reads <code>/audit/*</code> from the relay.
+  </div>
+  <div class="controls">
+    <label for="pod-url">Pod URL:</label>
+    <input id="pod-url" type="text" value="https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/" />
+    <label for="framework">Framework:</label>
+    <select id="framework">
+      <option value="soc2">SOC 2</option>
+      <option value="eu-ai-act">EU AI Act</option>
+      <option value="nist-rmf">NIST AI RMF</option>
+    </select>
+    <button id="reload">Reload</button>
+  </div>
+</header>
+
+<div id="error-area"></div>
+
+<div class="layout">
+  <section class="panel">
+    <h2>Summary</h2>
+    <div id="summary" class="empty">Loading…</div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent events on pod (last 10)</h2>
+    <div id="events" class="empty">Loading…</div>
+  </section>
+
+  <section class="panel full">
+    <h2 id="report-title">Per-control evidence</h2>
+    <div id="controls" class="empty">Loading…</div>
+  </section>
+</div>
+
+<footer>
+  Reads <code>/audit/compliance/&lt;framework&gt;</code>, <code>/audit/events</code>, <code>/audit/frameworks</code>
+  on the configured Interego relay.
+  <a href="https://github.com/markjspivey-xwisee/interego">github</a>
+</footer>
+
+<script>
+const RELAY = 'https://interego-relay.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+}
+
+function showError(msg) {
+  document.getElementById('error-area').innerHTML = msg ? `<div class="error">${escapeHtml(msg)}</div>` : '';
+}
+
+async function loadAll() {
+  const pod = document.getElementById('pod-url').value;
+  const fw = document.getElementById('framework').value;
+  showError('');
+  document.getElementById('summary').className = 'empty';
+  document.getElementById('summary').textContent = 'Loading…';
+  document.getElementById('events').className = 'empty';
+  document.getElementById('events').textContent = 'Loading…';
+  document.getElementById('controls').className = 'empty';
+  document.getElementById('controls').textContent = 'Loading…';
+
+  try {
+    // 1. Framework report (the marquee panel)
+    const rptUrl = `${RELAY}/audit/compliance/${encodeURIComponent(fw)}?pod=${encodeURIComponent(pod)}`;
+    const rpt = await fetch(rptUrl).then(r => {
+      if (!r.ok) throw new Error(`/audit/compliance HTTP ${r.status}`);
+      return r.json();
+    });
+    renderSummary(rpt);
+    renderControls(rpt);
+
+    // 2. Events (timeline)
+    const evUrl = `${RELAY}/audit/events?pod=${encodeURIComponent(pod)}`;
+    const ev = await fetch(evUrl).then(r => {
+      if (!r.ok) throw new Error(`/audit/events HTTP ${r.status}`);
+      return r.json();
+    });
+    renderEvents(ev);
+  } catch (err) {
+    showError(`Load failed: ${err.message}`);
+    document.getElementById('summary').className = 'empty';
+    document.getElementById('summary').textContent = '(error)';
+    document.getElementById('events').className = 'empty';
+    document.getElementById('events').textContent = '(error)';
+    document.getElementById('controls').className = 'empty';
+    document.getElementById('controls').textContent = '(error)';
+  }
+}
+
+function renderSummary(rpt) {
+  const el = document.getElementById('summary');
+  el.className = '';
+  const s = rpt.summary;
+  const pct = (s.overallScore * 100).toFixed(0);
+  el.innerHTML = `
+    <div class="summary-stat">
+      <span class="label">Framework</span>
+      <span class="value">${escapeHtml(rpt.framework)}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="label">Overall score</span>
+      <span class="value">${pct}%</span>
+    </div>
+    <div class="score-bar-bg"><div class="score-bar-fill" style="width: ${pct}%"></div></div>
+    <div class="summary-stat" style="margin-top: 12px;">
+      <span class="label">Total controls</span><span class="value">${s.totalControls}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="label">Satisfied</span><span class="value" style="color: var(--good)">${s.satisfied}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="label">Partial</span><span class="value" style="color: var(--warn)">${s.partial}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="label">Missing</span><span class="value" style="color: var(--bad)">${s.missing}</span>
+    </div>
+    <div class="summary-stat">
+      <span class="label">Generated at</span><span class="value">${escapeHtml(rpt.generatedAt.slice(0, 19))}</span>
+    </div>
+  `;
+}
+
+function renderControls(rpt) {
+  const el = document.getElementById('controls');
+  el.className = '';
+  document.getElementById('report-title').textContent = `${rpt.framework} — per-control evidence`;
+  if (!rpt.entries || rpt.entries.length === 0) {
+    el.innerHTML = '<div class="empty">No controls reported.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="control-row" style="background: transparent; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border);">
+      <div>Control</div>
+      <div>Evidence</div>
+      <div>Most Recent</div>
+      <div>Status</div>
+    </div>
+    ${rpt.entries.map(e => `
+      <div class="control-row">
+        <div>${escapeHtml(e.controlLabel)}<br><small style="color:var(--muted)">${escapeHtml(e.controlIri)}</small></div>
+        <div>${e.evidenceCount}</div>
+        <div>${e.mostRecentEvidence ? escapeHtml(e.mostRecentEvidence.slice(0, 10)) : '—'}</div>
+        <div><span class="status-pill status-${e.status}">${escapeHtml(e.status)}</span></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderEvents(ev) {
+  const el = document.getElementById('events');
+  el.className = '';
+  if (!ev.events || ev.events.length === 0) {
+    el.innerHTML = '<div class="empty">No descriptors on this pod yet.</div>';
+    return;
+  }
+  const recent = ev.events.slice(-10).reverse();
+  el.innerHTML = recent.map(e => `
+    <div class="event-row">
+      <span class="iri">${escapeHtml(e.descriptorUrl.split('/').pop())}</span>
+      <span class="modal-${e.modalStatus ?? ''}">${escapeHtml(e.modalStatus ?? '?')}</span>
+      &nbsp;·&nbsp;
+      ${escapeHtml((e.validFrom || '').slice(0, 19))}
+      &nbsp;·&nbsp;
+      trust: ${escapeHtml(e.trustLevel ?? '?')}
+    </div>
+  `).join('');
+}
+
+document.getElementById('reload').addEventListener('click', loadAll);
+document.getElementById('framework').addEventListener('change', loadAll);
+
+// Initial load
+loadAll();
+</script>
+</body>
+</html>
