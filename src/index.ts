@@ -619,6 +619,9 @@ export {
   exportPrivateKey,
   signMessageRaw,
   recoverMessageSigner,
+  getNostrPubkey,
+  schnorrSign,
+  schnorrVerify,
   createDelegation,
   verifyDelegationSignature,
   signDescriptor,
@@ -824,9 +827,11 @@ export {
   KIND_DESCRIPTOR,
   KIND_DIRECTORY,
   KIND_ATTESTATION,
+  KIND_ENCRYPTED_SHARE,
   P2pClient,
   InMemoryRelay,
   verifyEvent,
+  detectSignatureScheme,
 } from './p2p/index.js';
 export type {
   P2pEvent,
@@ -835,8 +840,11 @@ export type {
   P2pSubscription,
   DescriptorAnnouncement,
   DirectoryEntry,
+  EncryptedShare,
+  SignatureScheme,
   PublishDescriptorInput,
   PublishDirectoryInput,
+  PublishEncryptedShareInput,
 } from './p2p/index.js';
 
 // ── Operational events (SOC 2 evidence builders) ────────────

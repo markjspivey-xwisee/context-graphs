@@ -204,11 +204,11 @@ const found = await client.queryDescriptors({ graphIri: 'urn:graph:my-data' });
 **What you give up vs. true libp2p P2P:**
 - Relays are still servers (just commodity ones — anyone can run one). Not censorship-immune; just censorship-resistant.
 - Event size is constrained by relay policy (~64KB typical). Big descriptors must use CID + external storage.
-- Multi-recipient encryption (NIP-44 is 1:1) maps awkwardly to our 1:N envelope encryption — current adapter punts on encrypted P2P share, leaving that to Tier 4 cross-pod sharing.
 
 **What you get:**
 - Mobile + desktop interop with no special infrastructure beyond a relay URL.
-- Identity is the same wallet you already have.
+- Identity is the same wallet you already have. **Two pubkey formats supported on the wire** — Ethereum-style address (ECDSA) for Interego-internal events, BIP-340 x-only pubkey (Schnorr) for public-Nostr-relay interop. The same private key produces both; clients dispatch on pubkey format automatically.
+- **1:N encrypted share** — Tier 4's cross-pod E2EE feature works across the P2P transport too via `KIND_ENCRYPTED_SHARE` (kind 30043). The relay sees ciphertext + recipient signing pubkeys; only addressed recipients can decrypt with their X25519 keypair. Closes the prior Tier 4-vs-Tier 5 capability gap.
 - Censorship-resistance (publish to multiple relays; aggregate from multiple relays).
 - Bootstrap problem solved (public Nostr relay lists are well-known).
 
@@ -233,7 +233,7 @@ A future tier could replace relays with libp2p (no servers, even commodity ones)
 | Multi-device single-user | – | – | ✓ | ✓ | ✓ | ✓ |
 | Internet-reachable pod | – | – | – | ✓ | ✓ | – (relay-reachable instead) |
 | Cross-pod publish / discover | – | – | – | – | ✓ | ✓ (via relay) |
-| Cross-pod E2EE share | – | – | – | – | ✓ | – (planned, NIP-44 adapter) |
+| Cross-pod E2EE share | – | – | – | – | ✓ | ✓ (KIND_ENCRYPTED_SHARE, 1:N envelope) |
 | Federated witness attestation | – | – | – | – | ✓ | ✓ |
 | IPFS pin to a real network (Pinata / Filecoin) | – | – (use `local`) | – | optional | optional | optional |
 | Mobile + desktop interop with no central infra | – | – | – | – | partial | ✓ |

@@ -154,12 +154,65 @@ The same code passes; only the transport changes.
 
 ---
 
+## Two-scheme signing (ECDSA + Schnorr coexist)
+
+Every `P2pClient` is configured with one signing scheme but the verifier handles both:
+
+```ts
+// Internal-only events: ECDSA, Ethereum-address pubkey
+const internal = new P2pClient(relay, wallet, { signingScheme: 'ecdsa' });
+
+// Public-Nostr interop: Schnorr (BIP-340), x-only pubkey
+const publicNostr = new P2pClient(relay, wallet, { signingScheme: 'schnorr' });
+
+// Same wallet, two pubkey representations:
+internal.pubkey      // 0x... (42 chars)
+publicNostr.pubkey   // 8318... (64 hex, no prefix)
+```
+
+The wire format auto-dispatches: `verifyEvent(e)` looks at `pubkey` length / prefix and routes to the correct verifier. A relay can carry events of both schemes simultaneously; clients filter by author transparently.
+
+Why this matters: an Interego deployment can run on private relays with ECDSA (matching the wallet identity used everywhere else in the protocol — compliance signing, x402, SIWE), AND publish to public Nostr relays with Schnorr-signed events that interop with non-Interego Nostr clients. One wallet, two faces, full ecosystem participation.
+
+## 1:N encrypted share
+
+Tier 4 cross-pod sharing uses 1:N NaCl envelope encryption (one content key, wrapped per recipient). Tier 5 reuses exactly that envelope, wrapped in a custom event kind (`KIND_ENCRYPTED_SHARE = 30043`):
+
+```ts
+await alice.publishEncryptedShare({
+  plaintext: 'sensitive payload',
+  recipients: [
+    { sigPubkey: bob.pubkey, encryptionPubkey: bobX25519PublicKey },
+    { sigPubkey: carol.pubkey, encryptionPubkey: carolX25519PublicKey },
+  ],
+  senderEncryptionKeyPair: aliceX25519KeyPair,
+  topic: 'finance-q3',
+});
+
+// Bob queries shares addressed to him; decrypts with his X25519 key
+const inbox = await bob.queryEncryptedShares({ recipientSigPubkey: bob.pubkey });
+const plaintext = bob.decryptEncryptedShare(inbox[0]);
+```
+
+The relay sees:
+- Ciphertext (the envelope)
+- Recipients' signing pubkeys (in `p` tags — required so each recipient can filter for "events addressed to me")
+- Optional `topic` tag
+
+The relay does NOT see:
+- The plaintext
+- The recipients' encryption keys (those are X25519, separate from signing pubkeys)
+- Whether decryption succeeds for any given recipient
+
+A non-recipient who fetches the event can attempt decryption — and it fails. The wrapped keys are encrypted to specific X25519 pubkeys; without the matching secret key the content key cannot be unwrapped.
+
+This is identical to the Tier 4 cross-pod share security model — only the transport differs.
+
 ## Limitations + roadmap
 
-- **Multi-recipient encrypted share** — current cross-pod E2EE in Tier 4 uses 1:N envelope encryption. Mapping this onto Nostr (NIP-44 is 1:1) requires either inventing a NIP or accepting per-recipient duplication. Not yet built.
-- **Schnorr signatures (BIP-340)** — required for public-Nostr interop. We use ECDSA today (matches our wallet). `signEvent` + `verifyEvent` are the only places that change; ~50 lines.
 - **Public relay rate limits + retention policies** — production deployments should self-host a relay or pay for a managed one.
 - **Bandwidth + cost** — agents subscribed to broad filters can ingest a lot of events. Budget accordingly; use precise filters (`#graph`, `#facet`, `authors`).
+- **`KIND_ENCRYPTED_SHARE` is currently an Interego-only kind** — public Nostr clients without our adapter won't decode the envelope. Encrypted-share interop with the broader Nostr ecosystem would require either a NIP submission or a NIP-44 (1:1) duplicate-per-recipient adapter.
 
 ---
 
