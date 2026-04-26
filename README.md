@@ -845,6 +845,7 @@ npm run test:watch   # Watch mode
 | [`spec/LAYERS.md`](spec/LAYERS.md) | Layering discipline (L1 / L2 / L3); namespace-as-projection-contract; drift triggers |
 | [`spec/DERIVATION.md`](spec/DERIVATION.md) | Construction rules: every L2/L3 class must ground in L1 (CI-enforced) |
 | [`spec/CONFORMANCE.md`](spec/CONFORMANCE.md) | Four-level conformance test suite + badge program (L1 Core, L2 Federation, L3 Advanced, L4 Compliance) |
+| [`spec/STORAGE-TIERS.md`](spec/STORAGE-TIERS.md) | Local-first by design: 5-tier deployment ladder from library-only → P2P. Tier 1 (local pod) is the zero-config default; the MCP auto-spawns CSS on first publish |
 | [`spec/SOC2-PREPARATION.md`](spec/SOC2-PREPARATION.md) | SOC 2 readiness package: scope, gap analysis, vendor inventory, solo-operator compensating controls, Type 1 → Type 2 timeline |
 | [`spec/policies/`](spec/policies/) | 15 written policies (info sec, access, change, IR, BCP, vendor, classification, encryption, SDLC, logging, AUP, retention, risk, vulnmgmt, privacy) |
 | [`spec/OPS-RUNBOOK.md`](spec/OPS-RUNBOOK.md) | Operational procedures: deploy, access reviews, wallet rotation, backup, monitoring, quarterly + annual cadence |
