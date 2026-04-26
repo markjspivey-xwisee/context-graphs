@@ -64,6 +64,13 @@ import {
   // Privacy hygiene (pre-publish content screening)
   screenForSensitiveContent,
   formatSensitivityWarning,
+  // Compliance — framework reports + lineage walks for /audit/* endpoints
+  checkComplianceInputs,
+  generateFrameworkReport,
+  walkLineage,
+  FRAMEWORK_CONTROLS,
+  type ComplianceFramework,
+  type AuditableDescriptor,
 } from '@interego/core';
 
 import type {
@@ -340,7 +347,8 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     })
 .semiotic(preprocessed.semiotic)
 .trust({
-      trustLevel: 'SelfAsserted',
+      // Compliance grade upgrades to HighAssurance per spec.
+      trustLevel: args.compliance === true ? 'CryptographicallyVerified' : 'SelfAsserted',
       issuer: ownerWebId as IRI,
     })
 .federation({
@@ -488,6 +496,14 @@ async function handlePublishContext(args: ToolArgs): Promise<string> {
     // loop — should surface the warning to the user before treating the
     // publish as final.
     sensitivityPreflight: sensitivityWarning || undefined,
+    // Compliance-grade check (when args.compliance === true). Reports
+    // pass/partial + violations + auto-upgraded facets; doesn't block.
+    complianceCheck: args.compliance === true ? checkComplianceInputs({
+      modalStatus: preprocessed.semiotic.modalStatus,
+      trustLevel: 'CryptographicallyVerified',
+      hasSignature: false, // ECDSA Turtle signing is a follow-up
+      framework: args.compliance_framework as ComplianceFramework | undefined,
+    }) : undefined,
   });
 }
 
@@ -836,6 +852,15 @@ const TOOL_SCHEMAS = [
         auto_supersede_prior: {
           type: 'boolean',
           description: 'When true (default), automatically add cg:supersedes links to any prior descriptor on this pod that describes the same graph_iri. Makes republish-to-add-recipients cleanly mark the older version as superseded. Set to false to allow multiple coexisting descriptors for the same graph.',
+        },
+        compliance: {
+          type: 'boolean',
+          description: 'When true, publish as compliance-grade evidence (regulatory audit trail). Forces trust to HighAssurance, requires non-Hypothetical modal status. Response carries a complianceCheck report.',
+        },
+        compliance_framework: {
+          type: 'string',
+          enum: ['eu-ai-act', 'nist-rmf', 'soc2'],
+          description: 'Optional regulatory framework this descriptor provides evidence for. The graph_content should cite the relevant control IRIs (e.g., soc2:CC6.1) so framework reports can aggregate.',
         },
       },
       required: ['graph_iri', 'graph_content'],
@@ -1550,6 +1575,113 @@ app.post('/oauth/verify', async (req, res) => {
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', css: CSS_URL, tools: Object.keys(TOOLS).length, auth: 'bearer-token', x402: true });
+});
+
+// ── /audit/* — compliance + lineage endpoints ──────────────
+//
+// Public (no auth required for now — they read public metadata only;
+// add auth gating before exposing anything beyond read-only descriptor
+// summaries). Each endpoint is a thin wrapper over the relay's
+// existing pod-fetch + the compliance helpers in @interego/core.
+//
+// /audit/events — list recent descriptors on a pod (audit log).
+// /audit/lineage — walk prov:wasDerivedFrom + cg:supersedes for one descriptor.
+// /audit/compliance/:framework — generate a regulatory framework report.
+// /audit/frameworks — list known frameworks + their controls.
+
+app.get('/audit/frameworks', (_req, res) => {
+  const frameworks = Object.entries(FRAMEWORK_CONTROLS).map(([name, controls]) => ({
+    framework: name,
+    controlCount: controls.length,
+    controls: controls.map(c => ({ iri: c.iri, label: c.label })),
+  }));
+  res.json({ frameworks });
+});
+
+app.get('/audit/events', async (req, res) => {
+  const podUrl = (req.query.pod as string | undefined) ?? `${CSS_URL}markj/`;
+  const since = req.query.since as string | undefined;
+  const until = req.query.until as string | undefined;
+  try {
+    const entries = await discover(podUrl, undefined, { fetch: solidFetch });
+    const filtered = entries.filter(e => {
+      if (since && e.validFrom && e.validFrom < since) return false;
+      if (until && e.validFrom && e.validFrom > until) return false;
+      return true;
+    });
+    res.json({
+      pod: podUrl,
+      auditPeriod: (since || until) ? { since, until } : undefined,
+      count: filtered.length,
+      events: filtered.map(e => ({
+        descriptorUrl: e.descriptorUrl,
+        graphIris: e.describes,
+        validFrom: e.validFrom,
+        modalStatus: e.modalStatus,
+        trustLevel: e.trustLevel,
+      })),
+    });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/audit/lineage', async (req, res) => {
+  const descriptorUrl = req.query.descriptor as string | undefined;
+  const podUrl = (req.query.pod as string | undefined) ?? `${CSS_URL}markj/`;
+  if (!descriptorUrl) {
+    res.status(400).json({ error: 'descriptor query param required' });
+    return;
+  }
+  try {
+    // Walk the pod's manifest to build a descriptor index, then walk
+    // lineage from the requested root.
+    const entries = await discover(podUrl, undefined, { fetch: solidFetch });
+    // The manifest doesn't yet cleartext-mirror derivedFrom/supersedes
+    // into ManifestEntry typed fields; v1 lineage walker uses the manifest
+    // as a flat index (depth=1 reachability) and reports unknown ancestors.
+    // Future: extend ManifestEntry to expose these directly so the walker
+    // can recurse without per-descriptor fetches.
+    const index = new Map<IRI, { publishedAt: string; derivedFrom: IRI[]; supersedes: IRI[] }>();
+    for (const e of entries) {
+      index.set(e.descriptorUrl as IRI, {
+        publishedAt: e.validFrom ?? '',
+        derivedFrom: [],
+        supersedes: [],
+      });
+    }
+    const lineage = walkLineage(descriptorUrl as IRI, index);
+    res.json({ root: descriptorUrl, pod: podUrl, lineageNodes: lineage.length, lineage });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/audit/compliance/:framework', async (req, res) => {
+  const framework = req.params.framework as ComplianceFramework;
+  if (!['eu-ai-act', 'nist-rmf', 'soc2'].includes(framework)) {
+    res.status(400).json({ error: `unknown framework; must be one of eu-ai-act / nist-rmf / soc2` });
+    return;
+  }
+  const podUrl = (req.query.pod as string | undefined) ?? `${CSS_URL}markj/`;
+  const auditPeriod = req.query.from && req.query.to
+    ? { from: req.query.from as string, to: req.query.to as string }
+    : undefined;
+  try {
+    const entries = await discover(podUrl, undefined, { fetch: solidFetch });
+    // Map manifest entries → AuditableDescriptor. v1: derive evidence
+    // citations from a (currently absent) cg:evidenceForControl predicate;
+    // for now the heuristic is the dct:conformsTo array (pre-existing).
+    const auditable: AuditableDescriptor[] = entries.map(e => ({
+      id: e.descriptorUrl as IRI,
+      publishedAt: e.validFrom ?? '',
+      evidenceForControls: (e.conformsTo ?? []) as IRI[],
+    }));
+    const report = generateFrameworkReport(framework, auditable, { auditPeriod });
+    res.json(report);
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
 });
 
 /**

@@ -71,6 +71,46 @@ implementations declare which L3 features they support.
 - **L3.6 PGSL lattice:** atom/fragment construction + pullbacks per
   `docs/ns/pgsl.ttl`.
 
+### Level 4 — Compliance (deployment-specific MUST)
+
+Required when an implementation is being used as a regulatory
+audit-trail substrate (EU AI Act, NIST AI RMF, SOC 2). Strictly
+opt-in per deployment; not required for L1+L2 conformance. When
+declared, ALL of the following MUST hold for descriptors marked
+`compliance: true`:
+
+- **L4.1 Trust upgrade:** `cg:trustLevel` MUST be
+  `cg:CryptographicallyVerified`. `SelfAsserted` is not acceptable
+  for compliance-grade evidence.
+- **L4.2 Modal commitment:** `cg:modalStatus` MUST be `Asserted` or
+  `Counterfactual`. `Hypothetical` is not acceptable for audit-trail
+  records (a hypothesis isn't evidence).
+- **L4.3 Cryptographic signature:** the descriptor MUST carry an
+  ECDSA signature over its serialized form via the `Trust` facet's
+  `proof` field. Implementations should use ERC-8004 T1 or
+  equivalent.
+- **L4.4 Anchored:** the descriptor's content hash SHOULD be
+  anchored — IPFS CID at minimum, ideally on-chain (ERC-8004 T2/T3).
+- **L4.5 Append-only:** updates MUST use `cg:supersedes`; no
+  in-place mutation of compliance descriptors.
+- **L4.6 Framework citation:** if the descriptor is evidence for
+  a specific regulatory framework, it MUST cite the framework's
+  control IRI(s) — `eu-ai-act:appliesToSystem` /
+  `nist-rmf:contributesTo` / `soc2:satisfiesControl`.
+- **L4.7 Privacy preflight:** content MUST pass
+  `screenForSensitiveContent` HIGH-severity checks. (Lower severity
+  flags require user confirmation but don't block.)
+
+The L4 framework reports (one per regulatory regime) are produced
+by `generateFrameworkReport` from `@interego/core` and exposed via
+the relay's `/audit/compliance/<framework>` endpoint.
+
+L4 framework mappings shipped today:
+- `eu-ai-act:` — Articles 6, 9, 10, 12, 13, 14, 15, 50
+- `nist-rmf:` — Govern / Map / Measure / Manage four-function model
+- `soc2:` — Trust Services Criteria (Security CC, Availability,
+  Processing Integrity, Confidentiality, Privacy)
+
 ## Running the conformance suite
 
 ```bash

@@ -1,0 +1,166 @@
+@prefix soc2:  <https://markjspivey-xwisee.github.io/interego/ns/soc2#> .
+@prefix cg:    <https://markjspivey-xwisee.github.io/interego/ns/cg#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+@prefix vann:  <http://purl.org/vocab/vann/> .
+
+# ══════════════════════════════════════════════════════════════
+#  soc2: — SOC 2 Trust Services Criteria mapping (L3)
+# ══════════════════════════════════════════════════════════════
+#
+#  Maps Interego primitives to AICPA SOC 2 Trust Services
+#  Criteria (TSC 2017, with the 2022 points-of-focus update).
+#  Five categories:
+#
+#    Security (CC)              — common criteria, always required
+#    Availability (A)
+#    Processing Integrity (PI)
+#    Confidentiality (C)
+#    Privacy (P)
+#
+#  An AI agent's actions accumulate as soc2:ControlEvidence
+#  descriptors that cite specific control IRIs (e.g.,
+#  soc2:CC6.1 — Logical access controls). Auditors query the
+#  pod via SPARQL to assemble SOC 2 evidence packages.
+
+<https://markjspivey-xwisee.github.io/interego/ns/soc2>
+    a owl:Ontology ;
+    dct:title "SOC 2 Trust Services Criteria mapping ontology" ;
+    dct:description "L3 mapping of Interego context primitives to AICPA SOC 2 TSC. Covers five categories with selected controls; extensible." ;
+    vann:preferredNamespacePrefix "soc2" ;
+    vann:preferredNamespaceUri "https://markjspivey-xwisee.github.io/interego/ns/soc2#" ;
+    owl:imports <https://markjspivey-xwisee.github.io/interego/ns/cg> .
+
+# ── Categories ─────────────────────────────────────────────
+
+soc2:Security a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Security (Common Criteria)" ;
+    rdfs:comment "TSC Common Criteria (CC). Always required in a SOC 2 report. Covers logical/physical access, system operations, change management, risk mitigation." .
+
+soc2:Availability a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Availability" ;
+    rdfs:comment "Systems available for operation + use as committed or agreed." .
+
+soc2:ProcessingIntegrity a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Processing Integrity" ;
+    rdfs:comment "System processing is complete, accurate, timely, authorized." .
+
+soc2:Confidentiality a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Confidentiality" ;
+    rdfs:comment "Information designated as confidential is protected as committed or agreed." .
+
+soc2:Privacy a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "Privacy" ;
+    rdfs:comment "Personal information is collected, used, retained, disclosed, disposed per the entity's privacy notice + criteria." .
+
+# ── Control evidence record ────────────────────────────────
+
+soc2:ControlEvidence a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Control evidence record" ;
+    rdfs:comment "An action descriptor that constitutes evidence for one or more SOC 2 controls. Carries soc2:satisfiesControl links to specific control IRIs. Auditors query for evidence per control across the audit period." .
+
+# ── Common Criteria controls (selected, extensible) ────────
+
+soc2:CC1.1 a owl:NamedIndividual ;
+    rdfs:label "CC1.1 — entity demonstrates commitment to integrity + ethical values" .
+
+soc2:CC2.1 a owl:NamedIndividual ;
+    rdfs:label "CC2.1 — entity obtains/uses relevant + quality information" .
+
+soc2:CC2.2 a owl:NamedIndividual ;
+    rdfs:label "CC2.2 — internal communication of objectives + responsibilities" .
+
+soc2:CC3.1 a owl:NamedIndividual ;
+    rdfs:label "CC3.1 — entity specifies objectives sufficient to enable risk identification" .
+
+soc2:CC4.1 a owl:NamedIndividual ;
+    rdfs:label "CC4.1 — entity selects + develops control activities" .
+
+soc2:CC5.1 a owl:NamedIndividual ;
+    rdfs:label "CC5.1 — entity uses ongoing + separate monitoring" .
+
+soc2:CC6.1 a owl:NamedIndividual ;
+    rdfs:label "CC6.1 — logical + physical access controls (security software, infrastructure, architectures)" .
+
+soc2:CC6.2 a owl:NamedIndividual ;
+    rdfs:label "CC6.2 — registers + authorizes new internal/external users" .
+
+soc2:CC6.3 a owl:NamedIndividual ;
+    rdfs:label "CC6.3 — modifies + revokes user access in alignment with role/responsibilities" .
+
+soc2:CC6.7 a owl:NamedIndividual ;
+    rdfs:label "CC6.7 — restricts transmission, movement, removal of information" .
+
+soc2:CC6.8 a owl:NamedIndividual ;
+    rdfs:label "CC6.8 — implements controls to prevent + detect unauthorized + malicious software" .
+
+soc2:CC7.1 a owl:NamedIndividual ;
+    rdfs:label "CC7.1 — uses detection + monitoring to identify changes" .
+
+soc2:CC7.2 a owl:NamedIndividual ;
+    rdfs:label "CC7.2 — monitors system components + operation for anomalies" .
+
+soc2:CC7.3 a owl:NamedIndividual ;
+    rdfs:label "CC7.3 — evaluates security events to determine response" .
+
+soc2:CC8.1 a owl:NamedIndividual ;
+    rdfs:label "CC8.1 — authorizes, designs, develops, configures, documents, tests, approves changes" .
+
+# ── Confidentiality controls ──────────────────────────────
+
+soc2:C1.1 a owl:NamedIndividual ;
+    rdfs:label "C1.1 — identifies + maintains confidential information" .
+
+soc2:C1.2 a owl:NamedIndividual ;
+    rdfs:label "C1.2 — disposes of confidential information per requirements" .
+
+# ── Privacy controls ───────────────────────────────────────
+
+soc2:P1.1 a owl:NamedIndividual ;
+    rdfs:label "P1.1 — provides notice about its privacy practices" .
+
+soc2:P3.1 a owl:NamedIndividual ;
+    rdfs:label "P3.1 — collects personal information for purposes identified in notice" .
+
+soc2:P5.1 a owl:NamedIndividual ;
+    rdfs:label "P5.1 — grants identified subjects access to their personal information for review + update" .
+
+# ── Properties ─────────────────────────────────────────────
+
+soc2:satisfiesControl a owl:ObjectProperty ;
+    rdfs:label "satisfies control" ;
+    rdfs:domain soc2:ControlEvidence ;
+    rdfs:comment "Links an evidence record to one or more SOC 2 control IRIs. Many-to-many." .
+
+soc2:auditPeriodStart a owl:DatatypeProperty ;
+    rdfs:label "audit period start" ;
+    rdfs:range xsd:dateTime .
+
+soc2:auditPeriodEnd a owl:DatatypeProperty ;
+    rdfs:label "audit period end" ;
+    rdfs:range xsd:dateTime .
+
+soc2:trustServicesCategory a owl:ObjectProperty ;
+    rdfs:label "trust services category" ;
+    rdfs:comment "Which TSC category the evidence is for (Security / Availability / etc.)." .
+
+# ── Alignments ─────────────────────────────────────────────
+
+soc2:CC6.1 rdfs:seeAlso cg:AccessControlFacet ;
+    rdfs:comment "Logical access controls (CC6.1) are satisfied by Interego's AccessControlFacet + ABAC policies + DID-based authentication. Evidence: every access decision is itself a descriptor on the pod." .
+
+soc2:CC7.2 rdfs:seeAlso cg:ProvenanceFacet ;
+    rdfs:comment "Anomaly monitoring (CC7.2) walks the federation's provenance graph; deviation from established attestation patterns flags for review." .
+
+soc2:C1.2 rdfs:seeAlso cg:ContextDescriptor ;
+    rdfs:comment "Confidential information disposal (C1.2) is satisfied by cg:supersedes + key rotation; the OLD encrypted descriptor remains but the content key is irrecoverable." .

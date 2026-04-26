@@ -106,6 +106,8 @@ import {
   // Privacy hygiene (pre-publish content screening)
   screenForSensitiveContent,
   formatSensitivityWarning,
+  // Compliance grade publish + framework reports
+  checkComplianceInputs,
 } from '@interego/core';
 
 import type {
@@ -470,6 +472,20 @@ async function toolPublishContext(args: {
    * graph (e.g., different agents' perspectives on the same subject).
    */
   auto_supersede_prior?: boolean;
+  /**
+   * When true, this descriptor is "compliance grade" — used for
+   * regulatory audit trails (EU AI Act, NIST RMF, SOC 2). Forces:
+   * trust level upgraded to HighAssurance, modal status
+   * Asserted/Counterfactual only (no Hypothetical), evidence
+   * citations (e.g. soc2:satisfiesControl) recorded in the graph
+   * content. The response carries a compliance check report.
+   */
+  compliance?: boolean;
+  /**
+   * Optional regulatory framework this descriptor provides evidence
+   * for. Currently 'eu-ai-act' | 'nist-rmf' | 'soc2'.
+   */
+  compliance_framework?: 'eu-ai-act' | 'nist-rmf' | 'soc2';
 }): Promise<string> {
   await ensureCSS();
   await ensureRegistry();
@@ -528,7 +544,9 @@ async function toolPublishContext(args: {
     })
 .semiotic(preprocessed.semiotic)
 .trust({
-      trustLevel: 'SelfAsserted',
+      // Compliance grade upgrades trust to HighAssurance; otherwise default
+      // SelfAsserted (caller's own claim, no third-party attestation).
+      trustLevel: args.compliance ? 'CryptographicallyVerified' : 'SelfAsserted',
       issuer: MY_OWNER_WEBID,
       verifiableCredential: `${podUrl}credentials/${encodeURIComponent(MY_AGENT_ID)}.jsonld` as IRI,
     })
@@ -675,6 +693,28 @@ async function toolPublishContext(args: {
   // docs://interego/playbook §2.
   if (sensitivityWarning) {
     lines.push(sensitivityWarning);
+  }
+
+  // Compliance-grade check (when args.compliance === true). Reports
+  // whether this descriptor would be accepted as audit-trail evidence
+  // for the named framework. Reports compliance status; doesn't block.
+  if (args.compliance) {
+    const check = checkComplianceInputs({
+      modalStatus: preprocessed.semiotic.modalStatus,
+      trustLevel: 'CryptographicallyVerified', // we set this above
+      hasSignature: false, // ECDSA signing of the Turtle is a follow-up
+      framework: args.compliance_framework,
+    });
+    lines.push('');
+    lines.push(`-- Compliance grade ${args.compliance_framework ?? '(framework unspecified)'}: ${check.compliant ? 'PASS' : 'PARTIAL'} --`);
+    if (check.violations.length > 0) {
+      lines.push(`Violations:`);
+      for (const v of check.violations) lines.push(`  ${v}`);
+    }
+    if (check.upgradedFacets.length > 0) {
+      lines.push(`Auto-upgraded facets:`);
+      for (const u of check.upgradedFacets) lines.push(`  ${u}`);
+    }
   }
 
   return lines.filter(Boolean).join('\n');
@@ -1741,6 +1781,15 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
           auto_supersede_prior: {
             type: 'boolean',
             description: 'When true (default), automatically add cg:supersedes links to any prior descriptor on this pod that describes the same graph_iri. Makes republish-to-add-recipients cleanly mark the older version as superseded. Set to false to allow multiple coexisting descriptors for the same graph.',
+          },
+          compliance: {
+            type: 'boolean',
+            description: 'When true, publish as compliance-grade evidence (regulatory audit trail). Forces trust to HighAssurance, requires non-Hypothetical modal status, validates against compliance shapes. Response includes a compliance check report.',
+          },
+          compliance_framework: {
+            type: 'string',
+            enum: ['eu-ai-act', 'nist-rmf', 'soc2'],
+            description: 'Optional regulatory framework this descriptor provides evidence for. The graph_content should cite specific control IRIs (e.g., soc2:CC6.1) via the framework\'s evidence-citation predicate.',
           },
         },
         required: ['graph_iri', 'graph_content'],

@@ -1,0 +1,120 @@
+@prefix nist-rmf: <https://markjspivey-xwisee.github.io/interego/ns/nist-rmf#> .
+@prefix cg:       <https://markjspivey-xwisee.github.io/interego/ns/cg#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix dct:      <http://purl.org/dc/terms/> .
+@prefix prov:     <http://www.w3.org/ns/prov#> .
+@prefix vann:     <http://purl.org/vocab/vann/> .
+
+# ══════════════════════════════════════════════════════════════
+#  nist-rmf: — NIST AI Risk Management Framework mapping (L3)
+# ══════════════════════════════════════════════════════════════
+#
+#  Maps Interego's typed-context primitives onto the four
+#  functions of the NIST AI Risk Management Framework
+#  (NIST AI 100-1, January 2023 + AI 600-1 generative profile):
+#
+#    GOVERN — policies, accountability, oversight structures
+#    MAP    — risk identification + context understanding
+#    MEASURE — assessment + monitoring
+#    MANAGE — risk response + treatment
+#
+#  Each function is a cg:SemioticFacet subclass; instances annotate
+#  descriptors with "this action contributes evidence to NIST RMF
+#  function GOVERN.1.4" or similar. Compliance reports walk the
+#  federation and produce a Map of {function-category : evidence-count}.
+
+<https://markjspivey-xwisee.github.io/interego/ns/nist-rmf>
+    a owl:Ontology ;
+    dct:title "NIST AI Risk Management Framework mapping ontology" ;
+    dct:description "L3 mapping of Interego context primitives to NIST AI RMF (AI 100-1) four functions: Govern / Map / Measure / Manage." ;
+    vann:preferredNamespacePrefix "nist-rmf" ;
+    vann:preferredNamespaceUri "https://markjspivey-xwisee.github.io/interego/ns/nist-rmf#" ;
+    owl:imports <https://markjspivey-xwisee.github.io/interego/ns/cg> .
+
+# ── Functions ──────────────────────────────────────────────
+
+nist-rmf:Govern a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "GOVERN function" ;
+    rdfs:comment "Policies, processes, accountability structures, oversight cultures. Categories: Govern.1 (policies), Govern.2 (accountability), Govern.3 (workforce diversity), Govern.4 (commitment), Govern.5 (engagement), Govern.6 (third-party risk)." .
+
+nist-rmf:Map a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "MAP function" ;
+    rdfs:comment "Context establishment and risk identification. Categories: Map.1 (context), Map.2 (categorization), Map.3 (capabilities and limits), Map.4 (impacts), Map.5 (risks)." .
+
+nist-rmf:Measure a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "MEASURE function" ;
+    rdfs:comment "Quantitative + qualitative assessment of identified risks. Categories: Measure.1 (methods), Measure.2 (quantitative), Measure.3 (effectiveness), Measure.4 (feedback)." .
+
+nist-rmf:Manage a owl:Class ;
+    rdfs:subClassOf cg:SemioticFacet ;
+    rdfs:label "MANAGE function" ;
+    rdfs:comment "Risk response: prioritize, treat, monitor. Categories: Manage.1 (priority), Manage.2 (treatment), Manage.3 (third-party risks), Manage.4 (monitoring + improvement)." .
+
+# ── Evidence record ────────────────────────────────────────
+
+nist-rmf:EvidenceRecord a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "RMF evidence record" ;
+    rdfs:comment "A descriptor that contributes evidence toward one or more RMF function categories. Carries nist-rmf:contributesTo links to the specific category IRIs (e.g., nist-rmf:Map.1.2). Compliance reports aggregate evidence per category." .
+
+# ── Specific category IRIs (selected, extensible) ──────────
+
+nist-rmf:Govern.1.1 a owl:NamedIndividual ;
+    rdfs:label "Govern 1.1 — policies for AI risk are documented" .
+
+nist-rmf:Govern.1.4 a owl:NamedIndividual ;
+    rdfs:label "Govern 1.4 — policies are reviewed + updated" .
+
+nist-rmf:Govern.2.1 a owl:NamedIndividual ;
+    rdfs:label "Govern 2.1 — accountability roles are defined" .
+
+nist-rmf:Map.1.1 a owl:NamedIndividual ;
+    rdfs:label "Map 1.1 — context is established + understood" .
+
+nist-rmf:Map.1.2 a owl:NamedIndividual ;
+    rdfs:label "Map 1.2 — interdisciplinary AI actors are identified" .
+
+nist-rmf:Map.4.1 a owl:NamedIndividual ;
+    rdfs:label "Map 4.1 — likely benefits + impacts are characterized" .
+
+nist-rmf:Measure.1.1 a owl:NamedIndividual ;
+    rdfs:label "Measure 1.1 — approaches + metrics for measuring AI risks are identified" .
+
+nist-rmf:Measure.2.7 a owl:NamedIndividual ;
+    rdfs:label "Measure 2.7 — AI system security + resilience is evaluated" .
+
+nist-rmf:Manage.1.2 a owl:NamedIndividual ;
+    rdfs:label "Manage 1.2 — treatment of documented AI risks is prioritized" .
+
+nist-rmf:Manage.4.1 a owl:NamedIndividual ;
+    rdfs:label "Manage 4.1 — post-deployment AI system monitoring plans are implemented" .
+
+# ── Properties ─────────────────────────────────────────────
+
+nist-rmf:contributesTo a owl:ObjectProperty ;
+    rdfs:label "contributes evidence to" ;
+    rdfs:domain nist-rmf:EvidenceRecord ;
+    rdfs:comment "Links an evidence descriptor to one or more category IRIs. Many-to-many: one record can satisfy multiple categories, one category needs multiple records." .
+
+nist-rmf:functionContext a owl:ObjectProperty ;
+    rdfs:label "function context" ;
+    rdfs:comment "The function (Govern/Map/Measure/Manage) under which this evidence applies." .
+
+nist-rmf:evidenceLevel a owl:DatatypeProperty ;
+    rdfs:label "evidence level" ;
+    rdfs:comment "How strong this evidence is: 'asserted' / 'measured' / 'audited' / 'externally-attested'." ;
+    rdfs:range xsd:string .
+
+# ── Alignments ─────────────────────────────────────────────
+
+nist-rmf:Manage.4.1 rdfs:seeAlso cg:TrustFacet ;
+    rdfs:comment "Continuous monitoring (Manage.4.1) is satisfied by AMTA attestations + Interego's federation surface — every action is queryable, attestations accumulate, anomalies surface via SPARQL filters." .
+
+nist-rmf:Map.1.1 rdfs:seeAlso cg:FederationFacet ;
+    rdfs:comment "Context establishment is partly the FederationFacet itself: where the system runs, who's authorized, how it syncs." .

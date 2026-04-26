@@ -39,6 +39,10 @@ const L2_L3_FILES = [
   'passport.ttl',
   // Domain ontologies (L3)
   'code.ttl',
+  // Compliance / regulatory mapping ontologies (L3)
+  'eu-ai-act.ttl',
+  'nist-rmf.ttl',
+  'soc2.ttl',
 ];
 
 function parseOntology(ttl, prefix) {
