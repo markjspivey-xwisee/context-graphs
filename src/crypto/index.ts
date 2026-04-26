@@ -63,6 +63,14 @@ export {
   exportPrivateKey,
   signMessageRaw,
   recoverMessageSigner,
+} from './wallet.js';
+export {
+  getNostrPubkey,
+  schnorrSign,
+  schnorrVerify,
+  sha256Hex,
+} from './schnorr.js';
+export {
   createDelegation,
   verifyDelegationSignature,
   signDescriptor,

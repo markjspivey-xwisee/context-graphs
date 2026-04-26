@@ -29,7 +29,10 @@ import {
   InMemoryRelay,
   verifyEvent,
   importWallet,
+  generateKeyPair,
+  detectSignatureScheme,
   KIND_DESCRIPTOR,
+  KIND_ENCRYPTED_SHARE,
   type DescriptorAnnouncement,
 } from '../src/index.js';
 
@@ -270,6 +273,208 @@ describe('P2P transport — security properties', () => {
     const found2 = await alice.queryDescriptors({});
     expect(found2).toHaveLength(1);
     expect(found2[0]!.descriptorId).toBe('urn:cg:alice:real');
+  });
+});
+
+describe('P2P transport — Schnorr signatures (BIP-340 / public-Nostr interop)', () => {
+  it('the same wallet can publish ECDSA AND Schnorr events; both verify', async () => {
+    const relay = new InMemoryRelay();
+    const wallet = importWallet(ALICE_KEY, 'agent', 'alice');
+
+    // Two clients backed by the SAME wallet; one ECDSA, one Schnorr.
+    // Different pubkey representations, same private key, both are
+    // legitimately Alice.
+    const ecdsaClient = new P2pClient(relay, wallet, { signingScheme: 'ecdsa' });
+    const schnorrClient = new P2pClient(relay, wallet, { signingScheme: 'schnorr' });
+
+    expect(detectSignatureScheme(ecdsaClient.pubkey)).toBe('ecdsa');
+    expect(detectSignatureScheme(schnorrClient.pubkey)).toBe('schnorr');
+    expect(ecdsaClient.pubkey).not.toBe(schnorrClient.pubkey);
+    // ECDSA pubkey = Ethereum address (0x + 40 hex chars)
+    expect(ecdsaClient.pubkey).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    // Schnorr pubkey = 32-byte x-only (64 hex chars, no prefix)
+    expect(schnorrClient.pubkey).toMatch(/^[0-9a-f]{64}$/);
+
+    // Publish one of each kind through the same relay
+    await ecdsaClient.publishDescriptor({
+      descriptorId: 'urn:cg:dual-ecdsa',
+      cid: 'bafkrei-ecdsa',
+      graphIri: 'urn:graph:dual',
+    });
+    await schnorrClient.publishDescriptor({
+      descriptorId: 'urn:cg:dual-schnorr',
+      cid: 'bafkrei-schnorr',
+      graphIri: 'urn:graph:dual',
+    });
+
+    // Both events present, both verify under their own scheme
+    const all = await relay.query({ kinds: [KIND_DESCRIPTOR] });
+    expect(all).toHaveLength(2);
+    for (const event of all) {
+      expect(verifyEvent(event)).not.toBeNull();
+    }
+  });
+
+  it('a tampered Schnorr event is rejected (signature does not verify)', async () => {
+    const relay = new InMemoryRelay();
+    const wallet = importWallet(ALICE_KEY, 'agent', 'alice');
+    const client = new P2pClient(relay, wallet, { signingScheme: 'schnorr' });
+
+    await client.publishDescriptor({
+      descriptorId: 'urn:cg:schnorr-tamper',
+      cid: 'bafkrei-original',
+      graphIri: 'urn:graph:t',
+    });
+    const events = await relay.query({ kinds: [KIND_DESCRIPTOR] });
+    const tampered = {
+      ...events[0]!,
+      tags: events[0]!.tags.map(t => t[0] === 'cid' ? ['cid', 'bafkrei-tampered'] : t),
+    };
+    expect(verifyEvent(tampered)).toBeNull();
+  });
+
+  it('a Schnorr-signed event with someone else\'s pubkey fails verification', async () => {
+    const relay = new InMemoryRelay();
+    const alice = new P2pClient(relay, importWallet(ALICE_KEY, 'agent', 'alice'), { signingScheme: 'schnorr' });
+    const bob = new P2pClient(relay, importWallet(BOB_KEY, 'agent', 'bob'), { signingScheme: 'schnorr' });
+
+    expect(alice.pubkey).not.toBe(bob.pubkey);
+
+    await alice.publishDescriptor({
+      descriptorId: 'urn:cg:from-alice',
+      cid: 'bafkrei-a',
+      graphIri: 'urn:graph:auth-test',
+    });
+    const events = await relay.query({ kinds: [KIND_DESCRIPTOR] });
+    // Forge: claim Alice's event was actually signed by Bob (swap pubkey).
+    // The signature is over the event id which depends on the original
+    // pubkey, so even without changing sig, replacing the pubkey
+    // changes the canonical id and breaks verification.
+    const forged = { ...events[0]!, pubkey: bob.pubkey };
+    expect(verifyEvent(forged)).toBeNull();
+  });
+});
+
+describe('P2P transport — 1:N encrypted share (closes Tier 4 gap)', () => {
+  it('Alice encrypts to Bob + Carol; only the addressed recipients can decrypt', async () => {
+    const relay = new InMemoryRelay();
+
+    // Three identities, each with separate signing wallet AND
+    // X25519 encryption keypair. Encryption keypairs are X25519
+    // (NaCl) — different cryptographic primitive from the Schnorr/
+    // ECDSA secp256k1 keypair used for signing.
+    const aliceWallet = importWallet(ALICE_KEY, 'agent', 'alice');
+    const bobWallet = importWallet(BOB_KEY, 'agent', 'bob');
+    const CAROL_KEY = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
+    const carolWallet = importWallet(CAROL_KEY, 'agent', 'carol');
+    const EVE_KEY = '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6';
+    const eveWallet = importWallet(EVE_KEY, 'agent', 'eve');
+
+    const aliceEnc = generateKeyPair();
+    const bobEnc = generateKeyPair();
+    const carolEnc = generateKeyPair();
+    const eveEnc = generateKeyPair();
+
+    const alice = new P2pClient(relay, aliceWallet, { encryptionKeyPair: aliceEnc });
+    const bob = new P2pClient(relay, bobWallet, { encryptionKeyPair: bobEnc });
+    const carol = new P2pClient(relay, carolWallet, { encryptionKeyPair: carolEnc });
+    const eve = new P2pClient(relay, eveWallet, { encryptionKeyPair: eveEnc });
+
+    // Alice publishes an encrypted share to Bob + Carol (NOT Eve)
+    const SECRET = 'The quarterly numbers are: revenue $4.2M, runway 18mo';
+    await alice.publishEncryptedShare({
+      plaintext: SECRET,
+      recipients: [
+        { sigPubkey: bob.pubkey, encryptionPubkey: bobEnc.publicKey },
+        { sigPubkey: carol.pubkey, encryptionPubkey: carolEnc.publicKey },
+      ],
+      senderEncryptionKeyPair: aliceEnc,
+      topic: 'finance-q3',
+    });
+
+    // Bob queries for shares addressed to him
+    const bobInbox = await bob.queryEncryptedShares({ recipientSigPubkey: bob.pubkey });
+    expect(bobInbox).toHaveLength(1);
+    const bobPlaintext = bob.decryptEncryptedShare(bobInbox[0]!);
+    expect(bobPlaintext).toBe(SECRET);
+
+    // Carol independently does the same
+    const carolInbox = await carol.queryEncryptedShares({ recipientSigPubkey: carol.pubkey });
+    expect(carolInbox).toHaveLength(1);
+    expect(carol.decryptEncryptedShare(carolInbox[0]!)).toBe(SECRET);
+
+    // Eve sees the event exists (no privacy from existence — it's a
+    // public relay) but cannot read the content. Even if she fetches
+    // the event by guessing or broad query, decryption fails.
+    const eveInbox = await eve.queryEncryptedShares({ recipientSigPubkey: eve.pubkey });
+    expect(eveInbox).toHaveLength(0); // Eve isn't tagged
+    // What if Eve fetches the event some other way?
+    const allShares = await relay.query({ kinds: [KIND_ENCRYPTED_SHARE] });
+    expect(allShares).toHaveLength(1);
+    // Eve takes the raw event and tries to decrypt with her keypair
+    const stolenShare = {
+      eventId: allShares[0]!.id,
+      sender: allShares[0]!.pubkey,
+      publishedAt: allShares[0]!.created_at,
+      recipientPubkeys: allShares[0]!.tags.filter(t => t[0] === 'p').map(t => t[1] ?? ''),
+      envelope: allShares[0]!.content,
+    };
+    expect(eve.decryptEncryptedShare(stolenShare, eveEnc)).toBeNull();
+  });
+
+  it('encrypted shares survive transport (live subscribe → decrypt)', async () => {
+    const relay = new InMemoryRelay();
+    const aliceWallet = importWallet(ALICE_KEY, 'agent', 'alice');
+    const bobWallet = importWallet(BOB_KEY, 'agent', 'bob');
+    const aliceEnc = generateKeyPair();
+    const bobEnc = generateKeyPair();
+    const alice = new P2pClient(relay, aliceWallet, { encryptionKeyPair: aliceEnc });
+    const bob = new P2pClient(relay, bobWallet, { encryptionKeyPair: bobEnc });
+
+    const received: string[] = [];
+    const sub = bob.subscribeEncryptedShares(
+      { recipientSigPubkey: bob.pubkey },
+      async (share) => {
+        const pt = bob.decryptEncryptedShare(share);
+        if (pt) received.push(pt);
+      },
+    );
+
+    await alice.publishEncryptedShare({
+      plaintext: 'live message',
+      recipients: [{ sigPubkey: bob.pubkey, encryptionPubkey: bobEnc.publicKey }],
+      senderEncryptionKeyPair: aliceEnc,
+    });
+    await new Promise(r => queueMicrotask(r));
+
+    expect(received).toEqual(['live message']);
+    sub.close();
+  });
+
+  it('encrypted shares work with Schnorr-signed clients too', async () => {
+    const relay = new InMemoryRelay();
+    const aliceWallet = importWallet(ALICE_KEY, 'agent', 'alice');
+    const bobWallet = importWallet(BOB_KEY, 'agent', 'bob');
+    const aliceEnc = generateKeyPair();
+    const bobEnc = generateKeyPair();
+    const alice = new P2pClient(relay, aliceWallet, {
+      signingScheme: 'schnorr',
+      encryptionKeyPair: aliceEnc,
+    });
+    const bob = new P2pClient(relay, bobWallet, {
+      signingScheme: 'schnorr',
+      encryptionKeyPair: bobEnc,
+    });
+
+    await alice.publishEncryptedShare({
+      plaintext: 'schnorr-signed encrypted hi',
+      recipients: [{ sigPubkey: bob.pubkey, encryptionPubkey: bobEnc.publicKey }],
+      senderEncryptionKeyPair: aliceEnc,
+    });
+
+    const inbox = await bob.queryEncryptedShares({ recipientSigPubkey: bob.pubkey });
+    expect(inbox).toHaveLength(1);
+    expect(bob.decryptEncryptedShare(inbox[0]!)).toBe('schnorr-signed encrypted hi');
   });
 });
 

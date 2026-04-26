@@ -24,6 +24,8 @@ export {
   KIND_DESCRIPTOR,
   KIND_DIRECTORY,
   KIND_ATTESTATION,
+  KIND_ENCRYPTED_SHARE,
+  detectSignatureScheme,
 } from './types.js';
 export type {
   P2pEvent,
@@ -32,12 +34,15 @@ export type {
   P2pSubscription,
   DescriptorAnnouncement,
   DirectoryEntry,
+  EncryptedShare,
+  SignatureScheme,
 } from './types.js';
 
 export { P2pClient, verifyEvent } from './client.js';
 export type {
   PublishDescriptorInput,
   PublishDirectoryInput,
+  PublishEncryptedShareInput,
 } from './client.js';
 
 export { InMemoryRelay } from './relay.js';

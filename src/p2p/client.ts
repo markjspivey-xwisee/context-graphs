@@ -4,27 +4,56 @@
  * relay. Adapts the protocol's existing publish/discover/subscribe
  * verbs onto signed events that flow through any conformant relay
  * (in-memory, WebSocket-to-public-Nostr, libp2p-backed peer).
+ *
+ * Two signing schemes supported:
+ *
+ *   - ECDSA (default) — uses the operator's Ethereum-style wallet
+ *     directly. The event's `pubkey` is the wallet's 0x-prefixed
+ *     20-byte address. Signature recovers to the address.
+ *
+ *   - Schnorr (BIP-340 / NIP-01) — uses the same private key as
+ *     ECDSA but the `pubkey` is the 32-byte x-only form (64 hex,
+ *     no prefix). Required for interop with public Nostr relays.
+ *
+ * Both schemes coexist on the wire — the `detectSignatureScheme`
+ * helper picks the right verifier from the pubkey format.
  */
 
 import { sha256 } from '../crypto/ipfs.js';
-import { signMessageRaw, recoverMessageSigner } from '../crypto/wallet.js';
+import {
+  signMessageRaw,
+  recoverMessageSigner,
+  exportPrivateKey,
+} from '../crypto/wallet.js';
+import {
+  schnorrSign,
+  schnorrVerify,
+  getNostrPubkey,
+} from '../crypto/schnorr.js';
+import {
+  createEncryptedEnvelope,
+  openEncryptedEnvelope,
+  type EncryptedEnvelope,
+  type EncryptionKeyPair,
+} from '../crypto/encryption.js';
 import type { Wallet } from '../crypto/types.js';
 import {
   KIND_DESCRIPTOR,
   KIND_DIRECTORY,
   KIND_ATTESTATION,
+  KIND_ENCRYPTED_SHARE,
+  detectSignatureScheme,
+  type SignatureScheme,
   type P2pEvent,
   type P2pFilter,
   type P2pRelay,
   type P2pSubscription,
   type DescriptorAnnouncement,
   type DirectoryEntry,
+  type EncryptedShare,
 } from './types.js';
 
 // ── Canonical event ID (per NIP-01 §3) ──────────────────────
-//
-// id = sha256(JSON.stringify([0, pubkey, created_at, kind, tags, content]))
-// where the array is encoded with no whitespace and minimal escapes.
 
 function canonicalize(unsigned: Omit<P2pEvent, 'id' | 'sig'>): string {
   return JSON.stringify([
@@ -41,45 +70,56 @@ function computeEventId(unsigned: Omit<P2pEvent, 'id' | 'sig'>): string {
   return sha256(canonicalize(unsigned));
 }
 
-// ── Signing + verification ──────────────────────────────────
+// ── Signing + verification (scheme-dispatched) ──────────────
 
-/**
- * Sign + finalize an event. Requires a Wallet whose private key is
- * loaded in this process (via importWallet / createWallet).
- *
- * NIP-01 §3 says the signature is over the event id (raw bytes). We
- * sign the hex string of the id with `signMessage` (ethers EIP-191
- * personal-sign), so verification is via `recoverMessageSigner`.
- * This deviates from BIP-340 Schnorr — the recovery property gives
- * us the signer address directly, which is what we want for the
- * wallet-as-identity model. A Schnorr adapter for public-Nostr
- * interop is a future drop-in.
- */
+interface ClientOptions {
+  /**
+   * Signing scheme this client uses for outbound events. Default 'ecdsa'.
+   * Switch to 'schnorr' for public-Nostr-relay interop. Verification
+   * always supports both schemes regardless of this setting.
+   */
+  readonly signingScheme?: SignatureScheme;
+  /**
+   * Optional X25519 keypair for receiving encrypted shares. If
+   * omitted, the client can publish + query but cannot decrypt.
+   * Generate with `generateKeyPair()` from crypto/encryption.
+   */
+  readonly encryptionKeyPair?: EncryptionKeyPair;
+}
+
 async function signEvent(
   wallet: Wallet,
+  scheme: SignatureScheme,
+  privateKeyHex: string | null,
   partial: { kind: number; tags: readonly (readonly string[])[]; content: string },
 ): Promise<P2pEvent> {
   const created_at = Math.floor(Date.now() / 1000);
+  const pubkey = scheme === 'schnorr'
+    ? getNostrPubkey(privateKeyHex!)
+    : wallet.address;
   const unsigned = {
-    pubkey: wallet.address,
+    pubkey,
     created_at,
     kind: partial.kind,
     tags: partial.tags,
     content: partial.content,
   };
   const id = computeEventId(unsigned);
-  const sig = await signMessageRaw(wallet, id);
+  const sig = scheme === 'schnorr'
+    ? schnorrSign(id, privateKeyHex!)
+    : await signMessageRaw(wallet, id);
   return { ...unsigned, id, sig };
 }
 
 /**
- * Verify an event's id matches its content + the signature recovers
- * to the claimed pubkey. Returns the recovered address on success
- * (it should equal pubkey) or null if anything fails.
+ * Verify an event's id matches its content + the signature is valid
+ * under whichever scheme is implied by the pubkey format.
+ *
+ * Returns the verified pubkey (canonicalized) on success, null otherwise.
  */
 export function verifyEvent(event: P2pEvent): string | null {
-  // Recompute id from the canonical encoding — guards against
-  // tampering with any field other than id+sig.
+  // 1. id integrity — guards against tampering with any field other
+  //    than id+sig
   const expectedId = computeEventId({
     pubkey: event.pubkey,
     created_at: event.created_at,
@@ -88,6 +128,17 @@ export function verifyEvent(event: P2pEvent): string | null {
     content: event.content,
   });
   if (expectedId !== event.id) return null;
+
+  // 2. signature verification, dispatched on pubkey format
+  const scheme = detectSignatureScheme(event.pubkey);
+  if (scheme === null) return null;
+
+  if (scheme === 'schnorr') {
+    return schnorrVerify(event.sig, event.id, event.pubkey)
+      ? event.pubkey.toLowerCase()
+      : null;
+  }
+  // ECDSA path
   try {
     const recovered = recoverMessageSigner(event.id, event.sig);
     if (recovered.toLowerCase() !== event.pubkey.toLowerCase()) return null;
@@ -107,42 +158,64 @@ function tagValues(tags: readonly (readonly string[])[], name: string): string[]
   return tags.filter(t => t[0] === name).map(t => t[1] ?? '').filter(Boolean);
 }
 
-// ── The client ──────────────────────────────────────────────
+// ── Public input shapes ──────────────────────────────────────
 
 export interface PublishDescriptorInput {
-  /** The descriptor's IRI (becomes the `d` tag for replaceable semantics). */
   readonly descriptorId: string;
-  /** IPFS CID of the descriptor turtle (where peers fetch the bytes). */
   readonly cid: string;
-  /** The graph IRI this descriptor describes. */
   readonly graphIri: string;
-  /** Facet types present (e.g., 'Temporal', 'Trust', 'Provenance'). */
   readonly facetTypes?: readonly string[];
-  /** dct:conformsTo IRIs (e.g., schema URIs, regulatory frameworks). */
   readonly conformsTo?: readonly string[];
-  /** Free-text or compact-JSON manifest summary. May be inlined when small. */
   readonly summary?: string;
 }
 
 export interface PublishDirectoryInput {
-  /** Pod URLs this entity controls / advertises. */
   readonly pods: readonly string[];
-  /** Free-text summary. */
   readonly summary?: string;
 }
 
+export interface PublishEncryptedShareInput {
+  /** Plaintext payload to encrypt + share. */
+  readonly plaintext: string;
+  /** Recipients — each needs both their signing and encryption pubkeys. */
+  readonly recipients: readonly { sigPubkey: string; encryptionPubkey: string }[];
+  /** Sender's X25519 keypair (used for envelope wrapping). */
+  readonly senderEncryptionKeyPair: EncryptionKeyPair;
+  /** Optional tag exposing the topic; aids filtering. */
+  readonly topic?: string;
+}
+
+// ── The client ──────────────────────────────────────────────
+
 export class P2pClient {
+  private readonly scheme: SignatureScheme;
+  private readonly privateKeyHex: string | null;
+  private readonly encryptionKeyPair: EncryptionKeyPair | null;
+  /** Cached signing pubkey — Ethereum address for ECDSA, x-only hex for Schnorr. */
+  readonly pubkey: string;
+
   constructor(
     private readonly relay: P2pRelay,
     private readonly wallet: Wallet,
-  ) {}
+    options: ClientOptions = {},
+  ) {
+    this.scheme = options.signingScheme ?? 'ecdsa';
+    this.encryptionKeyPair = options.encryptionKeyPair ?? null;
 
-  /** The wallet's secp256k1 address — also this client's identity on the relay. */
-  get pubkey(): string {
-    return this.wallet.address;
+    // Schnorr needs the raw private key. We accept the wallet
+    // (preserving the established API surface) and pull the key
+    // through exportPrivateKey when necessary. ECDSA goes through
+    // signMessageRaw which uses the in-process key store.
+    if (this.scheme === 'schnorr') {
+      this.privateKeyHex = exportPrivateKey(wallet.address);
+      this.pubkey = getNostrPubkey(this.privateKeyHex);
+    } else {
+      this.privateKeyHex = null;
+      this.pubkey = wallet.address;
+    }
   }
 
-  /** Announce a descriptor to the relay. Returns the event ID. */
+  /** Announce a descriptor. Returns the event ID. */
   async publishDescriptor(input: PublishDescriptorInput): Promise<{ eventId: string }> {
     const tags: string[][] = [
       ['d', input.descriptorId],
@@ -151,40 +224,45 @@ export class P2pClient {
     ];
     for (const f of input.facetTypes ?? []) tags.push(['facet', f]);
     for (const c of input.conformsTo ?? []) tags.push(['conformsTo', c]);
-    const event = await signEvent(this.wallet, {
-      kind: KIND_DESCRIPTOR,
-      tags,
-      content: input.summary ?? '',
-    });
-    const result = await this.relay.publish(event);
-    if (!result.ok) throw new Error(`Relay rejected event: ${result.reason ?? 'unknown'}`);
-    return { eventId: event.id };
+    return this.publishEvent(KIND_DESCRIPTOR, tags, input.summary ?? '');
   }
 
-  /** Announce a pod directory (which pods this identity controls). */
+  /** Announce a pod directory. */
   async publishDirectory(input: PublishDirectoryInput): Promise<{ eventId: string }> {
     const tags: string[][] = [['d', 'directory']];
     for (const p of input.pods) tags.push(['pod', p]);
-    const event = await signEvent(this.wallet, {
-      kind: KIND_DIRECTORY,
-      tags,
-      content: input.summary ?? '',
-    });
-    const result = await this.relay.publish(event);
-    if (!result.ok) throw new Error(`Relay rejected event: ${result.reason ?? 'unknown'}`);
-    return { eventId: event.id };
+    return this.publishEvent(KIND_DIRECTORY, tags, input.summary ?? '');
   }
 
-  /** Attest to another event (witness pattern). */
+  /** Attest to another event. */
   async publishAttestation(refEventId: string, content: string): Promise<{ eventId: string }> {
-    const event = await signEvent(this.wallet, {
-      kind: KIND_ATTESTATION,
-      tags: [['e', refEventId]],
-      content,
-    });
-    const result = await this.relay.publish(event);
-    if (!result.ok) throw new Error(`Relay rejected event: ${result.reason ?? 'unknown'}`);
-    return { eventId: event.id };
+    return this.publishEvent(KIND_ATTESTATION, [['e', refEventId]], content);
+  }
+
+  /**
+   * Publish a 1:N encrypted share. The plaintext is wrapped in a NaCl
+   * envelope, with one wrapped key per recipient X25519 pubkey. The
+   * event itself is signed under the sender's wallet (ECDSA or Schnorr,
+   * whichever the client is configured for).
+   *
+   * Recipients tag (`p`) carries each recipient's *signing* pubkey so
+   * they can filter for events addressed to them. The *encryption*
+   * pubkeys live inside the envelope — invisible to the relay.
+   */
+  async publishEncryptedShare(input: PublishEncryptedShareInput): Promise<{ eventId: string }> {
+    const envelope = createEncryptedEnvelope(
+      input.plaintext,
+      input.recipients.map(r => r.encryptionPubkey),
+      input.senderEncryptionKeyPair,
+    );
+    const tags: string[][] = [];
+    for (const r of input.recipients) tags.push(['p', r.sigPubkey]);
+    if (input.topic) tags.push(['topic', input.topic]);
+    return this.publishEvent(
+      KIND_ENCRYPTED_SHARE,
+      tags,
+      JSON.stringify(envelope),
+    );
   }
 
   /** Find descriptor announcements matching the filter. */
@@ -245,6 +323,82 @@ export class P2pClient {
         summary: e.content,
       }));
   }
+
+  /**
+   * Find encrypted shares addressed to a particular recipient (by
+   * their signing pubkey). The events come back with the envelope
+   * field opaque — call `decryptEncryptedShare` to actually open one.
+   */
+  async queryEncryptedShares(filter: {
+    recipientSigPubkey: string;
+    fromSender?: string;
+  }): Promise<EncryptedShare[]> {
+    const f: P2pFilter = {
+      kinds: [KIND_ENCRYPTED_SHARE],
+      ['#p' as const]: [filter.recipientSigPubkey],
+      ...(filter.fromSender && { authors: [filter.fromSender] }),
+    };
+    const events = await this.relay.query(f);
+    return events
+      .filter(e => verifyEvent(e) !== null)
+      .map(e => decodeEncryptedShare(e));
+  }
+
+  /**
+   * Decrypt an encrypted share. Requires the recipient's X25519
+   * encryption keypair — pass it in the constructor (encryptionKeyPair)
+   * or supply it explicitly here. Returns plaintext or null if the
+   * client isn't an authorized recipient.
+   */
+  decryptEncryptedShare(share: EncryptedShare, keyPair?: EncryptionKeyPair): string | null {
+    const kp = keyPair ?? this.encryptionKeyPair;
+    if (!kp) {
+      throw new Error(
+        'No encryption keypair available. Pass one to the P2pClient constructor or to decryptEncryptedShare.',
+      );
+    }
+    let envelope: EncryptedEnvelope;
+    try {
+      envelope = JSON.parse(share.envelope) as EncryptedEnvelope;
+    } catch {
+      return null;
+    }
+    return openEncryptedEnvelope(envelope, kp);
+  }
+
+  /** Subscribe to encrypted shares addressed to a particular recipient. */
+  subscribeEncryptedShares(
+    filter: { recipientSigPubkey: string; fromSender?: string },
+    onShare: (share: EncryptedShare) => void,
+  ): P2pSubscription {
+    const f: P2pFilter = {
+      kinds: [KIND_ENCRYPTED_SHARE],
+      ['#p' as const]: [filter.recipientSigPubkey],
+      ...(filter.fromSender && { authors: [filter.fromSender] }),
+    };
+    return this.relay.subscribe(f, e => {
+      if (verifyEvent(e) === null) return;
+      onShare(decodeEncryptedShare(e));
+    });
+  }
+
+  // ── Internal helper ────────────────────────────────────────
+
+  private async publishEvent(
+    kind: number,
+    tags: readonly (readonly string[])[],
+    content: string,
+  ): Promise<{ eventId: string }> {
+    const event = await signEvent(
+      this.wallet,
+      this.scheme,
+      this.privateKeyHex,
+      { kind, tags, content },
+    );
+    const result = await this.relay.publish(event);
+    if (!result.ok) throw new Error(`Relay rejected event: ${result.reason ?? 'unknown'}`);
+    return { eventId: event.id };
+  }
 }
 
 // ── Decoders ─────────────────────────────────────────────────
@@ -264,5 +418,16 @@ function decodeDescriptorAnnouncement(event: P2pEvent): DescriptorAnnouncement |
     facetTypes: tagValues(event.tags, 'facet'),
     conformsTo: tagValues(event.tags, 'conformsTo'),
     summary: event.content,
+  };
+}
+
+function decodeEncryptedShare(event: P2pEvent): EncryptedShare {
+  return {
+    eventId: event.id,
+    sender: event.pubkey,
+    publishedAt: event.created_at,
+    recipientPubkeys: tagValues(event.tags, 'p'),
+    topic: tagValue(event.tags, 'topic'),
+    envelope: event.content,
   };
 }

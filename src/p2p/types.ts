@@ -85,6 +85,18 @@ export const KIND_DIRECTORY = 30041;
 /** Witness attestation referencing another event by id. */
 export const KIND_ATTESTATION = 30042;
 
+/**
+ * 1:N encrypted share. Content is a JSON-serialized
+ * EncryptedEnvelope (NaCl X25519 + XSalsa20-Poly1305). Recipients
+ * are tagged via `p` (their signing pubkey, so they can filter for
+ * "events addressed to me") and carry their X25519 public key in
+ * the envelope's wrappedKeys array (so they can decrypt).
+ *
+ * This closes the gap between Tier 4 cross-pod E2EE share and the
+ * Tier 5 P2P transport — same security model, transport-agnostic.
+ */
+export const KIND_ENCRYPTED_SHARE = 30043;
+
 // ── Decoded forms — what the transport layer hands callers ──
 
 /** Decoded descriptor announcement. */
@@ -107,4 +119,33 @@ export interface DirectoryEntry {
   readonly publishedAt: number;
   readonly pods: readonly string[];
   readonly summary: string;
+}
+
+/** Decoded encrypted share — the envelope is opaque until decrypted. */
+export interface EncryptedShare {
+  readonly eventId: string;
+  readonly sender: string;            // publisher pubkey
+  readonly publishedAt: number;
+  readonly recipientPubkeys: readonly string[]; // signing pubkeys from `p` tags
+  readonly topic?: string;            // optional `topic` tag for context
+  /** JSON-serialized EncryptedEnvelope; pass to decryptEncryptedShare. */
+  readonly envelope: string;
+}
+
+/** Two valid signing schemes — see crypto/schnorr.ts + crypto/wallet.ts. */
+export type SignatureScheme = 'ecdsa' | 'schnorr';
+
+/**
+ * Detect the signing scheme from the pubkey format:
+ *   - 0x-prefixed 42-char hex (Ethereum address)  → ECDSA
+ *   - 64-char hex with no prefix (BIP-340 x-only) → Schnorr
+ *
+ * This means events on the wire self-describe their scheme without
+ * an explicit field — the same `pubkey` field holds either form.
+ */
+export function detectSignatureScheme(pubkey: string): SignatureScheme | null {
+  const trimmed = pubkey.startsWith('0x') ? pubkey : pubkey;
+  if (trimmed.startsWith('0x') && trimmed.length === 42) return 'ecdsa';
+  if (!trimmed.startsWith('0x') && trimmed.length === 64) return 'schnorr';
+  return null;
 }
