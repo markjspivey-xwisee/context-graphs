@@ -62,18 +62,23 @@ tools/
 - **OLKE** ([`olke.ttl`](docs/ns/olke.ttl)) — Organizational Learning & Knowledge Evolution (Tacit → Articulate → Collective → Institutional)
 - **AMTA** ([`amta.ttl`](docs/ns/amta.ttl)) — Agent-Mediated Trust Attestation (multi-axis ratings)
 - **abac** ([`abac.ttl`](docs/ns/abac.ttl)) — L2 attribute-based-access-control evaluation pattern. Specifies `Evaluator`, `AttributeResolver`, `DecisionCache`, `PolicyContext`, `EvaluationRecord` as constructions over L1 primitives. Reference runtime in [`src/abac/`](src/abac/).
-- **code** ([`code.ttl`](docs/ns/code.ttl)) — L3 domain ontology for source-code artifacts (Repository, Commit, Branch, PullRequest, Review, Defect, TestRun, BuildResult). Commits are `pgsl:Fragment`; branches are `cg:ParadigmSet`; reviews `cg:constructedFrom (cg:SemioticFacet cg:ProvenanceFacet)`. First domain-specific L3 ontology added to the repo — demonstrates that a non-trivial domain can be expressed without new L1 primitives.
+- **registry** ([`registry.ttl`](docs/ns/registry.ttl)) — L2 public-agent-attestation-registry pattern. Federated NPM-for-AI-agents primitive. Reference runtime in [`src/registry/`](src/registry/).
+- **passport** ([`passport.ttl`](docs/ns/passport.ttl)) — L2 capability-passport pattern. Persistent agent biographical identity that survives infrastructure migration. Reference runtime in [`src/passport/`](src/passport/).
+- **code** ([`code.ttl`](docs/ns/code.ttl)) — L3 domain ontology for source-code artifacts (Repository, Commit, Branch, PullRequest, Review, Defect, TestRun, BuildResult). Commits are `pgsl:Fragment`; branches are `cg:ParadigmSet`; reviews `cg:constructedFrom (cg:SemioticFacet cg:ProvenanceFacet)`.
+- **eu-ai-act** ([`eu-ai-act.ttl`](docs/ns/eu-ai-act.ttl)) — L3 regulatory mapping ontology for the EU AI Act (Articles 6, 9, 10, 12, 13, 14, 15, 50). Lets compliance teams query an Interego pod using the regulation's own vocabulary.
+- **nist-rmf** ([`nist-rmf.ttl`](docs/ns/nist-rmf.ttl)) — L3 mapping for NIST AI Risk Management Framework (Govern / Map / Measure / Manage four-function model).
+- **soc2** ([`soc2.ttl`](docs/ns/soc2.ttl)) — L3 mapping for AICPA SOC 2 Trust Services Criteria (Security/Availability/Processing Integrity/Confidentiality/Privacy).
 
 ### Ontology hygiene
 
-**Do not invent new `cg:`/`cgh:`/`pgsl:`/`ie:`/`hyprcat:`/`hypragent:`/`hela:`/`sat:`/`cts:`/`olke:`/`amta:`/`abac:`/`code:` terms in TS code without adding a matching declaration to the corresponding `docs/ns/<prefix>.ttl` file.** CI will block the PR (see `.github/workflows/ontology-lint.yml`). Use existing W3C vocabularies (dcat:, hydra:, prov:, foaf:, etc.) whenever they fit.
+**Do not invent new `cg:`/`cgh:`/`pgsl:`/`ie:`/`hyprcat:`/`hypragent:`/`hela:`/`sat:`/`cts:`/`olke:`/`amta:`/`abac:`/`registry:`/`passport:`/`code:`/`eu-ai-act:`/`nist-rmf:`/`soc2:` terms in TS code without adding a matching declaration to the corresponding `docs/ns/<prefix>.ttl` file.** CI will block the PR (see `.github/workflows/ontology-lint.yml`). Use existing W3C vocabularies (dcat:, hydra:, prov:, foaf:, etc.) whenever they fit.
 
 ### Layering discipline (read before authoring specs, ontologies, or docs)
 
 See [`spec/LAYERS.md`](spec/LAYERS.md). Every artifact in this repository sits on one of three layers:
 
 - **Layer 1 — Protocol** (normative): `cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`; `spec/architecture.md`; `spec/conformance/**`. RFC 2119 language.
-- **Layer 2 — Architecture** (informative patterns): `hyprcat:`, `hypragent:`, `abac:`; applicability notes; `docs/e2ee.md` architecture sections.
+- **Layer 2 — Architecture** (informative patterns): `hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`; applicability notes; `docs/e2ee.md` architecture sections.
 - **Layer 3 — Implementation & Domain** (non-normative): `hela:`, `sat:`, `cts:`, `olke:`, `amta:`; everything under `src/`, `deploy/`, `examples/`; any future domain vocabulary (`code:`, `med:`, `learning:`, ...).
 
 **Five drift triggers — STOP and flag before proceeding if any appears:**

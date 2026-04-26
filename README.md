@@ -13,16 +13,19 @@ Interego gives autonomous AI agents the infrastructure to publish, discover, com
 
 The protocol surface has grown substantially. Highlights:
 
+- **Compliance grade publish + regulatory mapping (L4 conformance)** — `publish_context(..., compliance: true, compliance_framework: 'eu-ai-act' | 'nist-rmf' | 'soc2')` produces audit-trail-grade descriptors. Upgrades trust to `CryptographicallyVerified`, signs with ECDSA (secp256k1), embeds inline `cg:proof` in the TrustFacet, writes a sibling `.sig.json` to the pod, auto-pins both to IPFS when configured, validates against the named framework. Wallet rotation + history supported via `rotateComplianceWallet` / `importComplianceWallet`. See [`spec/CONFORMANCE.md`](spec/CONFORMANCE.md) §L4 + [`docs/ns/eu-ai-act.ttl`](docs/ns/eu-ai-act.ttl) / [`nist-rmf.ttl`](docs/ns/nist-rmf.ttl) / [`soc2.ttl`](docs/ns/soc2.ttl).
+- **Audit endpoints on the relay** — `/audit/events`, `/audit/lineage`, `/audit/compliance/<framework>`, `/audit/verify-signature`, `/audit/frameworks`. Public read; auditors verify any compliance descriptor's signature without trusting the relay. Companion: [`examples/compliance-dashboard.html`](examples/compliance-dashboard.html) — open in a browser, no install.
+- **Privacy-hygiene preflight** — `screenForSensitiveContent` runs in `publish_context` on both surfaces; flags API keys, JWTs, PEM keys, Luhn-valid credit cards, US SSNs, emails/phones/IPs across three severity tiers. Warning surfaced to the calling agent; never silently filtered.
+- **Agent enablement** — [`docs/AGENT-PLAYBOOK.md`](docs/AGENT-PLAYBOOK.md) (operational "when X do Y" rules for any LLM driving the MCP) + [`docs/AGENT-INTEGRATION-GUIDE.md`](docs/AGENT-INTEGRATION-GUIDE.md) (one-page integrator guide for OpenClaw/Cursor/Cline/Aider/custom). Both fetched on demand via `docs://interego/playbook` + `docs://interego/integration-guide`. SERVER_INSTRUCTIONS strengthened from descriptive to prescriptive (proactive triggers, modal defaults, error patterns).
+- **MCP discoverability** — both stdio (`@interego/mcp` 0.5.0) and HTTP relay (`@interego/mcp-relay` 0.3.0) advertise system instructions, doc resources, workflow prompts on `initialize`. Prompts include `publish-memory`, `discover-shared-context`, `verify-trust-chain`, `whats-on-my-pod`, `publish-audit-record`, `compose-contexts`, `explain-interego`.
 - **[Attribute-Based Access Control](docs/ns/abac.ttl) (L2 `abac:`)** — policies are typed context descriptors with SHACL predicates; attributes resolve cross-pod; sybil-resistant via `filterAttributeGraph`. See `examples/demo-abac-cross-pod.mjs`, `demo-abac-sybil-resistance.mjs`, `demo-abac-zk-proof.mjs`, `demo-abac-emergent-policy.mjs`, `demo-abac-policy-supersession.mjs`.
-- **[Public Agent Attestation Registry](docs/ns/registry.ttl) (L2 `registry:`)** — federated NPM-for-AI-agents primitive; multiple registries co-exist; reputation aggregates cross-registry. See `examples/demo-agent-registry.mjs`.
+- **[Public Agent Attestation Registry](docs/ns/registry.ttl) (L2 `registry:`)** — federated NPM-for-AI-agents primitive; multiple registries co-exist; reputation aggregates cross-registry.
 - **[Capability Passport](docs/ns/passport.ttl) (L2 `passport:`)** — agent biographical identity that survives infrastructure migration (framework / pod / model changes).
-- **[Code domain ontology](docs/ns/code.ttl) (L3 `code:`)** — first L3 domain example: Repository / Commit / Branch / PullRequest / Review / Defect, all grounded in L1. See `examples/demo-code-domain.mjs`.
+- **[Code domain ontology](docs/ns/code.ttl) (L3 `code:`)** — first L3 domain example. Demonstrates that a non-trivial domain expresses fully on top of L1 primitives.
 - **[RDF 1.2 + SHACL 1.2 alignment](docs/ns/cg-shapes-1.2.ttl)** — triple-term annotations (`{| ... |}`), directional language tags, `sh:reifierShape` validation per April 2026 CR/WD.
-- **[Conformance test suite](spec/CONFORMANCE.md)** — three levels (L1 Core / L2 Federation / L3 Advanced) with badge output. Run `node spec/conformance/runner.mjs`.
-- **[Federated transactions](spec/FEDERATED-TRANSACTIONS.md)** — saga-pattern atomic writes across multiple pods.
-- **[Constitutional layer](spec/CONSTITUTIONAL-LAYER.md)** — self-amending policies with tiered ratification and graceful forks.
-- **[CRDT offline merge spec](spec/CRDT-OFFLINE-MERGE.md)** + **[DP+ZK aggregate spec](spec/AGGREGATE-PRIVACY.md)** + **[TLA+ proof outlines](spec/proofs/)** — protocol-level guarantees and design specs.
-- **17+ runnable demo scripts** in [`examples/`](examples/) including emergence demos (vocabulary alignment, mediator pullback, stigmergic colony, localized closed-world), Idehen-inspired (federated reasoning, nanotation pipeline), Verborgh-inspired (distributed affordances, cross-app interop, pod-as-graph views).
+- **[Conformance test suite](spec/CONFORMANCE.md)** — four levels (L1 Core / L2 Federation / L3 Advanced / L4 Compliance) with badge output. Run `node spec/conformance/runner.mjs`.
+- **[Federated transactions](spec/FEDERATED-TRANSACTIONS.md)** + **[Constitutional layer](spec/CONSTITUTIONAL-LAYER.md)** + **[CRDT offline merge spec](spec/CRDT-OFFLINE-MERGE.md)** + **[DP+ZK aggregate spec](spec/AGGREGATE-PRIVACY.md)** + **[TLA+ proof outlines](spec/proofs/)** — protocol-level guarantees and design specs.
+- **20+ runnable demo scripts** in [`examples/`](examples/) including emergence demos, ABAC scenarios, Idehen-inspired (federated reasoning, nanotation pipeline), Verborgh-inspired (distributed affordances, cross-app interop, pod-as-graph views), agent registry, code domain.
 
 For dated detail see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -58,7 +61,7 @@ For runnable demos of the trust substrate (auditor, ERC-8004 T0-T2, x402, afford
 
 ### Ontology & protocol discipline
 
-- **Sixteen formal ontologies** covering L1 protocol (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), L2 architecture patterns (`hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`), L3 implementation/domain (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`, `code:`). See [`docs/ns/README.md`](docs/ns/README.md). All terms enforced by CI lint.
+- **Nineteen formal ontologies** covering L1 protocol (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), L2 architecture patterns (`hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`), L3 implementation/domain (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`, `code:`), L3 regulatory mappings (`eu-ai-act:`, `nist-rmf:`, `soc2:`). See [`docs/ns/README.md`](docs/ns/README.md). All terms enforced by CI lint.
 - **CI ontology-lint gate.** `tools/ontology-lint.mjs` scans TS source for `<prefix>:<Term>` emissions and verifies each against its corresponding `docs/ns/<prefix>.ttl`. New code cannot land `cg:NewType` without a matching OWL declaration.
 - **CI derivation-lint gate.** `tools/derivation-lint.mjs` enforces that every L2/L3 ontology class has explicit L1 grounding (`owl:equivalentClass` / `rdfs:subClassOf` / `cg:constructedFrom` / declared primitive). Currently 66/66 grounded.
 - **Layering discipline** (L1 protocol / L2 architecture / L3 implementation). See [`spec/LAYERS.md`](spec/LAYERS.md). Namespace is the boundary contract — domain terms stay out of core namespaces.
@@ -844,6 +847,11 @@ npm run test:watch   # Watch mode
 | [`spec/CRDT-OFFLINE-MERGE.md`](spec/CRDT-OFFLINE-MERGE.md) | Descriptor-fragment-level CRDTs for offline-first collaboration |
 | [`spec/AGGREGATE-PRIVACY.md`](spec/AGGREGATE-PRIVACY.md) | Privacy-preserving aggregate queries (DP + ZK) across pods |
 | [`spec/proofs/`](spec/proofs/) | TLA+ formal-spec outlines (modal lattice, supersession, ABAC composition) |
+| [`docs/AGENT-PLAYBOOK.md`](docs/AGENT-PLAYBOOK.md) | Operational "when X do Y" rules for any LLM driving the MCP — proactive triggers, privacy, modal defaults, error patterns |
+| [`docs/AGENT-INTEGRATION-GUIDE.md`](docs/AGENT-INTEGRATION-GUIDE.md) | One-page integrator guide for AI agent harnesses (OpenClaw, Cursor, Cline, Aider, custom) |
+| [`docs/ns/eu-ai-act.ttl`](docs/ns/eu-ai-act.ttl) | EU AI Act mapping (Articles 6, 9, 10, 12, 13, 14, 15, 50) |
+| [`docs/ns/nist-rmf.ttl`](docs/ns/nist-rmf.ttl) | NIST AI Risk Management Framework — Govern / Map / Measure / Manage |
+| [`docs/ns/soc2.ttl`](docs/ns/soc2.ttl) | SOC 2 Trust Services Criteria — CC + Availability + PI + Confidentiality + Privacy |
 | [Paradigm Constraints](spec/paradigm-constraints.md) | Emergent semantics, coherence verification, decision functor |
 | [Progressive Persistence](spec/progressive-persistence.md) | 5-tier persistence, URI invariance, structural encryption |
 | [Presentation Notes](spec/presentation-notes.md) | 10-slide W3C presentation outline with demo instructions |

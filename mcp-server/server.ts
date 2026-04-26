@@ -1767,6 +1767,9 @@ PROACTIVE TRIGGERS — listen for these and use Interego unprompted:
 - "who said that" / "where did this come from" → get_descriptor → trace prov
 - "is this still true" → check cg:modalStatus + cg:supersedes chain
 - the user references prior sessions / other AI tools → search the pod first
+- audit trail / regulated / EU AI Act / NIST RMF / SOC 2 / "auditable" / "regulators
+  will see this" → publish_context with compliance: true + compliance_framework
+  (signed + anchored + framework-cited). Use publish-audit-record prompt.
 
 WHEN TO USE EACH TOOL FAMILY:
 - publish_context → persist memory + cross-pod E2EE share
@@ -2447,6 +2450,38 @@ interface PromptDef {
 }
 
 const PROMPTS: readonly PromptDef[] = [
+  {
+    name: 'publish-audit-record',
+    description: 'Publish a compliance-grade audit-trail descriptor: signed (ECDSA), trust upgraded to CryptographicallyVerified, framework-cited, anchored. Use when the user is in a regulated context (EU AI Act, NIST RMF, SOC 2) or asks for an auditable record.',
+    arguments: [
+      { name: 'topic', description: 'Short topic / what action is being recorded.', required: true },
+      { name: 'content', description: 'The action content (Turtle preferred — include framework control IRIs via dct:conformsTo so /audit/compliance can aggregate).', required: true },
+      { name: 'framework', description: 'Regulatory framework: eu-ai-act | nist-rmf | soc2.', required: false },
+    ],
+    build: (a) => `Publish a COMPLIANCE-GRADE audit record:
+
+Topic: ${a.topic}
+Framework: ${a.framework ?? '(unspecified — descriptor will still be signed but not framework-cited)'}
+
+Use publish_context with:
+  - graph_iri:        urn:graph:audit:<slug-of-topic>:<timestamp>
+  - graph_content:    ${a.content}
+  - modal_status:     Asserted (compliance grade requires committed claims, not Hypothetical)
+  - compliance:       true
+${a.framework ? `  - compliance_framework: '${a.framework}'\n` : ''}
+The response will include:
+  - descriptorUrl: where the descriptor lives on the pod
+  - signature: { url (sig.json), signer (ECDSA address), signedAt, ipfsCid? }
+  - complianceCheck: { compliant, violations, upgradedFacets }
+
+Surface the response to the user. If complianceCheck.compliant is false,
+explain the violations and offer to fix (typical fix: configure the
+operator's compliance wallet path so signing succeeds).
+
+If a framework was specified, suggest the user check their per-framework
+report at /audit/compliance/${a.framework ?? '<framework>'} to see how this
+record contributes to overall conformance.`,
+  },
   {
     name: 'whats-on-my-pod',
     description: 'Quick orientation: enumerate, summarize, and present what context descriptors currently live on the user\'s home pod. Run this when the user asks "what do you remember?" / "what\'s there?" / "what\'s on my pod".',

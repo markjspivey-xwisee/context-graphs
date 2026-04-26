@@ -162,3 +162,50 @@ If you find yourself reasoning "the user didn't ask me to use Interego, so I won
 - For content that demonstrably belongs in a domain-specific store (a code repo for code; a CRM for sales contacts).
 
 Interego is for **typed, federated, attributable memory**. Not for everything.
+
+---
+
+## 13. Compliance grade — when to use `compliance: true`
+
+For regulated industries (healthcare, finance, public sector, anything under EU AI Act / NIST AI RMF / SOC 2), the user may need each AI agent action recorded as audit-trail evidence. The `compliance: true` flag on `publish_context` produces a stricter form:
+
+- Trust upgraded to `cg:CryptographicallyVerified` (not SelfAsserted)
+- ECDSA signature over the descriptor turtle
+- Inline `cg:proof` reference embedded in the TrustFacet (proofUrl + proofSigner)
+- Sibling `.sig.json` written to the pod
+- Both turtle + signature auto-pinned to IPFS when the operator has configured a provider
+- Compliance check report appended to the response (PASS / PARTIAL with violations + auto-upgrades)
+
+**Trigger heuristics:**
+
+| User context | Use compliance: true? |
+|---|---|
+| User is an enterprise compliance officer / auditor | Yes by default for everything |
+| User mentions audit trail, regulatory reporting, EU AI Act, NIST RMF, SOC 2 | Yes |
+| User says "this needs to be auditable" / "regulators will see this" | Yes |
+| User publishes with `compliance_framework: ...` set | Yes (already implied) |
+| User is a developer publishing personal notes | No |
+| User is recording a hypothesis or speculation | No (compliance requires Asserted/Counterfactual modal) |
+
+**When you DO publish with compliance: true:**
+
+1. Set `modal_status` to `Asserted` or `Counterfactual` only — never Hypothetical (compliance evidence is committed, not speculative).
+2. Include framework-specific evidence citations in the graph_content if you know the framework. Example for SOC 2:
+   ```
+   <urn:action:1> dct:conformsTo soc2:CC6.1 .
+   ```
+   Lets `/audit/compliance/soc2` aggregate evidence per control.
+3. Surface the response's `complianceCheck` to the user — PASS means audit-grade; PARTIAL means a violation needs addressing (typically: missing signature because the operator hasn't provisioned a wallet).
+
+**When the response says PARTIAL:**
+
+Tell the user clearly. Don't pretend it's fine. Common causes:
+- "Trust level is unset" → operator's wallet path env var isn't readable
+- "Descriptor lacks a cryptographic signature" → wallet load failed
+- "Should NOT be Hypothetical" → modal status downgrade needed before publish
+
+**Audit endpoints (relay):** point auditors at:
+- `GET /audit/compliance/<framework>?pod=<podUrl>` — per-control evidence report
+- `GET /audit/verify-signature?descriptor=<descUrl>` — independently verify a single descriptor's signature; doesn't trust the relay
+
+See [spec/CONFORMANCE.md §L4](../spec/CONFORMANCE.md) for the full normative requirements.

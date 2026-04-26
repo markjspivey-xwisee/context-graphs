@@ -90,19 +90,35 @@ This is for harnesses that want richer features than the MCP exposes. Standard u
 
 ## Conformance
 
-The Interego protocol defines three conformance levels (see `spec/CONFORMANCE.md`):
+The Interego protocol defines four conformance levels (see `spec/CONFORMANCE.md`):
 
 - **L1 Core:** six-facet invariant, modal-truth consistency, composition operators, supersedes resolution
 - **L2 Federation:** pod manifest discovery, cross-pod attribute resolution, WebID/DID resolution
 - **L3 Advanced:** ABAC, AMTA aggregation, RDF 1.2, ZK proofs, capability passport, PGSL
+- **L4 Compliance:** opt-in for regulated deployments — every `compliance: true` descriptor must be signed (ECDSA), trust upgraded, modal committed, anchored, framework-cited. Maps to EU AI Act / NIST AI RMF / SOC 2 controls.
 
-Most harnesses are L1+L2 just by using the MCP correctly. L3 features are opt-in.
+Most harnesses are L1+L2 just by using the MCP correctly. L3 features are opt-in. L4 is per-deployment when used as a regulatory audit substrate.
 
 If you want to claim conformance publicly:
 
 ```markdown
 [![Interego L1+L2](https://img.shields.io/badge/Interego-L1%2BL2-green)](https://github.com/markjspivey-xwisee/interego)
 ```
+
+## Compliance grade for regulated deployments
+
+If your harness is shipping into healthcare, finance, public sector, or other regulated industries, expose `compliance: true` as a flag your users can toggle. When enabled:
+
+- Every `publish_context` produces an audit-trail-grade descriptor (signed, anchored, framework-cited)
+- The user's data still lives in their pod (you don't host it)
+- Auditors verify signatures via the relay's `/audit/verify-signature` endpoint OR by re-running `verifyDescriptorSignature` against the canonical Turtle + sibling `.sig.json`
+- Per-framework conformance reports available at `/audit/compliance/<framework>` — `eu-ai-act`, `nist-rmf`, `soc2`
+
+This is the distinguishing feature against flat-log observability (Langfuse, Arize): semantic linked-data in the customer's pod, queryable via standard SPARQL, mapped to the regulatory frameworks the customer's auditors already name.
+
+For the operator-facing wallet rotation + framework setup, point them at:
+- `loadOrCreateComplianceWallet(path)` / `rotateComplianceWallet(path)` / `importComplianceWallet(path, key)` from `@interego/core`
+- `examples/compliance-dashboard.html` — open in browser, no server needed, reads `/audit/*`
 
 ## Brand-neutral framing
 
