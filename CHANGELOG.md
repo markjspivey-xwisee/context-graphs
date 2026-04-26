@@ -8,6 +8,108 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-04-25 — compliance grade publish (regulatory audit-trail substrate)
+
+Closes the "Federated Compliance Graph for AI Agent Governance" gap.
+Customers in regulated industries (EU AI Act, NIST AI RMF, SOC 2) can
+now use Interego as the audit-trail substrate, with cryptographic
+provenance, framework conformance reports, and a verification API that
+doesn't trust the relay.
+
+### Added — L3 regulatory mapping ontologies
+
+- `docs/ns/eu-ai-act.ttl` — Articles 6, 9, 10, 12, 13, 14, 15, 50
+- `docs/ns/nist-rmf.ttl` — Govern / Map / Measure / Manage
+- `docs/ns/soc2.ttl` — Trust Services Criteria (CC, A, PI, C, P)
+- 20 new classes total, all derivation-lint grounded.
+
+### Added — `compliance: true` flag on `publish_context` (both surfaces)
+
+When set:
+- Trust upgraded to `cg:CryptographicallyVerified`
+- Descriptor signed with persisted ECDSA wallet (secp256k1)
+- Inline `cg:proof` reference embedded in TrustFacet (proofScheme,
+  proofUrl, proofSigner) — included in the SIGNED Turtle so tampering
+  invalidates
+- Sibling `.sig.json` written to the pod
+- Both Turtle + signature auto-pinned to IPFS when provider configured
+- Compliance check report appended to response (modal/trust/sig
+  validation against L4 conformance)
+
+### Added — Wallet rotation + history
+
+- `loadOrCreateComplianceWallet(path, label)` — loads or creates
+- `rotateComplianceWallet(path)` — moves active to history, generates new
+- `importComplianceWallet(path, privateKey)` — replace active with
+  externally-managed key (HSM, custodial); previous → history
+- `listValidSignerAddresses(path)` — all addresses considered valid
+  for verification (active + history)
+- Backward-compat: pre-rotation single-key wallet files auto-migrate
+  on next load.
+
+### Added — Audit endpoints on the relay (public read)
+
+- `GET /audit/frameworks` — list frameworks + their controls
+- `GET /audit/events?pod=...&since=...&until=...` — recent descriptors
+- `GET /audit/lineage?descriptor=...` — walk derivedFrom + supersedes
+- `GET /audit/compliance/<framework>?pod=...` — per-control evidence aggregation
+- `GET /audit/verify-signature?descriptor=...` — fetch descriptor +
+  sibling .sig.json, recover signer, verify content hash. Auditors
+  validate without trusting the relay.
+
+### Added — `examples/compliance-dashboard.html`
+
+Single-page UI. Pod URL + framework selector → summary panel +
+recent events + per-control status table with score bar. Reads
+the relay's `/audit/*` endpoints. No build step.
+
+### Added — L4 Compliance conformance tier (spec/CONFORMANCE.md)
+
+7 normative requirements (L4.1–L4.7) — trust upgrade, modal commitment,
+ECDSA signature, anchored CID, append-only via supersedes, framework
+control citations, privacy preflight HIGH-pass.
+
+### Added — Privacy hygiene preflight
+
+`screenForSensitiveContent` runs in `publish_context` on both surfaces;
+flags API keys (Anthropic, OpenAI, AWS, GitHub, Stripe, generic), JWTs,
+PEM private keys, Luhn-valid credit cards, US SSNs, emails, phone
+numbers, IPv4 addresses across three severity tiers. Warning surfaced
+to the calling agent; never silently filtered.
+
+### Added — Agent enablement docs
+
+- `docs/AGENT-PLAYBOOK.md` — operational "when X do Y" rules for any
+  LLM driving the MCP. Fetched via `docs://interego/playbook`.
+- `docs/AGENT-INTEGRATION-GUIDE.md` — one-page integrator guide for
+  AI agent harnesses. Fetched via `docs://interego/integration-guide`.
+- SERVER_INSTRUCTIONS in BOTH stdio + relay strengthened from
+  descriptive to prescriptive: proactive triggers, privacy hygiene
+  rules, modal defaults, versioning, error patterns.
+- New prompt `whats-on-my-pod` added to both surfaces.
+
+### Tooling fixes
+
+- `computeCid` now produces real CIDv1 (raw codec, sha2-256, base32
+  multihash). Was concatenating `bafkrei` + raw hex — looked like a
+  CID but never resolved on any IPFS gateway.
+- `publish_context` auto-supersedes prior descriptors for the same
+  `graph_iri` on the same pod (`auto_supersede_prior` defaults true).
+  Republishing-to-add-recipients now cleanly marks older versions as
+  superseded; federation queries surface only the canonical current.
+
+### Stats
+
+- Tests: 727 → 817 (+90 across registry, passport, abac, transactions,
+  constitutional, ipfs-cid, privacy, compliance)
+- Derivation-lint: 41/41 → 86/86 grounded
+- Ontologies: 12 → 19
+- New runtime modules: `src/abac/`, `src/registry/`, `src/passport/`,
+  `src/transactions/`, `src/constitutional/`, `src/privacy/`,
+  `src/compliance/`
+
+---
+
 ## 2026-04-23 (latest) — MCP discoverability across both surfaces
 
 Both MCP entry points now advertise system-level instructions, doc

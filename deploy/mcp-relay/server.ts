@@ -1135,6 +1135,9 @@ PROACTIVE TRIGGERS — listen for these and use Interego unprompted:
 - "who said that" / "where did this come from" → get_descriptor → trace prov
 - "is this still true" → check cg:modalStatus + cg:supersedes chain
 - the user references prior sessions / other AI tools → search the pod first
+- audit trail / regulated / EU AI Act / NIST RMF / SOC 2 / "auditable" /
+  "regulators will see this" → publish_context with compliance: true +
+  compliance_framework (signed + anchored + framework-cited).
 
 WHEN TO USE EACH TOOL FAMILY:
 - publish_context → persist memory + cross-pod E2EE share
@@ -1285,6 +1288,30 @@ interface PromptDef {
 }
 
 const PROMPTS: readonly PromptDef[] = [
+  {
+    name: 'publish-audit-record',
+    description: 'Publish a compliance-grade audit-trail descriptor (signed, trust-upgraded, framework-cited, anchored). Use for regulated contexts (EU AI Act / NIST RMF / SOC 2) or when the user asks for an auditable record.',
+    arguments: [
+      { name: 'topic', description: 'What action is being recorded.', required: true },
+      { name: 'content', description: 'Turtle content; include dct:conformsTo <framework-control-IRI> so /audit/compliance can aggregate.', required: true },
+      { name: 'framework', description: 'Regulatory framework: eu-ai-act | nist-rmf | soc2.', required: false },
+    ],
+    build: (a) => `Publish a COMPLIANCE-GRADE audit record:
+
+Topic: ${a.topic}
+Framework: ${a.framework ?? '(unspecified — signed but not framework-cited)'}
+
+Use publish_context with:
+  - graph_iri: urn:graph:audit:<slug-of-topic>:<timestamp>
+  - graph_content: ${a.content}
+  - modal_status: Asserted (compliance grade requires committed claims)
+  - compliance: true
+${a.framework ? `  - compliance_framework: '${a.framework}'\n` : ''}
+Response includes signature (.sig.json url, signer address, signedAt) and
+complianceCheck (compliant + violations + upgradedFacets). Surface results
+to the user. Point them at /audit/compliance/${a.framework ?? '<framework>'}
+to see overall conformance after this record.`,
+  },
   {
     name: 'whats-on-my-pod',
     description: 'Quick orientation: enumerate, summarize, and present what context descriptors currently live on the user\'s home pod. Run this when the user asks "what do you remember?" / "what\'s there?" / "what\'s on my pod".',
