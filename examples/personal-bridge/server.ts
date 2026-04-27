@@ -35,7 +35,7 @@ import {
   WebSocketRelayMirror,
   isInteregoEvent,
   importWallet,
-  generateKeyPair,
+  deriveEncryptionKeyPair,
   type EncryptedShare,
   type DescriptorAnnouncement,
   type RelayConnectionStatus,
@@ -108,7 +108,15 @@ const inboundAuthors = INBOUND_AUTHORS_RAW
 // ── Bridge state ─────────────────────────────────────────────
 
 const wallet = importWallet(BRIDGE_KEY, 'agent', 'personal-bridge');
-const encryptionKeyPair = generateKeyPair();
+
+// X25519 encryption keypair, deterministically derived from
+// BRIDGE_KEY. The same wallet always produces the same Curve25519
+// keypair, so encrypted shares addressed to your bridge stay
+// decryptable across restarts. Fresh-each-restart was the prior
+// behavior; that broke the "wallet IS your identity" invariant
+// because the encryption pubkey rotated even though the signing
+// key didn't.
+const encryptionKeyPair = deriveEncryptionKeyPair(BRIDGE_KEY);
 
 // Persistent storage by default (events survive restarts). Override
 // to a fresh path with BRIDGE_DATA_DIR, or set BRIDGE_PERSIST=0 to
