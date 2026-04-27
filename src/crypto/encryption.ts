@@ -28,6 +28,7 @@
 
 import nacl from 'tweetnacl';
 import util from 'tweetnacl-util';
+import { createHash } from 'node:crypto';
 
 // ═════════════════════════════════════════════════════════════
 //  Types
@@ -80,6 +81,35 @@ export interface EncryptedEnvelope {
  */
 export function generateKeyPair(): EncryptionKeyPair {
   const kp = nacl.box.keyPair();
+  return {
+    publicKey: util.encodeBase64(kp.publicKey),
+    secretKey: util.encodeBase64(kp.secretKey),
+    algorithm: 'X25519-XSalsa20-Poly1305',
+  };
+}
+
+/**
+ * Derive an X25519 key pair deterministically from the wallet
+ * private key. The same secp256k1 wallet always produces the same
+ * Curve25519 keypair, so encrypted shares addressed to your bridge
+ * stay decryptable across restarts.
+ *
+ * Why derive instead of persist + load: zero new state to manage,
+ * zero key file to back up separately, no possibility of the
+ * X25519 keypair drifting from the wallet that signs your events.
+ * The wallet IS the identity, all the way down.
+ *
+ * @param privateKeyHex secp256k1 private key, hex (with or without 0x)
+ * @returns EncryptionKeyPair (base64-encoded publicKey + secretKey)
+ */
+export function deriveEncryptionKeyPair(privateKeyHex: string): EncryptionKeyPair {
+  // Domain-separated derivation. Different from the storage key
+  // (which uses ':interego-bridge-storage-v1') so a leak of one
+  // doesn't compromise the other.
+  const seed = privateKeyHex.toLowerCase().replace(/^0x/, '') + ':interego-bridge-encryption-v1';
+  const secretBytes = createHash('sha256').update(seed, 'utf8').digest();
+  // tweetnacl reduces this to a valid Curve25519 scalar internally.
+  const kp = nacl.box.keyPair.fromSecretKey(secretBytes);
   return {
     publicKey: util.encodeBase64(kp.publicKey),
     secretKey: util.encodeBase64(kp.secretKey),

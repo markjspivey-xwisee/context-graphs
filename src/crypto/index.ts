@@ -86,6 +86,7 @@ export {
 // E2E Encryption (real NaCl / tweetnacl)
 export {
   generateKeyPair,
+  deriveEncryptionKeyPair,
   generateContentKey,
   encryptContent,
   decryptContent,

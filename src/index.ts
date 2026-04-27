@@ -634,6 +634,7 @@ export {
   createAgentKitWallet,
   // E2E Encryption
   generateKeyPair,
+  deriveEncryptionKeyPair,
   generateContentKey,
   encryptContent,
   decryptContent,
