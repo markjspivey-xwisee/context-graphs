@@ -79,51 +79,19 @@ describe('personal-bridge — tool surface', () => {
     expect(result.instructions).toContain(client.pubkey);
   });
 
-  it('handleMcpRequest — tools/list returns the core p2p tools + lpc:* tools', async () => {
+  it('handleMcpRequest — tools/list → all 6 core p2p tools present with schemas', async () => {
+    // Generic personal-bridge is foundation-layer ONLY: 6 core p2p tools.
+    // Vertical tooling (lpc.* / adp.* / lrs.* / ac.*) is provided by
+    // separate per-vertical bridges under applications/<vertical>/bridge/
+    // — those have their own MCP servers and their own tests.
     const r = await handleMcpRequest({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     expect(r).not.toBeNull();
     const result = r!.result as { tools: { name: string; description: string; inputSchema: object }[] };
     const names = result.tools.map(t => t.name).sort();
-    // Core p2p tools must be present
-    expect(names).toEqual(expect.arrayContaining([
+    expect(names).toEqual([
       'bridge_status', 'decrypt_share', 'publish_p2p',
       'query_my_inbox', 'query_p2p', 'share_encrypted',
-    ]));
-    // LPC vertical tools must also be present
-    expect(names).toEqual(expect.arrayContaining([
-      'lpc.ingest_training_content',
-      'lpc.import_credential',
-      'lpc.record_performance_review',
-      'lpc.record_learning_experience',
-      'lpc.grounded_answer',
-      'lpc.list_wallet',
-    ]));
-    // ADP vertical tools must also be present
-    expect(names).toEqual(expect.arrayContaining([
-      'adp.define_capability',
-      'adp.record_probe',
-      'adp.record_narrative_fragment',
-      'adp.emerge_synthesis',
-      'adp.record_evolution_step',
-      'adp.refine_constraint',
-      'adp.recognize_capability_evolution',
-      'adp.list_cycle',
-    ]));
-    // LRS vertical tools must also be present
-    expect(names).toEqual(expect.arrayContaining([
-      'lrs.ingest_statement',
-      'lrs.ingest_statement_batch',
-      'lrs.project_descriptor',
-      'lrs.lrs_about',
-    ]));
-    // AC vertical tools must also be present
-    expect(names).toEqual(expect.arrayContaining([
-      'ac.author_tool',
-      'ac.attest_tool',
-      'ac.promote_tool',
-      'ac.bundle_teaching_package',
-      'ac.record_cross_agent_audit',
-    ]));
+    ]);
     for (const t of result.tools) {
       expect(t.description).toBeTruthy();
       expect(t.inputSchema).toBeDefined();

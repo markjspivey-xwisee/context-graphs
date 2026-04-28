@@ -44,10 +44,6 @@ import {
 import { homedir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { createHash } from 'node:crypto';
-import { lpcTools } from './lpc-tools.js';
-import { adpTools } from './adp-tools.js';
-import { lrsTools } from './lrs-tools.js';
-import { acTools } from './ac-tools.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -326,10 +322,6 @@ const tools: Record<string, ToolHandler> = {
     inputSchema: { type: 'object', properties: {} },
     handler: async () => bridgeStatus(),
   },
-  ...lpcTools(),
-  ...adpTools(),
-  ...lrsTools(),
-  ...acTools(),
 };
 
 function bridgeStatus(): Record<string, unknown> {
