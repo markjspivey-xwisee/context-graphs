@@ -54,7 +54,7 @@ Then add to your `.mcp.json` (or `~/.claude.json`):
 }
 ```
 
-Reload Claude Code → 6 tools available immediately. The bridge process lives + dies with the session.
+Reload Claude Code → 23 tools available immediately (6 core p2p + 6 lpc.* + 8 adp.* + 4 lrs.* + 5 ac.* — see "Tools the bridge exposes" below). The bridge process lives + dies with the session.
 
 ### Full: HTTP (multi-device, admin UI, mobile-ready)
 
@@ -113,6 +113,10 @@ For mobile to reach a desktop bridge across networks, **Tailscale is the right a
 
 ## Tools the bridge exposes
 
+The bridge exposes 23 MCP tools across 5 groups: 6 core p2p + 17 vertical tools that turn the bridge into a production-grade host for the four [`applications/`](../../applications/) verticals.
+
+### Core p2p (always on)
+
 | Tool | What it does |
 |---|---|
 | `publish_p2p` | Publish a descriptor announcement (kind 30040) to the local relay. Local-only by default; pass recipient pubkeys via `share_encrypted` for cross-recipient sharing. |
@@ -121,6 +125,49 @@ For mobile to reach a desktop bridge across networks, **Tailscale is the right a
 | `query_my_inbox` | List encrypted shares addressed to this bridge. |
 | `decrypt_share` | Decrypt one of those by event id. Returns plaintext or null. |
 | `bridge_status` | Bridge identity, scheme, pubkeys, external relay config. |
+
+### `lpc.*` — Learner / Performer Companion (set `LPC_POD_URL`, `LPC_USER_DID`, optional `LPC_ASSISTANT_DID`)
+
+| Tool | What it does |
+|---|---|
+| `lpc.ingest_training_content` | SCORM/cmi5 zip → unwrap → extract → atom-mint → publish `lpc:TrainingContent` + `lpc:LearningObjective` to the user's pod. |
+| `lpc.import_credential` | Verify a W3C VC (vc-jwt or DataIntegrityProof JSON-LD) and publish as `lpc:Credential`. Verification failures throw — bad VCs never land in the pod. |
+| `lpc.record_performance_review` | Publish a manager-attributed review with `cg:ProvenanceFacet.wasAttributedTo` set to the manager's DID. |
+| `lpc.record_learning_experience` | Ingest an xAPI Statement as `lpc:LearningExperience`, cross-linked to training content + credential earned. |
+| `lpc.grounded_answer` | The user-facing chat surface. Loads wallet from pod, retrieves with verbatim citation, publishes `lpc:CitedResponse` audit trail. Returns null on unanswerable questions — honest no-data, no confabulation. |
+| `lpc.list_wallet` | Summarize what's in the pod-backed wallet. |
+
+### `adp.*` — Agent Development Practice (set `ADP_POD_URL`, `ADP_OPERATOR_DID`)
+
+| Tool | What it does |
+|---|---|
+| `adp.define_capability` | Declare a capability SPACE (not target) with rubric criteria + Cynefin domain. |
+| `adp.record_probe` | Record a safe-to-fail probe. Always Hypothetical. REQUIRES amplification + dampening triggers stated up-front (prevents retconning). |
+| `adp.record_narrative_fragment` | Narrative observation against a probe. Always Hypothetical. Carries situation signifiers + emergent signifier. |
+| `adp.emerge_synthesis` | Compose multiple fragments. REQUIRES ≥2 coherent narratives — prevents silent collapse. |
+| `adp.record_evolution_step` | Operator amplify/dampen decision. Asserted BUT REQUIRES `explicitDecisionNotMade`. |
+| `adp.refine_constraint` | Refine a constraint emerged from synthesis cycles. Boundary + exits required. |
+| `adp.recognize_capability_evolution` | Record a `passport:LifeEvent` biographical record. REQUIRES humility-forward clauses that travel across deployments. |
+| `adp.list_cycle` | Load the operator's full probe cycle state from the pod. |
+
+### `lrs.*` — LRS Adapter (set `LRS_POD_URL`, `LRS_USER_DID`; per-call `lrsEndpoint` / `lrsUsername` / `lrsPassword`)
+
+| Tool | What it does |
+|---|---|
+| `lrs.ingest_statement` | Fetch one xAPI Statement from an LRS by ID, project as a cg:ContextDescriptor in the user's pod. Auto-negotiates xAPI version (2.0.0 preferred; falls back to 1.0.3 for legacy LRSes like SCORM Cloud). |
+| `lrs.ingest_statement_batch` | Same but multi-Statement with filter. |
+| `lrs.project_descriptor` | Read an Asserted descriptor from the pod and POST to LRS. Counterfactual ALWAYS skipped; Hypothetical skipped without opt-in; multi-narrative lossy with audit-loud `lossNote` rows. |
+| `lrs.lrs_about` | Probe an LRS's `/about` to discover supported xAPI versions. |
+
+### `ac.*` — Agent Collective (set `AC_POD_URL`, `AC_AGENT_DID`)
+
+| Tool | What it does |
+|---|---|
+| `ac.author_tool` | Publish `ac:AgentTool` (Hypothetical) — fresh tools are not trusted yet. Source code stored as content-addressed `pgsl:Atom`. |
+| `ac.attest_tool` | Record an `amta:Attestation` against a tool. Self / Peer × axis (correctness/efficiency/safety/generality). |
+| `ac.promote_tool` | Promote Hypothetical → Asserted. REFUSES below threshold (default 5+ self + 2+ peer + 2+ axes). |
+| `ac.bundle_teaching_package` | Bundle artifact + practice (narratives + synthesis + constraint + capability evolution). REFUSES without narrative fragments — partial transfer prevention. |
+| `ac.record_cross_agent_audit` | Audit row in the HUMAN OWNER's pod (not the agent's) for chime-ins / responses / check-ins. |
 
 ## Sharing across people (multi-bridge federation)
 
@@ -133,11 +180,12 @@ To share with another person who also runs a bridge:
 
 The relay sees: ciphertext + recipient signing pubkeys + topic. The relay does NOT see plaintext or your encryption keys. A non-recipient who fetches the event cannot decrypt it.
 
-## v1 limitations
+## Limitations
 
-- **External relay forwarding is config-only in this version** — `EXTERNAL_RELAYS` is reflected in `/status` but the actual WebSocket forwarder isn't yet wired. For v1 the embedded `InMemoryRelay` only delivers to clients connected to the same bridge process. v1.1 plan: add a `WebSocketRelayMirror` adapter that forwards every event published to the local relay onto each configured external relay, and subscribes to incoming events from them.
-- **No persistent storage of relay events** — events live in process memory. v1.1 plan: pluggable backing store (file or SQLite) for events.
-- **No auth** — the bridge listens for whoever can reach the URL. Bind to `127.0.0.1` and access through Tailscale (which authenticates) for the simplest secure setup. Future: add bearer-token auth for direct internet exposure.
+- **No bridge-level auth** — the bridge listens for whoever can reach the URL. Bind to `127.0.0.1` and access through Tailscale (which authenticates) for the simplest secure setup. Future: add bearer-token auth for direct internet exposure.
+- **Vertical tools require pod URLs** — the `lpc.*` / `adp.*` / `lrs.*` / `ac.*` tools all need `<VERTICAL>_POD_URL` env vars (or per-call overrides) pointing at the user's Solid pod. Without them the tools throw `XYZ_POD_URL or args.podUrl required`. Bridge alone (without vertical configs) still exposes the 6 core p2p tools.
+
+(Note: external relay forwarding via `EXTERNAL_RELAYS` and file-backed persistence via `BRIDGE_PERSIST=1` are both wired and on by default. See [`tests/p2p-public-relay.test.ts`](../../tests/p2p-public-relay.test.ts) and [`tests/file-backed-relay.test.ts`](../../tests/file-backed-relay.test.ts).)
 
 ## Architecture
 

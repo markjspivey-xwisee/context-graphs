@@ -8,6 +8,57 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-04-28 — Four production-grade vertical applications + CAS-safe `publish()`
+
+Closes the gap between protocol substrate and end-user-facing applications.
+Each of the four verticals under [`applications/`](applications/) now ships
+a production runtime (pod-publisher + pod-loader + MCP tools registered in
+the personal-bridge) + a Tier 8 integration test against real
+infrastructure (Azure CSS + Lrsql + SCORM Cloud + public Nostr relay).
+
+### Verticals
+
+- **`learner-performer-companion/`** ([`applications/learner-performer-companion/`](applications/learner-performer-companion/))
+  Human-protagonist wallet: SCORM/cmi5 ingestion, W3C VC import (vc-jwt + DataIntegrityProof eddsa-jcs-2022), xAPI history via lrs-adapter, performance records with manager attribution. Grounded chat with verbatim citation, honest no-data on unanswerable questions, content-hash tamper detection. New `src/grounded-answer.ts` + `src/pod-wallet.ts` + `src/pod-publisher.ts`.
+
+- **`agent-development-practice/`** ([`applications/agent-development-practice/`](applications/agent-development-practice/))
+  Agent-as-subject Cynefin/Snowden complexity-informed practice. Probes/fragments/syntheses always Hypothetical; syntheses REQUIRE ≥2 coherent narratives (silent collapse prevention); evolution steps require `explicitDecisionNotMade`; capability evolution events as `passport:LifeEvent` carry humility forward across deployments. New `src/pod-publisher.ts` + `src/pod-loader.ts`.
+
+- **`lrs-adapter/`** ([`applications/lrs-adapter/`](applications/lrs-adapter/))
+  Bidirectional xAPI ↔ Interego boundary translator. Auto-negotiates xAPI version (2.0.0 preferred; falls back to 1.0.3 for legacy LRSes — real-world finding: SCORM Cloud is 1.0.3-only). Counterfactual descriptors ALWAYS skipped on projection; Hypothetical skipped without explicit opt-in; multi-narrative descriptors lossy with audit-loud `lossNote` rows. New `src/lrs-client.ts` + `src/pod-publisher.ts`.
+
+- **`agent-collective/`** ([`applications/agent-collective/`](applications/agent-collective/))
+  Multi-agent federation: tool authoring with attestation discipline (publisher REFUSES tool promotion below 5 self + 2 peer + 2 axes); teaching packages bundle artifact + practice (REFUSES without narrative fragments); cross-agent audit entries live in HUMAN OWNER's pod (not the agent's). New `src/pod-publisher.ts`.
+
+### Personal-bridge: 23 MCP tools
+
+The personal-bridge ([`examples/personal-bridge/`](examples/personal-bridge/)) now exposes 23 MCP tools any client can call (Claude Desktop / Code / Cursor / ChatGPT app / custom): 6 core p2p (existing) + 6 `lpc.*` + 8 `adp.*` + 4 `lrs.*` + 5 `ac.*`. Per-vertical env vars (`LPC_POD_URL`, `ADP_OPERATOR_DID`, `LRS_ENDPOINT`, `AC_AGENT_DID`, ...) configure the targets; per-call argument overrides supported.
+
+### CAS-safe `publish()`
+
+[`src/solid/client.ts`](src/solid/client.ts) — manifest update now uses HTTP If-Match (RFC 7232 optimistic concurrency) with retry on 412 Precondition Failed (jittered backoff, 5 attempts). Cold-start uses `If-None-Match: *`. Fixes the read-then-write race where parallel publishes against the same pod could clobber each other's manifest entries — bit production agents writing in parallel AND the cross-suite parallel test run.
+
+### Test surface
+
+Single full-suite run (`SCORM_CLOUD_KEY=... SCORM_CLOUD_SECRET=... SCORM_CLOUD_ENDPOINT=... npx vitest run`):
+- **1068 tests pass / 3 skipped (env-gated) / 0 failures**
+- 60 test files including 4 new Tier 8 production tests (one per vertical)
+- Real systems exercised in a single suite run: Yet Analytics Lrsql (xAPI 2.0.0), SCORM Cloud (xAPI 1.0.3), Azure Community Solid Server, relay.damus.io public Nostr relay, real ECDSA + Ed25519 + X25519 cryptography, real W3C VC vc-jwt + Data Integrity Proofs, real SCORM 1.2/2004/cmi5 zip parsing, real cross-bridge p2p
+
+vitest config now uses singleThread/singleFork pools to serialize pod-touching tests for deterministic CI gates.
+
+### Honesty discipline encoded at the publisher layer
+
+Across all four verticals, publishers REFUSE bad input rather than warn. Examples:
+- ADP: probes refused without amplification + dampening triggers; syntheses refused with <2 coherent narratives; evolution steps refused without `explicitDecisionNotMade`; constraints refused without `emergedFrom` + `boundary` + `exits`
+- LRS: Counterfactual descriptors ALWAYS skipped on projection; Hypothetical skipped without opt-in
+- AC: tool promotion refused below threshold; teaching package refused without narrative fragments
+- LPC: bad VCs never land in the pod under credential IRIs (verification before persist)
+
+The behavior contract — verbatim citation, honest no-match, tamper detection, cross-link integrity, provenance honesty — is what the Tier 7+8 tests validate.
+
+---
+
 ## 2026-04-26 — Tier 5 P2P transport (Schnorr + 1:N encrypted share)
 
 Ships the local-first storage tier ladder + a working P2P option. Three commits land in sequence:
