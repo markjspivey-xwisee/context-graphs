@@ -95,11 +95,12 @@ tools/
 
 ### Layering discipline (read before authoring specs, ontologies, or docs)
 
-See [`spec/LAYERS.md`](spec/LAYERS.md). Every artifact in this repository sits on one of three layers:
+See [`spec/LAYERS.md`](spec/LAYERS.md). Every artifact in this repository sits on one of three layers — plus a separate non-normative "vertical" surface:
 
 - **Layer 1 — Protocol** (normative): `cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`; `spec/architecture.md`; `spec/conformance/**`. RFC 2119 language.
 - **Layer 2 — Architecture** (informative patterns): `hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`; applicability notes; `docs/e2ee.md` architecture sections.
 - **Layer 3 — Implementation & Domain** (non-normative): `hela:`, `sat:`, `cts:`, `olke:`, `amta:`; everything under `src/`, `deploy/`, `examples/`; any future domain vocabulary (`code:`, `med:`, `learning:`, ...).
+- **Vertical applications** (non-normative, application-over-L3): [`applications/`](applications/) holds vertical use cases that COMPOSE the protocol without extending it. Each has its own scoped namespace OUTSIDE the protocol IRI space (e.g., `lpc:`, `adp:`, `lrs:`, `ac:`). Verticals MUST NOT propose changes to L1/L2/L3 ontologies. Current verticals: `learner-performer-companion/`, `agent-development-practice/`, `lrs-adapter/`, `agent-collective/`. See [`applications/README.md`](applications/README.md) for layering discipline. Each vertical ships pod-publishers + pod-loaders + MCP tools registered in [`examples/personal-bridge/`](examples/personal-bridge/) (23 total tools across the 4 verticals).
 
 **Five drift triggers — STOP and flag before proceeding if any appears:**
 
