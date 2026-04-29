@@ -45,6 +45,7 @@ scenarios=(
   "13-constitutional-democracy-live"
   "14-zk-confidence-without-disclosure"
   "15-organizational-working-memory"
+  "16-self-evolving-tool-population"
 )
 
 # Optional filter — accept positional args like "01" or "01 03 14"
