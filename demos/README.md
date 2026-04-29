@@ -1,4 +1,4 @@
-# Interego demos — sixteen end-to-end scenarios
+# Interego demos — seventeen end-to-end scenarios
 
 Self-contained scenarios that drive **real Claude Code CLI agents**
 against **real per-vertical bridges**, a **real Solid pod** (Azure CSS),
@@ -93,11 +93,12 @@ CLAUDECODE= npx tsx demos/scenarios/14-zk-confidence-without-disclosure.ts
 |---|----------|----------------------|
 | 15 | [Organizational working memory](scenarios/15-organizational-working-memory.ts) | A "company memory" surface (people, projects, decisions, follow-ups, content-addressed notes) recoverable from the substrate's primitives alone, plus a per-source navigation pattern that isolates external sources behind uniform `ls / cat / grep / recent` verbs. A Curator agent distills an external page into typed entities; a separate Surfacer agent — different process, no shared memory — recovers state from the org pod alone. |
 
-### Self-evolving agentics (16)
+### Self-evolving agentics (16, 17)
 
 | # | Scenario | What it demonstrates |
 |---|----------|----------------------|
 | 16 | [Self-evolving tool population](scenarios/16-self-evolving-tool-population.ts) | Five claude processes — a four-agent Generation 1 plus one Generation 2 — produce a Darwinian tool population. Each Gen-1 agent authors a different variant; each cross-evaluates the other three across rotating amta axes. The substrate's promotion rule is a deterministic function of the resulting attestation set: aggregate ≥ threshold AND axes_covered ≥ 2. The winner emerges from arithmetic; in dry runs the *substrate has refused promotion* of the highest-scoring variant when its attestations clustered on a single axis — protocol-enforced epistemic humility that no agent or harness designed for. Generation 2 receives the teaching package and authors a refined successor whose `cg:supersedes` chain points back at the Gen-1 winner. The capability frontier moved without anyone outside the loop redesigning the agents. |
+| 17 | [Constitutional regime change — upward + downward causation](scenarios/17-regime-change-upward-downward-causation.ts) | Eleven claude processes traverse a complete causal loop across four emergent layers. **Upward** (L1 → L2 → L3): Population A authors tools under regime R0; five voters propose and vote on amendment R1 ("tools may only be promoted if their attestations include the safety axis"); the per-amendment vote tally crosses the tier-3 threshold, triggering ratification — a binary phase transition emerging from continuous accumulation. **Downward** (L3 → L4 → L1): Population B (3 new agents) reads the ratified regime from the pod, recognizes that the Population-A attestation pattern would violate R1, and adapts by adding the safety axis BEFORE promoting. Their action is shaped by a higher-level structure that emerged from their peers' votes. **Loop closure**: the adaptation produces new lower-level actions (additional safety attestations) that re-enter the trust graph; tools that would otherwise have been refused promotion now succeed. Both directions of causation are recoverable from the pod alone — the substrate is the shared medium through which both flow. |
 
 ### Identity & democracy (10, 12, 13)
 
