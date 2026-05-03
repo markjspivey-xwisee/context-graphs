@@ -41,7 +41,7 @@ import {
 import type { PGSLInstance } from '../../src/pgsl/types.js';
 import {
   commit, verifyCommitment,
-  proveConfidenceAboveThreshold, verifyConfidenceProof,
+  proveConfidenceAboveThreshold, verifyConfidenceProof, verifyConfidenceProofByReveal,
   buildMerkleTree, generateMerkleProof, verifyMerkleProof,
 } from '../../src/crypto/zk/proofs.js';
 import {
@@ -202,18 +202,30 @@ function handleZkVerifyCommitment(args: { commitment: { commitment: string; algo
   return { ok: verifyCommitment(c, args.value, args.blinding) };
 }
 
-function handleZkProveConfidence(args: { confidence: number; threshold: number; descriptor_iri?: string }): unknown {
-  const proof = proveConfidenceAboveThreshold(
-    args.confidence,
-    args.threshold,
-    (args.descriptor_iri ?? `urn:cg:demo:zk-confidence:${Date.now()}`) as IRI,
-  );
-  return { ok: true, proof };
+function handleZkProveConfidence(args: { confidence: number; threshold: number }): unknown {
+  // proveConfidenceAboveThreshold returns { proof, blinding }. The
+  // blinding is the prover's witness — keep it (don't surface to the
+  // verifier) unless the prover is willing to disclose for stronger
+  // verification via verifyConfidenceProofByReveal.
+  const out = proveConfidenceAboveThreshold(args.confidence, args.threshold);
+  return { ok: true, proof: out.proof, blinding: out.blinding };
 }
 
 function handleZkVerifyConfidence(args: { proof: unknown }): unknown {
+  // Chain-walk verification — verifies the prover did the work of
+  // building a hash chain from threshold to leaf. Reveals the gap
+  // (chain length) but not the value. See RangeProof JSDoc for the
+  // honest scoping.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { ok: verifyConfidenceProof(args.proof as any) };
+}
+
+function handleZkVerifyConfidenceByReveal(args: { proof: unknown; value: number; blinding: string }): unknown {
+  // Stronger verification: the prover reveals (value, blinding) so the
+  // verifier can confirm the leaf opens to those — equivalent in
+  // strength to commit-and-reveal plus the range invariant.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { ok: verifyConfidenceProofByReveal(args.proof as any, args.value, args.blinding) };
 }
 
 // ── Constitutional ─────────────────────────────────────────────
@@ -430,9 +442,23 @@ const tools: Record<string, ToolDef> = {
     handler: (a) => handleZkProveConfidence(a as any),
   },
   'protocol.zk_verify_confidence_proof': {
-    description: 'Verify a confidence-above-threshold range proof.',
+    description: 'Verify a confidence-above-threshold range proof by walking its hash chain. Reveals (value − threshold) — the chain length leaks the gap above threshold — but does not reveal the value itself. For full ZK that hides the gap, use a Bulletproofs-style scheme (not implemented in @interego/core).',
     inputSchema: { type: 'object', properties: { proof: { type: 'object' } }, required: ['proof'] },
     handler: (a) => handleZkVerifyConfidence(a as { proof: unknown }),
+  },
+  'protocol.zk_verify_confidence_proof_by_reveal': {
+    description: 'Stronger verification path: the prover reveals (value, blinding) to the verifier, who confirms the leaf opens to those AND the chain verifies. Equivalent in strength to commit-and-reveal plus the range invariant. Use when full cryptographic verification matters more than zero-knowledge and the prover is willing to disclose to a specific verifier.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        proof: { type: 'object' },
+        value: { type: 'number' },
+        blinding: { type: 'string' },
+      },
+      required: ['proof', 'value', 'blinding'],
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handler: (a) => handleZkVerifyConfidenceByReveal(a as any),
   },
   'protocol.sign_message': {
     description: 'Sign a message with this bridge\'s wallet (secp256k1, EIP-191 personal_sign). Requires BRIDGE_WALLET_KEY env var. Returns the signature and signer address.',

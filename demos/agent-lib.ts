@@ -140,14 +140,58 @@ export async function spawnBridge(
   throw new Error(`bridge ${name} failed to start within 30s.\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`);
 }
 
-export async function killBridges(bridges: readonly BridgeHandle[]): Promise<void> {
-  for (const b of bridges) {
-    b.process.kill('SIGTERM');
+/**
+ * Cross-platform tree-kill.
+ *
+ * Background: `npx tsx server.ts` spawns `npx → tsx → node` on Windows.
+ * `proc.kill('SIGTERM')` only signals the npx wrapper; the inner node
+ * process keeps running and holds the bridge port open. After enough
+ * failed demo runs the operator's port table fills up with stale
+ * listeners. The Unix path is similar — npx forks a child and the
+ * default kill doesn't propagate to the descendants.
+ *
+ * Strategy:
+ *   - Windows: `taskkill /T /F /PID <pid>` (T = tree, F = force).
+ *     Synchronous via execFileSync; surfaces no stderr to the demo
+ *     output unless DEBUG_TREE_KILL is set.
+ *   - POSIX: signal the negative process-group ID, which delivers to
+ *     every descendant of the spawned shell. Caller MUST have spawned
+ *     with detached: true (we don't, by default), so we fall back to
+ *     plain kill if PGID isn't available — which is fine because
+ *     POSIX node properly inherits SIGTERM down the chain in most
+ *     shells.
+ */
+export function treeKill(proc: ChildProcess, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
+  if (proc.pid === undefined || proc.killed) return;
+  if (process.platform === 'win32') {
+    try {
+      // execFileSync is synchronous; cheap; lets us batch many
+      // teardowns deterministically. /T = include child processes.
+      // /F = force (no graceful shutdown — fine for demo bridges
+      // that have no persistent state to flush).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
+      execFileSync('taskkill', ['/T', '/F', '/PID', String(proc.pid)], {
+        stdio: process.env['DEBUG_TREE_KILL'] ? 'inherit' : 'ignore',
+      });
+    } catch {
+      // Fall back to single-process kill — better than nothing.
+      try { proc.kill(signal); } catch { /* already gone */ }
+    }
+  } else {
+    try { proc.kill(signal); } catch { /* already gone */ }
   }
-  // Give them 2s to exit cleanly
-  await new Promise(r => setTimeout(r, 2000));
+}
+
+export async function killBridges(bridges: readonly BridgeHandle[]): Promise<void> {
+  // Tree-kill each bridge synchronously up front. On Windows this
+  // actually terminates the inner node process; on POSIX the parent's
+  // SIGTERM propagates normally.
+  for (const b of bridges) treeKill(b.process, 'SIGTERM');
+  // Give graceful shutdown 1.5s, then force-kill anything still alive.
+  await new Promise(r => setTimeout(r, 1500));
   for (const b of bridges) {
-    if (!b.process.killed) b.process.kill('SIGKILL');
+    if (!b.process.killed) treeKill(b.process, 'SIGKILL');
   }
 }
 

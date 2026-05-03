@@ -17,6 +17,7 @@ import {
   verifyCommitment,
   proveConfidenceAboveThreshold,
   verifyConfidenceProof,
+  verifyConfidenceProofByReveal,
   buildMerkleTree,
   generateMerkleProof,
   verifyMerkleProof,
@@ -227,6 +228,78 @@ describe('Range Proofs (confidence threshold)', () => {
     expect(proof.threshold).toBe(0.8);
     const valid = verifyConfidenceProof(proof);
     expect(valid).toBe(true);
+  });
+
+  // ── Tampering detection (the new chain-walk verifier should catch
+  //    every mutation that the prior length-only stub ignored) ─────
+
+  it('rejects a proof with no chain field (back-compat: old stub-format proofs are unverifiable)', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.9, 0.8);
+    const stripped = { ...proof, chain: undefined };
+    expect(verifyConfidenceProof(stripped)).toBe(false);
+  });
+
+  it('rejects a proof whose anchor was tampered', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.9, 0.8);
+    const tampered = { ...proof, proof: 'a'.repeat(64) };
+    expect(verifyConfidenceProof(tampered)).toBe(false);
+  });
+
+  it('rejects a proof whose commitment was tampered', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.9, 0.8);
+    const tampered = { ...proof, commitment: 'b'.repeat(64) };
+    expect(verifyConfidenceProof(tampered)).toBe(false);
+  });
+
+  it('rejects a proof with a mutated chain link (mid-chain corruption)', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.95, 0.8);
+    if (!proof.chain || proof.chain.length < 2) throw new Error('test setup: chain unexpectedly short');
+    const tamperedChain = [...proof.chain];
+    tamperedChain[1] = 'c'.repeat(64);
+    const tampered = { ...proof, chain: tamperedChain };
+    expect(verifyConfidenceProof(tampered)).toBe(false);
+  });
+
+  it('rejects a proof whose threshold was inflated (claiming higher than what was proved)', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.9, 0.8);
+    const tampered = { ...proof, threshold: 0.99 };
+    expect(verifyConfidenceProof(tampered)).toBe(false);
+  });
+
+  it('rejects malformed types', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.9, 0.8);
+    expect(verifyConfidenceProof({ ...proof, type: 'wrong-type' as unknown as 'hash-range' })).toBe(false);
+  });
+
+  // ── Reveal-based verification ─────────────────────────────────────
+
+  it('verifyByReveal: accepts the correct (value, blinding)', () => {
+    const { proof, blinding } = proveConfidenceAboveThreshold(0.91, 0.8);
+    expect(verifyConfidenceProofByReveal(proof, 0.91, blinding)).toBe(true);
+  });
+
+  it('verifyByReveal: rejects a wrong value (right blinding)', () => {
+    const { proof, blinding } = proveConfidenceAboveThreshold(0.91, 0.8);
+    expect(verifyConfidenceProofByReveal(proof, 0.92, blinding)).toBe(false);
+  });
+
+  it('verifyByReveal: rejects a wrong blinding (right value)', () => {
+    const { proof } = proveConfidenceAboveThreshold(0.91, 0.8);
+    expect(verifyConfidenceProofByReveal(proof, 0.91, 'wrong-blinding')).toBe(false);
+  });
+
+  it('verifyByReveal: rejects a value below threshold even if commitment matches', () => {
+    // Forge a proof + matching commitment for value 0.5, but claim threshold 0.8.
+    // The commitment opens correctly but the range claim is dishonest.
+    const { proof, blinding } = proveConfidenceAboveThreshold(0.91, 0.8);
+    expect(verifyConfidenceProofByReveal(proof, 0.5, blinding)).toBe(false);
+  });
+
+  it('chain length leaks (value − threshold) — documented honest-scoping behavior', () => {
+    // discreteValue = 95, discreteThreshold = 80, chain length = 95 − 80 + 1 = 16.
+    // This is the documented privacy tradeoff vs Bulletproofs.
+    const { proof } = proveConfidenceAboveThreshold(0.95, 0.80);
+    expect(proof.chain?.length).toBe(16);
   });
 });
 

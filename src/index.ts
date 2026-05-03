@@ -656,6 +656,7 @@ export {
   verifyCommitment,
   proveConfidenceAboveThreshold,
   verifyConfidenceProof,
+  verifyConfidenceProofByReveal,
   buildMerkleTree,
   generateMerkleProof,
   verifyMerkleProof,

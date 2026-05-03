@@ -56,6 +56,7 @@ const handlers = {
     thresholdSelf: args.threshold_self as number | undefined,
     thresholdPeer: args.threshold_peer as number | undefined,
     thresholdAxes: args.threshold_axes as number | undefined,
+    enforceConstitutionalConstraints: args.enforce_constitutional_constraints as boolean | undefined,
   }, ctx(args)),
 
   'ac.bundle_teaching_package': async (args: Record<string, unknown>) => bundleTeachingPackage({

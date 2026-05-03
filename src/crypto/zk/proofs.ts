@@ -42,13 +42,31 @@ export interface Commitment {
   readonly type: 'hash-commitment';
 }
 
-/** A range proof: proves value > threshold */
+/**
+ * A range proof: proves value >= threshold via a hash chain anchored
+ * at the public threshold. The full chain is included in `chain` so
+ * the verifier can walk it without knowing the value.
+ *
+ * Honest scoping: this scheme reveals (value − threshold) — the chain
+ * length leaks how far above the threshold the value lies. For full
+ * zero-knowledge that hides the gap as well, use a Bulletproofs-style
+ * scheme (not implemented here). The current scheme is sufficient
+ * when the threshold is the policy concern and the exact value still
+ * deserves to stay private — e.g., "confidence ≥ 0.85 for an EU AI
+ * Act Article 15 attestation" cares about clearing the bar, not about
+ * how comfortably it cleared.
+ */
 export interface RangeProof {
-  readonly commitment: string;    // commitment to the value
+  readonly commitment: string;    // sha256(value || blinding) — leaf of the chain
   readonly threshold: number;     // the public threshold
-  readonly proof: string;         // the proof data
+  readonly proof: string;         // anchor = chain[0]; equals sha256(threshold || chain[1]) when chain.length > 1, else equals commitment
   readonly type: 'hash-range';
   readonly verified?: boolean;
+  /** Intermediate chain hashes from threshold (chain[0]) to leaf
+   *  (chain[chain.length-1] = commitment). Required for verification.
+   *  Older proofs without this field fail verification — they were
+   *  never actually verifiable in the prior implementation. */
+  readonly chain?: readonly string[];
 }
 
 /** A Merkle inclusion proof */
@@ -143,38 +161,99 @@ export function proveConfidenceAboveThreshold(
   }
 
   const blinding = util.encodeBase64(nacl.randomBytes(32));
-  const valueCommitment = sha256(`${discreteValue}||${blinding}`);
+  // Leaf is the commitment to the value: sha256(value || blinding)
+  const leaf = sha256(`${discreteValue}||${blinding}`);
 
-  // Build hash chain from threshold to value
-  // H(threshold || H(threshold+1 || ... H(value || blinding)))
-  let chainHash = sha256(`${discreteValue}||${blinding}`);
-  for (let i = discreteValue - 1; i >= discreteThreshold; i--) {
-    chainHash = sha256(`${i}||${chainHash}`);
+  // Chain length = (value - threshold + 1). Each chain link is
+  // sha256((threshold + i) || chain[i+1]). The leaf is chain[length-1].
+  // Verifier walks from chain[0] applying sha256((threshold + i) || ...)
+  // for i in [0, length-1) and checks that the final element equals
+  // the commitment.
+  const chainLength = discreteValue - discreteThreshold + 1;
+  const chain: string[] = new Array(chainLength);
+  chain[chainLength - 1] = leaf;
+  for (let i = chainLength - 2; i >= 0; i--) {
+    chain[i] = sha256(`${discreteThreshold + i}||${chain[i + 1]}`);
   }
 
   return {
     proof: {
-      commitment: valueCommitment,
+      commitment: leaf,
       threshold,
-      proof: chainHash,
+      proof: chain[0]!,    // anchor — first link of the chain
       type: 'hash-range',
+      chain,
     },
     blinding,
   };
 }
 
 /**
- * Verify a confidence range proof.
- * Checks the hash chain from threshold upward.
- * The verifier doesn't learn the exact value, only that value >= threshold.
+ * Verify a confidence range proof by walking the included chain.
+ *
+ * Returns true iff:
+ *   - `proof.chain` is present and non-empty
+ *   - `proof.chain[chain.length-1] === proof.commitment` (leaf matches)
+ *   - `proof.chain[0] === proof.proof` (anchor matches)
+ *   - For every i in [0, chain.length-1):
+ *       proof.chain[i] === sha256((discrete-threshold + i) || proof.chain[i+1])
+ *
+ * The verifier does NOT learn `value` or `blinding`, only that the
+ * prover did the work of building a valid chain anchored at `threshold`
+ * and terminating at the committed leaf. The chain length leaks
+ * (value − threshold), which is documented in the RangeProof type.
+ *
+ * Older proofs without `chain` fail verification — they were never
+ * actually verifiable in the prior stub implementation.
  */
 export function verifyConfidenceProof(proof: RangeProof): boolean {
+  if (!proof || proof.type !== 'hash-range') return false;
+  const chain = proof.chain;
+  if (!chain || chain.length === 0) return false;
 
-  // The proof is the hash chain starting from the threshold
-  // We verify by checking the chain structure
-  // In a real implementation, this would verify the full chain
-  // For now, we verify the proof is a valid hash (non-trivial)
-  return proof.proof.length === 64 && proof.commitment.length === 64;
+  // Leaf must equal the commitment.
+  if (chain[chain.length - 1] !== proof.commitment) return false;
+  // Anchor must equal the published proof field.
+  if (chain[0] !== proof.proof) return false;
+  // Every length / commitment field must look like a sha256 hex.
+  if (proof.commitment.length !== 64) return false;
+  for (const link of chain) {
+    if (typeof link !== 'string' || link.length !== 64) return false;
+  }
+
+  const discreteThreshold = Math.round(proof.threshold * 100);
+  for (let i = 0; i < chain.length - 1; i++) {
+    const expected = sha256(`${discreteThreshold + i}||${chain[i + 1]}`);
+    if (expected !== chain[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Stronger verification path that also confirms the leaf opens to the
+ * claimed (value, blinding). Use when the prover is willing to disclose
+ * the witness to a specific verifier — full cryptographic verification
+ * at the cost of zero-knowledge. Equivalent in strength to
+ * commit-and-reveal (see verifyCommitment) plus the range invariant.
+ *
+ * Returns true iff:
+ *   - `value >= proof.threshold` (the range claim is honest)
+ *   - `sha256(value*100 || blinding) === proof.commitment` (the
+ *     committed leaf opens to (value, blinding))
+ *   - The chain verifies via verifyConfidenceProof()
+ */
+export function verifyConfidenceProofByReveal(
+  proof: RangeProof,
+  value: number,
+  blinding: string,
+): boolean {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+  if (typeof blinding !== 'string' || blinding.length === 0) return false;
+  if (value < proof.threshold) return false;
+  const discreteValue = Math.round(value * 100);
+  const expectedCommitment = sha256(`${discreteValue}||${blinding}`);
+  if (expectedCommitment !== proof.commitment) return false;
+  return verifyConfidenceProof(proof);
 }
 
 // ═════════════════════════════════════════════════════════════

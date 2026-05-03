@@ -87,7 +87,7 @@
 
 import {
   spawnBridge, killBridges, cleanupPod, uniquePodUrl,
-  writeMcpConfig, runClaudeAgent,
+  writeMcpConfig, runClaudeAgent, treeKill,
   header, step, ok, info, fail, scenarioId, writeReport,
   type BridgeHandle,
 } from '../agent-lib.js';
@@ -172,7 +172,7 @@ async function spawnInteregoBridge(podUrl: string, port: number, didPrefix: stri
     } catch { /* retry */ }
     await new Promise(r => setTimeout(r, 500));
   }
-  proc.kill('SIGTERM');
+  treeKill(proc, 'SIGTERM');
   throw new Error(`interego-bridge :${port} failed to start`);
 }
 
@@ -526,9 +526,9 @@ Output ONLY a JSON object on a single line:
   } finally {
     if (acBridges.length > 0) await killBridges(acBridges);
     if (interegoBridge) {
-      interegoBridge.process.kill('SIGTERM');
+      treeKill(interegoBridge.process, 'SIGTERM');
       await new Promise(r => setTimeout(r, 1500));
-      if (!interegoBridge.process.killed) interegoBridge.process.kill('SIGKILL');
+      if (!interegoBridge.process.killed) treeKill(interegoBridge.process, 'SIGKILL');
     }
     await cleanupPod(podUrl);
   }
