@@ -115,7 +115,7 @@ For runnable demos of the trust substrate (auditor, ERC-8004 T0-T2, x402, afford
 
 ### Ontology & protocol discipline
 
-- **Nineteen formal ontologies** covering L1 protocol (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), L2 architecture patterns (`hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`), L3 implementation/domain (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`, `code:`), L3 regulatory mappings (`eu-ai-act:`, `nist-rmf:`, `soc2:`). See [`docs/ns/README.md`](docs/ns/README.md). All terms enforced by CI lint.
+- **Twenty formal ontologies** covering L1 protocol (`cg:`, `cgh:`, `pgsl:`, `ie:`, `align:`), L2 architecture patterns (`hyprcat:`, `hypragent:`, `abac:`, `registry:`, `passport:`), L3 implementation/domain (`hela:`, `sat:`, `cts:`, `olke:`, `amta:`, `code:`), L3 regulatory mappings (`eu-ai-act:`, `nist-rmf:`, `soc2:`), L3 complexity-aware vocabulary (`wks:`). See [`docs/ns/README.md`](docs/ns/README.md). All terms enforced by CI lint.
 - **CI ontology-lint gate.** `tools/ontology-lint.mjs` scans TS source for `<prefix>:<Term>` emissions and verifies each against its corresponding `docs/ns/<prefix>.ttl`. New code cannot land `cg:NewType` without a matching OWL declaration.
 - **CI derivation-lint gate.** `tools/derivation-lint.mjs` enforces that every L2/L3 ontology class has explicit L1 grounding (`owl:equivalentClass` / `rdfs:subClassOf` / `cg:constructedFrom` / declared primitive). Currently 91/91 grounded.
 - **Layering discipline** (L1 protocol / L2 architecture / L3 implementation). See [`spec/LAYERS.md`](spec/LAYERS.md). Namespace is the boundary contract — domain terms stay out of core namespaces.

@@ -33,7 +33,7 @@ Each scenario:
 ## Run them
 
 ```bash
-# all fourteen
+# all twenty
 ./demos/run-all.sh
 
 # subset

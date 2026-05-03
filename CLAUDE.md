@@ -66,7 +66,7 @@ deploy/
                auth-methods live in each user's pod (auth-methods.jsonld)
   mcp-relay/   HTTP/SSE OAuth-gated MCP proxy for claude.ai connectors;
                per-surface agent minting; cross-pod sharing
-docs/ns/       Nineteen OWL ontologies + three SHACL shape files (~840 terms — see docs/ns/README.md)
+docs/ns/       Twenty OWL ontologies + three SHACL shape files (~880 terms — see docs/ns/README.md)
 tools/
   ontology-lint.mjs  Scans TS for cg:/cgh:/pgsl:/ie:/hyprcat:/hypragent:/hela:/
                      sat:/cts:/olke:/amta: usages vs ontology definitions.
