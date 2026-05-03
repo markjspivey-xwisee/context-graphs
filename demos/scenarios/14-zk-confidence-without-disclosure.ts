@@ -29,7 +29,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import {
   cleanupPod, uniquePodUrl,
-  writeMcpConfig, runClaudeAgent,
+  writeMcpConfig, runClaudeAgent, treeKill,
   header, step, ok, info, fail, scenarioId, writeReport,
   type BridgeHandle,
 } from '../agent-lib.js';
@@ -64,7 +64,7 @@ async function spawnInteregoBridge(podUrl: string, port: number, didPrefix: stri
     } catch { /* retry */ }
     await new Promise(r => setTimeout(r, 500));
   }
-  proc.kill('SIGTERM');
+  treeKill(proc, 'SIGTERM');
   throw new Error(`interego-bridge :${port} failed to start`);
 }
 
@@ -259,9 +259,9 @@ Output a JSON object on a single line:
     header('Demo 14 — PASS');
   } finally {
     if (bridge) {
-      bridge.process.kill('SIGTERM');
+      treeKill(bridge.process, 'SIGTERM');
       await new Promise(r => setTimeout(r, 1500));
-      if (!bridge.process.killed) bridge.process.kill('SIGKILL');
+      if (!bridge.process.killed) treeKill(bridge.process, 'SIGKILL');
     }
     await cleanupPod(podUrl);
   }

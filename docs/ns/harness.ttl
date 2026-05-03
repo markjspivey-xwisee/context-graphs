@@ -1036,3 +1036,60 @@ cgh:measuresFederationSlice a owl:ObjectProperty ;
     rdfs:range cg:ContextDescriptor ;
     rdfs:comment "The cg:Federation slice (or descriptor identifying the slice) being measured. Lets multiple realignment measures coexist for different slices of the same pod." ;
     rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+# ══════════════════════════════════════════════════════════════
+#  Promotion constraints (substrate-enforced constitutional rules)
+# ══════════════════════════════════════════════════════════════
+#
+#  Couples the constitutional layer to operational primitives like
+#  ac.promote_tool. A ratified amendment publishes a typed
+#  cgh:PromotionConstraint descriptor; promote-style operations
+#  consult active constraints and refuse promotions that don't
+#  satisfy them. This converts the agent-mediated downward causation
+#  of Demo 17 into substrate-enforced downward causation: the rule
+#  isn't just legible, it's enforceable.
+#
+#  Companion to docs/ARCHITECTURAL-FOUNDATIONS.md §5 invariant 3
+#  (restriction/extension adjunction), the agent-collective vertical's
+#  ac.promote_tool, and the constitutional layer.
+
+cgh:PromotionConstraint a owl:Class ;
+    rdfs:label "Promotion Constraint" ;
+    rdfs:comment "A typed rule that operational promotion primitives (ac.promote_tool, etc.) consult before granting Asserted status. Subtype of cg:ContextDescriptor; the descriptor's cg:modalStatus MUST be Asserted to be in force. Constraints accumulate — multiple constraints all apply (logical AND). Supersedes-chain to revise: publish a new constraint that supersedes the old one to amend the rule." ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+cgh:requiresAttestationAxis a owl:DatatypeProperty ;
+    rdfs:label "requires attestation axis" ;
+    rdfs:domain cgh:PromotionConstraint ;
+    rdfs:range xsd:string ;
+    rdfs:comment "An amta: axis name that MUST be present in the attestations for promotion to succeed (e.g., \"safety\", \"correctness\"). Multiple values create AND-conjunction — every named axis must be covered." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+cgh:requiresMinimumPeerAttestations a owl:DatatypeProperty ;
+    rdfs:label "requires minimum peer attestations" ;
+    rdfs:domain cgh:PromotionConstraint ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:comment "Minimum number of peer (non-Self) attestations the constraint demands beyond the operation's default threshold. Lets a constitutional amendment raise the bar for one specific tool class without rewriting the operation's defaults." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+cgh:requiresMinimumSelfAttestations a owl:DatatypeProperty ;
+    rdfs:label "requires minimum self attestations" ;
+    rdfs:domain cgh:PromotionConstraint ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:comment "Minimum number of self-attestations the constraint demands beyond the operation's default threshold." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+cgh:appliesToToolType a owl:ObjectProperty ;
+    rdfs:label "applies to tool type" ;
+    rdfs:domain cgh:PromotionConstraint ;
+    rdfs:range cg:ContextDescriptor ;
+    rdfs:comment "Optional scope IRI — if present, the constraint only applies to tools of this type. If absent, the constraint applies to ALL promotion attempts." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.
+
+cgh:ratifiedBy a owl:ObjectProperty ;
+    rdfs:label "ratified by" ;
+    rdfs:domain cgh:PromotionConstraint ;
+    rdfs:range cg:ContextDescriptor ;
+    rdfs:comment "IRI of the constitutional amendment that ratified this constraint, for audit-trail integrity. The chain (Amendment → PromotionConstraint → enforced refusal) lets an auditor walk from a refused promotion back to the vote that produced the rule." ;
+    rdfs:isDefinedBy <https://markjspivey-xwisee.github.io/interego/ns/harness#>.

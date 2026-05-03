@@ -28,7 +28,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import {
   cleanupPod, uniquePodUrl,
-  writeMcpConfig, runClaudeAgent,
+  writeMcpConfig, runClaudeAgent, treeKill,
   header, step, ok, info, fail, scenarioId, writeReport,
   type BridgeHandle,
 } from '../agent-lib.js';
@@ -69,7 +69,7 @@ async function spawnInteregoBridge(podUrl: string, port: number, didPrefix: stri
     } catch { /* retry */ }
     await new Promise(r => setTimeout(r, 500));
   }
-  proc.kill('SIGTERM');
+  treeKill(proc, 'SIGTERM');
   throw new Error(`interego-bridge :${port} failed to start`);
 }
 
@@ -242,14 +242,14 @@ verify_signature returned ok=false" or similar.
     header('Demo 09 — PASS');
   } finally {
     if (aliceBridge) {
-      aliceBridge.process.kill('SIGTERM');
+      treeKill(aliceBridge.process, 'SIGTERM');
       await new Promise(r => setTimeout(r, 1500));
-      if (!aliceBridge.process.killed) aliceBridge.process.kill('SIGKILL');
+      if (!aliceBridge.process.killed) treeKill(aliceBridge.process, 'SIGKILL');
     }
     if (bobBridge) {
-      bobBridge.process.kill('SIGTERM');
+      treeKill(bobBridge.process, 'SIGTERM');
       await new Promise(r => setTimeout(r, 1500));
-      if (!bobBridge.process.killed) bobBridge.process.kill('SIGKILL');
+      if (!bobBridge.process.killed) treeKill(bobBridge.process, 'SIGKILL');
     }
     await cleanupPod(podUrl);
   }

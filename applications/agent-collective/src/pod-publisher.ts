@@ -14,7 +14,7 @@
  *   - Audit entries (ac:CrossAgentAuditEntry) live in human owner's pod
  */
 
-import { ContextDescriptor, publish } from '../../../src/index.js';
+import { ContextDescriptor, publish, discover } from '../../../src/index.js';
 import { createHash } from 'node:crypto';
 import type { IRI } from '../../../src/index.js';
 
@@ -155,12 +155,85 @@ export interface PromoteToolArgs {
   readonly thresholdSelf?: number;
   readonly thresholdPeer?: number;
   readonly thresholdAxes?: number;
+  /** When true, the publisher consults the org pod for active
+   *  cgh:PromotionConstraint descriptors and enforces them in
+   *  addition to the threshold policy. Closes the gap noted in
+   *  Demo 17's honest-scoping section: substrate-enforced
+   *  downward causation rather than agent-mediated. */
+  readonly enforceConstitutionalConstraints?: boolean;
 }
 
 export interface PromoteToolResult {
   readonly promotedToolIri: IRI;
   readonly descriptorUrl: string;
   readonly graphUrl: string;
+  /** Constraint IRIs that were consulted (empty when
+   *  enforceConstitutionalConstraints was false). For audit. */
+  readonly constraintsApplied: readonly IRI[];
+}
+
+interface PromotionConstraint {
+  readonly iri: IRI;
+  readonly requiredAxes: readonly string[];
+  readonly minimumPeerAttestations?: number;
+  readonly minimumSelfAttestations?: number;
+  readonly ratifiedBy?: IRI;
+}
+
+/**
+ * Discover active promotion constraints on the configured pod.
+ * "Active" = the constraint descriptor is Asserted and not superseded
+ * by a later descriptor describing the same graph.
+ *
+ * Constraints are typed cgh:PromotionConstraint descriptors. Each
+ * declares a set of required attestation axes and (optionally)
+ * minimum self/peer attestation counts that promote_tool must
+ * satisfy in addition to its default threshold policy.
+ */
+async function discoverPromotionConstraints(podUrl: string): Promise<PromotionConstraint[]> {
+  const debug = process.env['DEBUG_PROMOTION_CONSTRAINTS'] === '1';
+  let entries;
+  try {
+    entries = await discover(podUrl);
+  } catch (err) {
+    if (debug) console.error(`[constraint-discover] discover failed: ${(err as Error).message}`);
+    return [];
+  }
+  if (debug) console.error(`[constraint-discover] discover returned ${entries.length} entries from ${podUrl}`);
+  const supersededIris = new Set<string>();
+  for (const e of entries) for (const s of (e.supersedes ?? [])) supersededIris.add(s);
+
+  const out: PromotionConstraint[] = [];
+  for (const entry of entries) {
+    if (debug) console.error(`[constraint-discover] entry ${entry.descriptorUrl.slice(-40)} modal=${entry.modalStatus} describes=${entry.describes.join(',').slice(0, 50)}`);
+    if (entry.modalStatus !== 'Asserted') continue;
+    if (supersededIris.has(entry.descriptorUrl)) continue;
+    const graphUrl = entry.descriptorUrl.replace(/\.ttl$/, '-graph.trig');
+    let trig: string;
+    try {
+      const r = await fetch(graphUrl, { headers: { Accept: 'application/trig, text/turtle' } });
+      if (!r.ok) { if (debug) console.error(`[constraint-discover]   graph fetch ${r.status}`); continue; }
+      trig = await r.text();
+    } catch (err) {
+      if (debug) console.error(`[constraint-discover]   graph fetch error: ${(err as Error).message}`);
+      continue;
+    }
+    if (debug) console.error(`[constraint-discover]   trig length=${trig.length}, includes PromotionConstraint=${trig.includes('cgh:PromotionConstraint')}`);
+    if (!trig.includes('cgh:PromotionConstraint')) continue;
+
+    const requiredAxes = Array.from(trig.matchAll(/cgh:requiresAttestationAxis\s+"([^"]+)"/g), m => m[1]!);
+    const minPeerMatch = trig.match(/cgh:requiresMinimumPeerAttestations\s+"?(\d+)"?/);
+    const minSelfMatch = trig.match(/cgh:requiresMinimumSelfAttestations\s+"?(\d+)"?/);
+    const ratifiedByMatch = trig.match(/cgh:ratifiedBy\s+<([^>]+)>/);
+    out.push({
+      iri: (entry.describes[0] ?? entry.descriptorUrl) as IRI,
+      requiredAxes,
+      minimumPeerAttestations: minPeerMatch ? parseInt(minPeerMatch[1]!, 10) : undefined,
+      minimumSelfAttestations: minSelfMatch ? parseInt(minSelfMatch[1]!, 10) : undefined,
+      ratifiedBy: ratifiedByMatch ? (ratifiedByMatch[1] as IRI) : undefined,
+    });
+  }
+  return out;
 }
 
 export async function promoteTool(args: PromoteToolArgs, config: PublishConfig): Promise<PromoteToolResult> {
@@ -176,6 +249,29 @@ export async function promoteTool(args: PromoteToolArgs, config: PublishConfig):
   }
   if (args.axesCovered.length < tAxes) {
     throw new Error(`tool promotion REFUSED: needs ≥${tAxes} amta axes covered (got ${args.axesCovered.length})`);
+  }
+
+  // Substrate-enforced constitutional constraints. Read active
+  // PromotionConstraint descriptors from the pod and apply each as
+  // an additional check. The default-threshold policy above is
+  // operation-level; constraints are governance-level.
+  const constraintsApplied: IRI[] = [];
+  if (args.enforceConstitutionalConstraints) {
+    const constraints = await discoverPromotionConstraints(config.podUrl);
+    for (const c of constraints) {
+      for (const axis of c.requiredAxes) {
+        if (!args.axesCovered.includes(axis)) {
+          throw new Error(`tool promotion REFUSED by constitutional constraint ${c.iri}: requires "${axis}" axis attestation, not present in [${args.axesCovered.join(', ')}]${c.ratifiedBy ? ` (ratified by ${c.ratifiedBy})` : ''}`);
+        }
+      }
+      if (c.minimumPeerAttestations !== undefined && args.peerAttestations < c.minimumPeerAttestations) {
+        throw new Error(`tool promotion REFUSED by constitutional constraint ${c.iri}: requires ≥${c.minimumPeerAttestations} peer attestations (got ${args.peerAttestations})${c.ratifiedBy ? ` (ratified by ${c.ratifiedBy})` : ''}`);
+      }
+      if (c.minimumSelfAttestations !== undefined && args.selfAttestations < c.minimumSelfAttestations) {
+        throw new Error(`tool promotion REFUSED by constitutional constraint ${c.iri}: requires ≥${c.minimumSelfAttestations} self attestations (got ${args.selfAttestations})${c.ratifiedBy ? ` (ratified by ${c.ratifiedBy})` : ''}`);
+      }
+      constraintsApplied.push(c.iri);
+    }
   }
 
   const promotedId = sha16(args.toolIri + 'attested');
@@ -209,7 +305,7 @@ export async function promoteTool(args: PromoteToolArgs, config: PublishConfig):
 `;
 
   const result = await publish(desc, graphContent, config.podUrl);
-  return { promotedToolIri: promotedIri, descriptorUrl: result.descriptorUrl, graphUrl: result.graphUrl };
+  return { promotedToolIri: promotedIri, descriptorUrl: result.descriptorUrl, graphUrl: result.graphUrl, constraintsApplied };
 }
 
 // ── 4. Bundle teaching package (artifact + practice) ────────────────

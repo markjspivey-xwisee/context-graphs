@@ -59,6 +59,7 @@ const AC_AFFORDANCES: ReadonlyArray<Affordance> = [
       { name: 'threshold_self', type: 'integer', required: false, description: 'Override default self-attestation threshold.' },
       { name: 'threshold_peer', type: 'integer', required: false, description: 'Override default peer-attestation threshold.' },
       { name: 'threshold_axes', type: 'integer', required: false, description: 'Override default axes-covered threshold.' },
+      { name: 'enforce_constitutional_constraints', type: 'boolean', required: false, description: 'When true, the publisher consults active cgh:PromotionConstraint descriptors on the pod and enforces them in addition to the threshold policy. Substrate-enforced downward causation rather than agent-mediated.' },
       { name: 'pod_url', type: 'string', required: false, description: 'Pod URL.' },
       { name: 'authoring_agent_did', type: 'string', required: false, description: 'Promoting agent DID.' },
     ],

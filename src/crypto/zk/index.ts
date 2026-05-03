@@ -5,6 +5,7 @@ export {
   // Range proofs
   proveConfidenceAboveThreshold,
   verifyConfidenceProof,
+  verifyConfidenceProofByReveal,
   // Merkle tree
   buildMerkleTree,
   generateMerkleProof,

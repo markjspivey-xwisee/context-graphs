@@ -27,7 +27,7 @@
 
 import {
   spawnBridge, killBridges, cleanupPod, uniquePodUrl,
-  runClaudeAgent,
+  runClaudeAgent, treeKill,
   header, step, ok, info, fail, writeReport,
   type BridgeHandle,
 } from '../agent-lib.js';
@@ -97,7 +97,7 @@ async function spawnPersonalBridge(
     await new Promise(r => setTimeout(r, 500));
   }
 
-  proc.kill('SIGTERM');
+  treeKill(proc, 'SIGTERM');
   throw new Error(`personal-bridge on :${port} failed to start.\nSTDOUT:\n${stdoutChunks.join('')}\nSTDERR:\n${stderrChunks.join('')}`);
 }
 
@@ -394,11 +394,11 @@ Report the decrypted teaching_iri and the audit IRI. Stop.
     if (aliceBridges.length > 0) await killBridges(aliceBridges);
     if (bobBridges.length > 0) await killBridges(bobBridges);
     for (const p of personalBridges) {
-      p.process.kill('SIGTERM');
+      treeKill(p.process, 'SIGTERM');
     }
     await new Promise(r => setTimeout(r, 2000));
     for (const p of personalBridges) {
-      if (!p.process.killed) p.process.kill('SIGKILL');
+      if (!p.process.killed) treeKill(p.process, 'SIGKILL');
     }
     if (sharedRelay) await sharedRelay.close();
     await cleanupPod(alicePodUrl);
@@ -436,7 +436,7 @@ async function spawnAcBridgeOnPort(podUrl: string, port: number, didPrefix: stri
     } catch { /* retry */ }
     await new Promise(r => setTimeout(r, 500));
   }
-  proc.kill('SIGTERM');
+  treeKill(proc, 'SIGTERM');
   throw new Error(`Bob's AC-bridge on :${port} failed to start`);
 }
 
