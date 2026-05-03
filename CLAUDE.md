@@ -12,6 +12,8 @@ Verticals (LPC, ADP, LRS, AC, OWM) and quickstart deployments compose the substr
 
 **L1 Protocol Spec:** `context-graphs-1.0-wd.html` (co-located or at https://markjspivey-xwisee.github.io/interego/spec/interego-1.0.html)
 
+**Architectural foundations:** [`docs/ARCHITECTURAL-FOUNDATIONS.md`](docs/ARCHITECTURAL-FOUNDATIONS.md) — categorical interpretation of the substrate (holonic hypergraphics, PGSL as Grothendieck fibration, HELA as topos, the four invariants, Peircean correspondence). Read this before writing about why the protocol's choices fit together; it is the formal account underneath the informal naming used in the rest of the docs.
+
 ## Architecture
 
 TypeScript library (ESM, Node 20+):

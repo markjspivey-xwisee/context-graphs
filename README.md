@@ -952,6 +952,7 @@ npm run test:watch   # Watch mode
 | [Progressive Persistence](spec/progressive-persistence.md) | 5-tier persistence, URI invariance, structural encryption |
 | [Presentation Notes](spec/presentation-notes.md) | 10-slide W3C presentation outline with demo instructions |
 | [`docs/EMERGENCE.md`](docs/EMERGENCE.md) | Four emergent-property demos with falsifiable success criteria |
+| [`docs/ARCHITECTURAL-FOUNDATIONS.md`](docs/ARCHITECTURAL-FOUNDATIONS.md) | Holonic hypergraphics + polygranular composition + Peircean substrate — categorical interpretation of why the protocol's choices hang together as one construction |
 
 ---
 
