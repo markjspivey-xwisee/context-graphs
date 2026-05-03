@@ -2048,5 +2048,152 @@
         "passRate": 1
       }
     ]
+  },
+  {
+    "timestamp": "2026-05-03T13:18:29.748Z",
+    "model": "opus",
+    "runs": 1,
+    "overall": 0.9032258064516129,
+    "perType": {
+      "temporal": 1,
+      "counting": 0.6666666666666666,
+      "sum": 1,
+      "preference": 1,
+      "knowledge-update": 1,
+      "single-session": 1
+    },
+    "failures": [
+      61,
+      60,
+      77
+    ],
+    "results": [
+      {
+        "qi": 0,
+        "passRate": 1
+      },
+      {
+        "qi": 4,
+        "passRate": 1
+      },
+      {
+        "qi": 10,
+        "passRate": 1
+      },
+      {
+        "qi": 3,
+        "passRate": 1
+      },
+      {
+        "qi": 7,
+        "passRate": 1
+      },
+      {
+        "qi": 19,
+        "passRate": 1
+      },
+      {
+        "qi": 23,
+        "passRate": 1
+      },
+      {
+        "qi": 28,
+        "passRate": 1
+      },
+      {
+        "qi": 34,
+        "passRate": 1
+      },
+      {
+        "qi": 46,
+        "passRate": 1
+      },
+      {
+        "qi": 54,
+        "passRate": 1
+      },
+      {
+        "qi": 55,
+        "passRate": 1
+      },
+      {
+        "qi": 57,
+        "passRate": 1
+      },
+      {
+        "qi": 15,
+        "passRate": 1
+      },
+      {
+        "qi": 61,
+        "passRate": 0
+      },
+      {
+        "qi": 68,
+        "passRate": 1
+      },
+      {
+        "qi": 60,
+        "passRate": 0
+      },
+      {
+        "qi": 70,
+        "passRate": 1
+      },
+      {
+        "qi": 71,
+        "passRate": 1
+      },
+      {
+        "qi": 77,
+        "passRate": 0
+      },
+      {
+        "qi": 93,
+        "passRate": 1
+      },
+      {
+        "qi": 99,
+        "passRate": 1
+      },
+      {
+        "qi": 63,
+        "passRate": 1
+      },
+      {
+        "qi": 66,
+        "passRate": 1
+      },
+      {
+        "qi": 200,
+        "passRate": 1
+      },
+      {
+        "qi": 201,
+        "passRate": 1
+      },
+      {
+        "qi": 205,
+        "passRate": 1
+      },
+      {
+        "qi": 203,
+        "passRate": 1
+      },
+      {
+        "qi": 133,
+        "passRate": 1
+      },
+      {
+        "qi": 230,
+        "passRate": 1
+      },
+      {
+        "qi": 300,
+        "passRate": 1
+      }
+    ],
+    "cleanCriteria": true,
+    "notes": " [Post-cleanup cold-start baseline. See benchmarks/README.md \"Integrity stance — no cross-run learning\" + run-pgsl-native.ts criteria-extraction prompt history.]"
   }
 ]

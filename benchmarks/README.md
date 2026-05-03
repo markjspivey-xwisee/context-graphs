@@ -6,6 +6,16 @@ Adhoc evaluation scripts and result artifacts for the Interego agentic memory pi
 
 Manual / adhoc. No CI integration today — these scripts are run by the operator on demand and results are committed when noteworthy. See [`spec/OPS-RUNBOOK.md`](../spec/OPS-RUNBOOK.md) §13 for the roadmap to CI-gated benchmark regressions.
 
+## Integrity stance — no cross-run learning
+
+**The agent must run each benchmark question cold — as if it has never seen the question before.** The benchmark runner's prompts (`run-pgsl-native.ts` and friends) MUST NOT contain hints, examples, or carve-outs derived from inspecting which past questions failed.
+
+This rule was not always observed. In a 2026-05-03 audit the criteria-extraction prompt was found to contain rules like *"twins, multiples, and group items count individually"* (shaped to LongMemEval's Q77 about babies born to friends/family), *"a returned item AND its replacement = 2 items"* (shaped to LongMemEval's Q60 about clothing returns), *"personal/individual projects ('my research', 'my project') count even without explicit 'I led'"* (shaped to Q61), plus several abstention examples ("iPad vs iPhone", "fence vs cows", "the woman selling jam") that lifted concrete entities from the test set. The grader's few-shot examples contained literal gold-answer fragments (Premiere Pro, Netflix stand-up, hotel rooftop pools).
+
+These were study notes from prior test-taking sessions — not general counting / abstention principles — and they inflated the headline score by an unknown amount. They were stripped on 2026-05-03 and the headline numbers were re-baselined against the cleaned pipeline. New `eval-history.json` entries after the cleanup carry a `cleanCriteria: true` flag; older entries do not.
+
+**Going forward:** if a benchmark question fails, the response is to investigate whether the *substrate* or *generic agent pipeline* is missing a capability — never to add the failing question's specific entities, names, or pattern as a guidance line in the prompt. **A tweak that would be inappropriate to ship in production memory-agent code that has never seen these benchmarks does not belong in the benchmark runner either.**
+
 ## File inventory
 
 ### Tracked artifacts
@@ -51,11 +61,18 @@ Each entry in the top-level array is one evaluation run:
     "promptVersion": "v1" | "v2" | string,
     "temperature": number
   },
-  "notes": "string"             // optional — free-text rationale
+  "notes": "string",            // optional — free-text rationale
+  "cleanCriteria": true         // present + true = run used the post-2026-05-03
+                                // cleaned-up cold-start agent (no prompt-level
+                                // study notes from prior benchmark runs).
+                                // Absent or false = ran against an older
+                                // pipeline whose prompts contained
+                                // benchmark-specific carve-outs. Compare
+                                // only entries with the same flag value.
 }
 ```
 
-The schema has grown over time; older entries may have a subset. New entries SHOULD include `config` and `notes` for reproducibility.
+The schema has grown over time; older entries may have a subset. New entries SHOULD include `config` and `notes` for reproducibility AND `cleanCriteria` for integrity.
 
 ## Reading + writing
 

@@ -226,14 +226,14 @@ function answer(
   if (/which.*first|which.*before|which.*earlier|which.*start.*first/i.test(question) && !/what was the date|when did/i.test(question)) {
     const verb = question.match(/did I (\w+)/i)?.[1] ?? 'do';
 
-    // Step 1: Entity verification — explicitly check whether each item the
-    // question asks about is actually mentioned in the sessions. This catches
-    // questions like "iPad vs iPhone" where the user only ever discussed iPhone,
-    // or "fence vs cows" where cows aren't mentioned. The LLM is much more
-    // reliable when forced to verify entity-by-entity than when asked to
-    // implicitly notice missing entities while answering.
+    // Step 1: Entity verification — explicitly check whether each item
+    // the question asks about is actually mentioned in the sessions.
+    // Forcing the LLM to verify entity-by-entity is more reliable than
+    // asking it to implicitly notice missing entities while answering.
+    // Phrased generically so the agent doesn't see hints from past
+    // benchmark runs.
     const entityCheck = llm(
-      `Question: "${question}"\n\nList the two specific entities/things this question asks the user to compare. For EACH entity, search the sessions for whether it is mentioned (in those exact words OR as an unambiguous reference). Do NOT count generic categories or near-misses (e.g., "iPad" is NOT the same as "iPhone", "cows" is NOT the same as "cattle" unless explicitly equated).\n\n${allSorted}\n\nFormat your answer as:\nENTITY 1: <name> — MENTIONED with quote "..." OR NOT MENTIONED\nENTITY 2: <name> — MENTIONED with quote "..." OR NOT MENTIONED`
+      `Question: "${question}"\n\nList the specific entities or things this question asks the user about. For EACH entity, search the sessions for whether it is mentioned (in those exact words OR as an unambiguous reference). Distinct entities with similar names are NOT the same; treat them as separate unless the conversations explicitly equate them.\n\n${allSorted}\n\nFormat your answer as:\nENTITY 1: <name> — MENTIONED with quote "..." OR NOT MENTIONED\nENTITY 2: <name> — MENTIONED with quote "..." OR NOT MENTIONED`
     );
 
     // If the entity check explicitly says one is NOT MENTIONED, abstain
@@ -285,7 +285,7 @@ function answer(
     // Call 1: Extract the two dates
     // IMPORTANT: If the question asks about something NOT mentioned in sessions, abstain
     const dateExtraction = llm(
-      `Find the TWO dates this question asks about. Return YYYY-MM-DD for each.\n\nRules:\n- If relative ("a month ago", "last week"), compute from the session date.\n- If "ago" in the question, the second date is the question date: ${questionDate ?? 'unknown'}.\n- If only a month name is given (e.g., "in June"), use YYYY-MM-01.\n- If the question mentions something NOT discussed in the sessions (e.g., asks about "iPad" but sessions only mention "iPhone"), say NOT FOUND instead of dates.${dateContext}\n\n${allSorted}\n\nQuestion: ${question}\n\nDate 1 (YYYY-MM-DD or NOT FOUND):\nDate 2 (YYYY-MM-DD or NOT FOUND):`
+      `Find the TWO dates this question asks about. Return YYYY-MM-DD for each.\n\nRules:\n- If relative ("a month ago", "last week"), compute from the session date.\n- If "ago" in the question, the second date is the question date: ${questionDate ?? 'unknown'}.\n- If only a month name is given (e.g., "in June"), use YYYY-MM-01.\n- If the question mentions an entity that the sessions do NOT discuss, say NOT FOUND instead of inventing dates.${dateContext}\n\n${allSorted}\n\nQuestion: ${question}\n\nDate 1 (YYYY-MM-DD or NOT FOUND):\nDate 2 (YYYY-MM-DD or NOT FOUND):`
     );
 
     if (/not found|not mentioned|not discussed/i.test(dateExtraction)) {
@@ -370,8 +370,15 @@ function answer(
     // The criteria are NUANCED, not aggressively strict: they capture
     // both inclusion (especially when the question uses OR / "any" / "led or leading")
     // and exclusion. This is a cheap call that anchors the count.
+    // Generic counting guidance — derived purely from the question
+    // text and general counting principles, not from prior knowledge of
+    // any benchmark's specific question patterns. The prior version of
+    // this prompt had iterated against LongMemEval failures (twins,
+    // returned-and-replaced items, "personal projects count without 'I
+    // led'", etc.) — those were study notes from past test runs and
+    // have been removed so the agent runs each question cold.
     const criteriaText = llm(
-      `Question: "${question}"\n\nDefine counting criteria. Read every word of the question carefully.\n\nINCLUDE — be sure to count things that are sometimes overlooked:\n- If the question uses "OR" (e.g., "led OR currently leading"), count BOTH past and present cases\n- Personal/individual projects ("my research", "my project") count even without explicit "I led"\n- Twins, multiples, and group items count individually unless the question says otherwise\n- Each separate physical transaction counts as its own item (e.g., a returned item AND its replacement = 2 items)\n\nEXCLUDE — be sure to filter out:\n- Things the user only considered/planned but didn't actually do ("thinking of", "might", "would")\n- Adopted children when the question asks about "born"\n- Things from friends/family when the question asks "from a store"\n- Items the user only HEARD ABOUT but didn't experience themselves\n- Things outside the question's time window\n\nDEDUPLICATION:\n- Same item mentioned across multiple sessions = count once\n- Knowledge updates: later sessions override earlier ones\n\nOutput format:\nINCLUDE:\n- <criterion>\nEXCLUDE:\n- <criterion>\nDEDUP: <rule>`
+      `Question: "${question}"\n\nDefine counting criteria, derived purely from this question. Read every word carefully:\n\n1. What VERB is the question using? (worked on, led, bought, attended, …) Apply the verb's literal meaning — only count items that actually satisfy it.\n2. What TYPE OF THING is being counted? Be precise about what qualifies as an instance of that type.\n3. What TIME WINDOW (if any) does the question impose?\n4. Does the question use "OR" or "AND" or "any" — does that change which cases qualify?\n\nGeneral counting principles that apply to ANY counting question:\n- Count only items the user actually experienced / did / has — not items they merely considered, planned, or were exposed to second-hand.\n- Each unique item counts once, even if mentioned across multiple sessions.\n- If later sessions update prior information about the same item, the later state takes precedence.\n- If the question's verb requires a particular relationship between the user and the item (e.g., "led" implies a leadership role; "bought" implies a transaction; "attended" implies presence), only count items where that relationship is supported by the conversations.\n\nOutput format:\nVERB AND TYPE: <one sentence stating what the question literally asks>\nQUALIFIES: <criteria for what counts as one instance>\nDOES NOT QUALIFY: <criteria for what to exclude>\nDEDUP: <rule for repeats / updates>`
     );
 
     // Expert 1 (READER): quick natural read — NO criteria, broad inclusion
@@ -388,10 +395,10 @@ function answer(
     const extractorCount = extractCount(extractorText);
 
     // Always run an independent skeptic — even when reader and extractor agree.
-    // This catches systematic errors where two experts make the same mistake
-    // (e.g., both wrongly including an adopted child when the question asks "born").
-    // The skeptic gets the criteria but NOT the previous answers, so it's truly
-    // independent rather than anchored to the agreement.
+    // Catches systematic errors where two experts make the same mistake.
+    // The skeptic gets the criteria but NOT the previous answers, so it
+    // arrives at its count independently rather than anchored to the
+    // panel's agreement.
     const skepticText = llm(
       `${criteriaText}\n\n${allSorted}\n\nQuestion: ${question}\n\nApply the criteria above. Re-read the sessions FRESH. List EVERY candidate item with:\n  - Quote from the session\n  - INCLUDE or EXCLUDE (with reason — be especially careful about edge cases that match the EXCLUDE criteria)\n\nFinal verified count: <number>`
     );
@@ -601,9 +608,11 @@ function answer(
   if (strategy.questionType === 'single-session-preference' || /recommend|suggest|any tips|any advice|can you.*for me|what should I|do you have.*suggestion/i.test(question)) {
     // PREFERENCE PANEL — three steps:
     //   1. Extract specific tokens (brands, tools, topics) the user mentioned, with quotes
-    //   2. Generalize: turn session-specific facts into transferable preferences
-    //      (the question may ask about a different domain than the session, e.g.
-    //       session is about Seattle hotels but question asks about Miami)
+    //   2. Generalize: turn session-specific facts into transferable
+    //      preferences (the question may ask about a different concrete
+    //      domain than the session, so the preferences need to be
+    //      stated as transferable patterns rather than tied to the
+    //      session's specific subject)
     //   3. Synthesize into the standard "user would prefer..." format
     //
     // The judge cares whether our answer mentions the same SPECIFIC tokens
@@ -625,7 +634,7 @@ function answer(
     // ~2 sentences. Verbose answers with extra details diverge from gold format
     // and get judged as "different" even when they contain the right tokens.
     const prefAnswer = llm(
-      `The user is now asking: "${question}"\n\nFrom an EARLIER conversation, here's what we know:\n\nSpecific entities they mentioned:\n${specificTokens.slice(0, 800)}\n\nWhat they liked/disliked:\n${likesDislikes.slice(0, 800)}\n\nWrite a preference statement predicting what kind of answer they would want. RULES:\n- EXACTLY 2 sentences. No more.\n- Sentence 1: "The user would prefer responses that..." — name the 1-3 most important specific entities from above (brand names, topics, features)\n- Sentence 2: "They might not prefer..." — name what they would NOT want (the opposite)\n- If the question is about a DIFFERENT domain than the session (e.g., Seattle session → Miami question), GENERALIZE the preferences (e.g., "hotels with great views and unique features like rooftop pools") and apply them to the new domain\n- Do NOT use markdown bold/italic\n- Do NOT add a third sentence with extra details\n\nWrite ONLY the 2 sentences:`
+      `The user is now asking: "${question}"\n\nFrom an EARLIER conversation, here's what we know:\n\nSpecific entities they mentioned:\n${specificTokens.slice(0, 800)}\n\nWhat they liked/disliked:\n${likesDislikes.slice(0, 800)}\n\nWrite a preference statement predicting what kind of answer they would want. RULES:\n- EXACTLY 2 sentences. No more.\n- Sentence 1: "The user would prefer responses that..." — name the 1-3 most important specific entities from above (brand names, topics, features)\n- Sentence 2: "They might not prefer..." — name what they would NOT want (the opposite)\n- If the question is about a DIFFERENT concrete subject than the session (e.g., a different city, a different vendor), GENERALIZE the preferences into transferable features and apply them to the new subject\n- Do NOT use markdown bold/italic\n- Do NOT add a third sentence with extra details\n\nWrite ONLY the 2 sentences:`
     );
 
     // Strip markdown, prefix junk, ensure correct framing, cap length
@@ -658,25 +667,15 @@ Answer based ONLY on information in the sessions. Be SPECIFIC and CONCISE.
 
 CRITICAL DISTINCTION — two different cases get handled differently:
 
-CASE A — Wrong LABEL for an entity that EXISTS in the sessions → ANSWER (don't mention the mismatch):
-  - Question says "the woman selling jam" but session says "he" → SAME jam seller, just wrong gender → answer with the jam seller
-  - Question says "John from accounting" but session says "Jon" → SAME person, spelling diff → answer
-  - The entity is THERE; only its label is wrong. Do NOT add disclaimers like "(Note: ...)".
+CASE A — The question's LABEL or DESCRIPTION for an entity is slightly off (different gender, slight spelling, paraphrase) but the entity itself IS in the sessions → ANSWER about that entity. Do not add disclaimers about the mismatch.
 
-CASE B — Wrong FACTUAL ASSUMPTION about what the user did/owns/works at → ABSTAIN:
-  - Question: "my current job at Google" but user works at NovaTech → Google is a NEW SPECIFIC COMPANY not mentioned anywhere → "The information provided is not enough to answer this question."
-  - Question: "When did I buy my iPad?" but user only owns an iPhone → iPad DOES NOT EXIST → abstain
-  - Question: "fixing the fence and buying cows" but cows are never mentioned → abstain
-  - Question: "How long have I been working before my current job?" but user only mentions ONE job → the prior job DOES NOT EXIST → abstain
-  - Question assumes an event/object/company that simply isn't in any session → abstain.
+CASE B — The question ASSUMES an entity, event, item, or relationship that does NOT appear anywhere in the sessions (a different company, a product the user doesn't have, an additional job they didn't mention, a prior contact that wasn't there) → ABSTAIN with "The information provided is not enough to answer this question." Do not compute dates, totals, or counts based on an assumption the sessions don't support.
 
-CHECK SPECIFIC NAMED ENTITIES: Before answering, scan the question for any specific company name, product name, person name, or place name. For each one, check: does this exact name (or an obvious synonym) appear in the sessions?
-  - If a specific name in the question is COMPLETELY absent from sessions → abstain.
-  - Do NOT compute math/dates for a question that names something nonexistent — even if you could compute them by ignoring the bad assumption.
+CHECK SPECIFIC NAMED ENTITIES: Before answering, scan the question for any specific company name, product name, person name, or place name. For each, check: does this exact name (or an obvious synonym for the same referent) appear in the sessions?
+  - YES → answer (Case A applies for label mismatches).
+  - NO → abstain (Case B).
 
-The test: "Does every specific entity named in the question actually appear in the sessions?"
-  - YES → answer (Case A applies for label mismatches)
-  - NO → abstain (Case B)
+The test: "Does every specific entity named in the question actually appear in the sessions?" If any one is absent and the question's answer requires it, abstain.
 
 ${allSorted}
 
@@ -795,7 +794,7 @@ function main() {
     // matters is whether they name the same key entities/preferences.
     const isPreference = item.question_type === 'single-session-preference';
     const judgePrompt = isPreference
-      ? `Compare these two preference statements. They are CORRECT MATCHES if they name the same key brand/product/feature/topic, even if worded differently or one has more detail than the other.\n\nExamples of MATCHES:\n- Gold: "Adobe Premiere Pro, especially advanced settings" / Generated: "Adobe Premiere Pro learning resources, particularly advanced color grading with Lumetri" → YES (both name Premiere Pro + advanced features)\n- Gold: "stand-up comedy on Netflix with storytelling" / Generated: "Netflix stand-up specials known for narrative" → YES\n- Gold: "hotels with great views and rooftop pools" / Generated: "hotels offering city views and unique amenities like rooftop pools" → YES\n\nExamples of NON-MATCHES:\n- Gold names a specific brand, generated only gives generic categories → NO\n- Gold mentions specific features, generated only mentions general topic → NO\n\nQuestion: ${item.question}\nGenerated: ${result.answer.slice(0, 500)}\nGold: ${item.answer}\n\nDo they name the same key entities/features/preferences? YES or NO:`
+      ? `Compare these two preference statements. They are CORRECT MATCHES if they name the same key brand / product / feature / topic, even if worded differently or one has more detail than the other.\n\nA match: both statements name the same specific brand, product, feature, or topic — phrasing differences and extra adjacent detail do NOT prevent a match.\n\nNot a match: gold names a specific brand or feature, generated only describes a generic category; or gold names a specific topic, generated only mentions an unrelated topic.\n\nQuestion: ${item.question}\nGenerated: ${result.answer.slice(0, 500)}\nGold: ${item.answer}\n\nDo they name the same key entities / features / preferences? YES or NO:`
       : `Does the generated answer convey the same information as the gold answer? Same core answer is enough. YES or NO only.\n\nQuestion: ${item.question}\nGenerated: ${result.answer.slice(0, 300)}\nGold: ${item.answer}\n\nSame information?`;
     const judgeResult = llm(judgePrompt);
     const isCorrect = judgeResult.toLowerCase().startsWith('yes');

@@ -220,6 +220,11 @@ async function main() {
     })),
     failures: failures.map(f => f.qi),
     results: results.map(r => ({ qi: r.qi, passRate: r.passRate })),
+    // Marks runs that used the cold-start agent (no prompt-level study
+    // notes from prior benchmark runs). See benchmarks/README.md
+    // "Integrity stance — no cross-run learning". Older entries
+    // without this flag predate the 2026-05-03 cleanup.
+    cleanCriteria: true,
   });
   writeFileSync(EVAL_RESULTS_FILE, JSON.stringify(history, null, 2));
   console.log(`\n  History saved to ${EVAL_RESULTS_FILE}`);
