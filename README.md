@@ -64,6 +64,10 @@ The protocol surface has grown substantially. Highlights:
 - **[Federated transactions](spec/FEDERATED-TRANSACTIONS.md)** + **[Constitutional layer](spec/CONSTITUTIONAL-LAYER.md)** + **[CRDT offline merge spec](spec/CRDT-OFFLINE-MERGE.md)** + **[DP+ZK aggregate spec](spec/AGGREGATE-PRIVACY.md)** + **[TLA+ proof outlines](spec/proofs/)** — protocol-level guarantees and design specs.
 - **45+ runnable demo scripts** in [`examples/`](examples/) including emergence demos, ABAC scenarios, Idehen-inspired (federated reasoning, nanotation pipeline), Verborgh-inspired (distributed affordances, cross-app interop, pod-as-graph views), agent registry, code domain. End-to-end compliance walkthrough at [`examples/compliance-end-to-end.mjs`](examples/compliance-end-to-end.mjs) — `node examples/compliance-end-to-end.mjs` to see ops event → check → framework report → wallet load, no live pod required. Most demos read `CG_DEMO_POD` / `CG_DEMO_POD_B` env vars; defaults point at the maintainer's deployed pods.
 
+- **Twenty-three end-to-end demo scenarios** in [`demos/scenarios/`](demos/scenarios/) — autonomous multi-agent runs against the real Claude Code CLI, including Demo 22 (two agents design + ratify + play a commit-reveal RPS game) and Demo 23 (four agents emerge a federated zero-copy semantic layer over heterogeneous data sources via `hyprcat:`/`align:`/`amta:` composition). See [`demos/README.md`](demos/README.md).
+
+- **Agent-runtime integration paths** — [`docs/integrations/agent-runtime-integration.md`](docs/integrations/agent-runtime-integration.md) maps four ways an OpenClaw / Hermes Agent / Codex / Cursor / Claude Code runtime can mount Interego: (1) MCP server (config-only — every substrate primitive becomes an LLM tool), (2) [OpenClaw memory plugin](integrations/openclaw-memory/) (pod-rooted typed memory replacing the local SQLite), (3) [agentskills.io SKILL.md as `cg:Affordance`](docs/integrations/path-3-skills-as-affordances.md) (skills become federated, attestable, governable via existing primitives), (4) [compliance overlay](integrations/compliance-overlay/) (every agent action becomes a signed, framework-cited descriptor). All four are translators, not extensions — no protocol surface added.
+
 For dated detail see [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
@@ -197,6 +201,10 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │                     reverse-compensation on failure)
 ├── src/constitutional/ Self-amending policies — proposeAmendment, vote,
 │                     tryRatify (tier-aware), forkConstitution
+├── src/skills/      agentskills.io SKILL.md ↔ cg:Affordance translator —
+│                     skillBundleToDescriptor, descriptorGraphToSkillBundle,
+│                     parseSkillMd, emitSkillMd. Composes existing affordance
+│                     + amta: + supersedes + PromotionConstraint primitives.
 ├── mcp-server/       MCP server (60 tools) — stdio + SSE + Streamable HTTP.
 │                     v0.5.0 ships system-level instructions, doc resources,
 │                     workflow prompts so connecting agents understand the
@@ -220,7 +228,8 @@ Two agents can then **compose** their descriptors via set-theoretic operators (u
 │                     FEDERATED-TRANSACTIONS, CONSTITUTIONAL-LAYER,
 │                     CRDT-OFFLINE-MERGE, AGGREGATE-PRIVACY, proofs/ (TLA+)
 ├── benchmarks/       LongMemEval (89.2% agentic, 92.4% raw) evaluation suite
-└── tests/            772 tests across 27 files
+├── integrations/     Path 2 (OpenClaw memory plugin) + Path 4 (compliance overlay)
+└── tests/            ~1119 tests across ~65 files
 ```
 
 ### Design Principles
@@ -356,7 +365,7 @@ git clone https://github.com/markjspivey-xwisee/interego.git
 cd context-graphs
 npm install
 npm run build
-npm test  # 1068+ tests across 60 files (3 env-gated tests skip when their creds are unset)
+npm test  # 1119+ tests across 65 files (3 env-gated tests skip when their creds are unset)
 
 # Build the MCP server too
 cd mcp-server
@@ -893,7 +902,7 @@ Deploys: CSS (Solid server), Dashboard (observation UI), MCP Relay (HTTP bridge)
 ```bash
 npm install
 npm run build        # TypeScript → dist/
-npm test             # 772 tests across 27 files
+npm test             # ~1119 tests across ~65 files
 npm run test:watch   # Watch mode
 ```
 

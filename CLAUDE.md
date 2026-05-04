@@ -53,6 +53,12 @@ src/
   constitutional/ Self-amending policies (amendments, voting, ratification)
   connectors/   Source connectors: Notion / Slack / Web (extensible)
   extractors/   Content extraction: PDF / JSON / CSV / HTML
+  rdf/          RDF 1.2 serializer + parser (parseTrig: subject-extraction
+                TriG/Turtle parser, no runtime deps; replaces regex-based
+                extraction in pod-publishers and similar places)
+  skills/       agentskills.io SKILL.md ↔ cg:Affordance translator —
+                composes existing affordance + amta: + supersedes +
+                PromotionConstraint primitives; no new ontology terms
 ```
 
 Plus surrounding infrastructure:
@@ -66,6 +72,17 @@ deploy/
                auth-methods live in each user's pod (auth-methods.jsonld)
   mcp-relay/   HTTP/SSE OAuth-gated MCP proxy for claude.ai connectors;
                per-surface agent minting; cross-pod sharing
+integrations/
+  openclaw-memory/      Path 2 — OpenClaw memory-engine plugin backed by
+                        Interego pods. Substrate-pure bridge.ts +
+                        OpenClaw glue plugin.ts. Bridge importable from
+                        any other runtime (Hermes, Codex, Cursor).
+  compliance-overlay/   Path 4 — generic agent-action → compliance-grade
+                        descriptor translator. Cites EU AI Act / NIST RMF /
+                        SOC 2 controls via dct:conformsTo into the existing
+                        FRAMEWORK_CONTROLS table. No new compliance vocab.
+docs/integrations/      Path-1-to-4 integration map for OpenClaw / Hermes /
+                        Codex / Cursor / Claude Code etc.
 docs/ns/       Twenty OWL ontologies + three SHACL shape files (~880 terms — see docs/ns/README.md)
 tools/
   ontology-lint.mjs  Scans TS for cg:/cgh:/pgsl:/ie:/hyprcat:/hypragent:/hela:/
