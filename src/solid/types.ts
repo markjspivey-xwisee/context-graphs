@@ -149,6 +149,15 @@ export interface ManifestEntry {
   /** Schemas/vocabularies this entry conforms to (cleartext-mirrored from dct:conformsTo). */
   readonly conformsTo?: readonly string[];
   /**
+   * Descriptor IRIs this entry supersedes. Manifest-mirrored from
+   * cg:supersedes on the descriptor itself so callers can identify
+   * head-of-chain entries (those NOT named in any other entry's
+   * supersedes list) without re-fetching every TriG. Empty / absent
+   * means this entry supersedes nothing — i.e. it's either a fresh
+   * publish or a head we haven't traced backward yet.
+   */
+  readonly supersedes?: readonly string[];
+  /**
    * PGSL structural URI (if the content was ingested into the lattice).
    * Same content from different pods produces the same URI —
    * structural overlap is detectable across federation.
