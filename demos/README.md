@@ -1,4 +1,4 @@
-# Interego demos — twenty-one end-to-end scenarios
+# Interego demos — twenty-three end-to-end scenarios
 
 Self-contained scenarios that drive **real Claude Code CLI agents**
 against **real per-vertical bridges**, a **real Solid pod** (Azure CSS),
@@ -33,7 +33,7 @@ Each scenario:
 ## Run them
 
 ```bash
-# all twenty
+# all twenty-three
 ./demos/run-all.sh
 
 # subset
@@ -117,6 +117,13 @@ CLAUDECODE= npx tsx demos/scenarios/14-zk-confidence-without-disclosure.ts
 | 12 | [Three-model-variant relay](scenarios/12-three-model-variant-relay.ts) | Three claude processes (`--model opus` / `sonnet` / `haiku`) attest the same tool through Interego's AC vertical. Different SKUs, different parameter counts, different costs — no shared memory. Substituting non-Anthropic agents in any of the three slots is mechanical (the only requirement is MCP support). |
 | 13 | [Constitutional democracy live](scenarios/13-constitutional-democracy-live.ts) | Five voter agents cast votes in parallel on a Tier-3 amendment; ratification is a deterministic function of the tally and the tier rule. No central coordinator, no broadcast, no shared memory — per-voter DID dedup keeps the tally honest under retries. Self-amending policy machinery from L1 primitives. |
 
+### Two-agent + four-agent autonomous coordination (22, 23)
+
+| # | Scenario | What it demonstrates |
+|---|----------|----------------------|
+| 22 | [Two agents design + ratify + play a game autonomously](scenarios/22-game-design-build-play.ts) | **Smallest-viable design → build → play loop.** Two claude processes (alpha + beta) — never see each other's prompts, share only the substrate — design a rock-paper-scissors-with-commit-reveal protocol, ratify it via 2-of-2 constitutional vote, autonomously pick moves, publish hash commitments, reveal, and let the substrate verify neither cheated via `protocol.zk_verify_commitment`. Six phases (design, cross-attest, ratify, commit, reveal, settle). The game emerges from substrate primitives only — no game-engine code anywhere. Same machinery scales to any multi-round adversarial game; tic-tac-toe / cards / chess differ only in the supersedes-chain length. ~3 minutes runtime. |
+| 23 | [Federated zero-copy virtual semantic layer (emergent)](scenarios/23-zero-copy-semantic-layer.ts) | Four claude processes (two librarians, one aligner, one consumer) plus two mock heterogeneous data sources (xAPI LRS-shaped + Databricks-shaped warehouse). Each librarian publishes a `hyprcat:FederatedDataProduct` declaring its source vocabulary. The aligner discovers both catalogs and proposes an `align:NamespaceBridge` with four typed `align:TermMapping` entries (`owl:equivalentClass` for the class, `skos:closeMatch` for properties whose URI schemes / resolution differ). Both librarians independently attest on the `accuracy` axis; substrate-enforced `cgh:PromotionConstraint` requires ≥2 distinct attestations before the bridge can supersede to Asserted. The consumer issues a federated query; the harness rewrites via the ratified alignment graph and fetches LIVE from each source's `hydra:target` — **the data never leaves its system of record**. Result descriptor carries `prov:wasDerivedFrom` citing both source endpoints AND the bridge IRI. Same shape scales to enterprise data mesh with hundreds of products and thousands of bridges. ~7 minutes runtime. |
+
 ## Architecture
 
 ### Bridges and ports
@@ -128,7 +135,7 @@ CLAUDECODE= npx tsx demos/scenarios/14-zk-confidence-without-disclosure.ts
 | LRS Adapter (`lrs-bridge`)                  | 03          | 6030 |
 | Agent Collective (`ac-bridge`)              | 03, 04, 12  | 6040 |
 | Bob's AC bridge (Demo 04)                   | 04          | 6041 |
-| Generic interego-bridge (`interego-bridge`) | 05, 06, 07, 09, 10, 11, 13, 14 | 6050–6053 |
+| Generic interego-bridge (`interego-bridge`) | 05, 06, 07, 09, 10, 11, 13, 14, 17, 19, 21, 22, 23 | 6050–6065 |
 | Organizational Working Memory (`owm-bridge`) | 15         | 6060 |
 | Personal-bridge (Alice)                     | 04          | 5050 |
 | Personal-bridge (Bob)                       | 04          | 5051 |
