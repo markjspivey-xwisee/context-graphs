@@ -211,6 +211,15 @@ function manifestEntryTurtle(
     }
   }
 
+  // supersedes (cleartext-mirrored — lets downstream code identify
+  // head-of-chain entries from the manifest alone, without fetching
+  // each descriptor's TriG)
+  if (descriptor.supersedes && descriptor.supersedes.length > 0) {
+    for (const s of descriptor.supersedes) {
+      lines.push(`    cg:supersedes <${s}> ;`);
+    }
+  }
+
   // Extract modalStatus from Semiotic facet if present
   const semioticFacet = descriptor.facets.find((f): f is SemioticFacetData => f.type === 'Semiotic');
   if (semioticFacet?.modalStatus) {
@@ -252,6 +261,7 @@ export function parseManifest(turtle: string): ManifestEntry[] {
     modalStatus?: ModalStatus;
     trustLevel?: TrustLevel;
     conformsTo?: string[];
+    supersedes?: string[];
   } | null = null;
 
   for (const rawLine of turtle.split('\n')) {
@@ -306,6 +316,12 @@ export function parseManifest(turtle: string): ManifestEntry[] {
     if (conformsMatch) {
       current.conformsTo = current.conformsTo ?? [];
       current.conformsTo.push(conformsMatch[1]!);
+    }
+
+    const supersedesMatch = line.match(/cg:supersedes\s+<([^>]+)>/);
+    if (supersedesMatch) {
+      current.supersedes = current.supersedes ?? [];
+      current.supersedes.push(supersedesMatch[1]!);
     }
 
     if (line.endsWith('.')) {
