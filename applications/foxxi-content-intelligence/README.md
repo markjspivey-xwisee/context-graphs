@@ -94,4 +94,7 @@ Per [`applications/README.md`](../README.md):
 | Compose with aggregate-privacy for coverage queries | shipped |
 | Compose with compliance-overlay for audit | shipped |
 | Compose with LRS-adapter for activity projection | shipped (via existing lrs-adapter path) |
-| Live deployment | not yet — adopters can run via the bridge |
+| Real learner Q&A (grounded against transcripts via LPC's groundedAnswer) | shipped — [`src/course-qa.ts`](src/course-qa.ts) |
+| Real enrollment discovery (walks admin payload + audience-group membership) | shipped — [`src/enrollment.ts`](src/enrollment.ts) |
+| **Browser dashboard** | shipped — [`dashboard-app/`](dashboard-app/) (Vite + React, auto-probes the bridge, falls back to sample mode) |
+| Live deployment | not yet — adopters run the bridge + dashboard locally; production deploy is a Docker/Container Apps step |

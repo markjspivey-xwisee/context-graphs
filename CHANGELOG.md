@@ -8,6 +8,76 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-05-16 — Foxxi: browser dashboard refactored onto Interego
+
+Refactors the standalone `foxxi_admin_v01.jsx` (2.4k LOC) + `foxxi_dashboard_v03.jsx`
+(1.9k LOC) single-file React apps into a substrate-grounded Vite + React app
+at [`applications/foxxi-content-intelligence/dashboard-app/`](applications/foxxi-content-intelligence/dashboard-app/).
+The originals had inlined `RAW_DATA` JSON blobs and mock auth; the
+refactor sources everything through the Foxxi vertical bridge.
+
+**Files added** under `dashboard-app/`:
+- `package.json`, `vite.config.ts`, `tsconfig.json`, `index.html` —
+  Vite 6 + React 18 + TypeScript scaffold
+- `src/main.tsx`, `src/App.tsx` — entry + role-routed shell
+- `src/types.ts` — shared types mirroring the substrate-side
+  enrollment + course-content shapes
+- `src/sample/data.ts` — bundles the imported Acme Training Co admin
+  payload + golf-explained transcripts + dashboard concepts as build-time
+  JSON so the app works offline
+- `src/interego/client.ts` — the new data layer:
+  - Auto-probes the bridge at `${VITE_FOXXI_BRIDGE_URL}/affordances`
+    (default `http://localhost:6080`). If reachable, every affordance
+    call is a JSON-RPC `tools/call` against `/mcp`.
+  - If unreachable, falls back to in-process synthesis using the
+    bundled sample data — same call shape, dashboard works without
+    the bridge.
+  - Typed wrappers: `discoverAssignedCourses`, `askCourseQuestion`,
+    `coverageQuery`.
+- `src/auth/session.ts` — identity selector (admin = Jordan Doe;
+  learners = curated picks from the Acme Training Co roster, prioritising
+  audience-tag diversity). Selected `webId` becomes the `learner_did`
+  on every affordance call.
+- `src/components/`:
+  - `common.tsx` — `Card`, `Pill`, `Button`, `TextInput`, `Header`
+  - `Login.tsx` — role + identity selector
+  - `LearnerShell.tsx` — enrolled-courses list + course detail view
+  - `ChatPanel.tsx` — Q&A panel wired to `foxxi.ask_course_question`,
+    renders verbatim citations + honest no-match indicator
+  - `AdminShell.tsx` — tabs for catalog / policies / coverage / audit;
+    coverage tab runs `foxxi.coverage_query` at all three privacy modes
+- `README.md` — run instructions, old-vs-new mapping, substrate
+  composition map
+- `.gitignore` — node_modules, dist, logs
+
+**CORS** added to the Foxxi bridge at `bridge/server.ts` via the
+substrate-side vertical-bridge factory's `middleware` hook. The
+substrate-side factory stays CORS-agnostic (server-to-server +
+MCP-client deployments shouldn't be forced to declare an origin); the
+vertical owns its own CORS policy. Configurable via
+`FOXXI_DASHBOARD_ORIGIN` (default `http://localhost:5173`).
+
+**Live verification done** (bridge on `:6080` + dashboard on `:5173`):
+- CORS preflight passes (`OPTIONS /mcp` returns 204 with correct headers)
+- `GET /affordances` from browser origin returns the Turtle manifest
+- Browser-simulated `POST /mcp tools/call` for `foxxi.discover_assigned_courses`
+  with Joshua Liu's webId returns 10 enrollments including Golf Explained
+  (required, completed 2026-01-02)
+- Browser-simulated `POST /mcp tools/call` for `foxxi.ask_course_question`
+  "what is handicap?" returns 20 verbatim citations, first one
+  starting "Golf voltage is controlled through handicap..."
+
+**Architectural discipline maintained**:
+- `mcp-server/` and `deploy/mcp-relay/` got 0 lines of new code
+- The substrate-side vertical-bridge factory stays CORS-agnostic
+- CORS lives in the foxxi bridge's middleware hook, owned by the vertical
+- The dashboard is the third party that can drive the Foxxi vertical
+  (after the contract tests + the live MCP smoke); a fourth party (any
+  protocol-aware MCP agent walking `cg:Affordance` descriptors via Path A)
+  works identically without any Foxxi-specific code
+
+---
+
 ## 2026-05-16 — Foxxi content-intelligence vertical (third dual-audience pilot)
 
 Integrates the Foxxi eLearning content-intelligence system (originally

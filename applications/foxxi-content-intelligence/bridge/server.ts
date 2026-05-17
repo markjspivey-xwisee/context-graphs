@@ -174,11 +174,30 @@ else if (audience === 'admin') activeAffordances = foxxiAdminAffordances;
 else activeAffordances = [...foxxiAffordances, ...foxxiAdminAffordances];
 
 const PORT = parseInt(process.env.PORT ?? '6080', 10);
+
+// Browser dashboard origin (default Vite dev server). Override with
+// FOXXI_DASHBOARD_ORIGIN for production; "*" for open development.
+const ALLOWED_ORIGIN = process.env.FOXXI_DASHBOARD_ORIGIN ?? 'http://localhost:5173';
+
 const app = createVerticalBridge({
   verticalName: 'foxxi-content-intelligence',
   affordances: activeAffordances,
   handlers,
   defaultPodUrl: tenantPodUrl,
+  middleware: (a) => {
+    // CORS for the browser dashboard. The vertical owns its CORS
+    // policy; the substrate-side vertical-bridge factory stays
+    // CORS-agnostic so other deployments (server-to-server, MCP
+    // clients) aren't forced to specify an origin.
+    a.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Max-Age', '600');
+      if (req.method === 'OPTIONS') return res.status(204).end();
+      next();
+    });
+  },
 });
 
 app.listen(PORT, () => {
