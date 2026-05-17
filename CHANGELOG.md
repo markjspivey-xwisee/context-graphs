@@ -8,6 +8,118 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-05-17 — Foxxi: agentic RAG (replaces lexical Q&A in the dashboard)
+
+The prior commit's dashboard used `foxxi.ask_course_question` (lexical
+overlap via LPC's `groundedAnswer`). The original
+`imported/foxxi_dashboard_v03.jsx` had actual agentic RAG (concept-
+graph retrieval + prereq-edge expansion + federation + Claude
+synthesis). This commit ports that retrieval pipeline to TypeScript,
+wires it through Interego, and routes the dashboard's chat to it.
+
+**New: [`applications/foxxi-content-intelligence/src/agentic-rag.ts`](applications/foxxi-content-intelligence/src/agentic-rag.ts)**
+- `findRelevantConcepts(question, courses, topK)` — federated concept-
+  graph search; score by exact match (5pt) + substring (2pt) + reverse
+  substring (1pt); free-standing bonus.
+- `expandConceptNeighborhood(seeds, depth)` — walks modifier-of pairs
+  + prereq edges one hop within each seed's home course; gathers slide
+  candidates from every expanded concept's `taught_in_slides`.
+- `allocateCitedSlides(primary, candidates, cap)` — round-robin slide
+  allocation so peer-course slides survive the citation cap even when
+  the primary has many matches.
+- `buildGraphContext({question, primary, federation, …})` — orchestrates
+  the three steps + fallback (first 3 narrated slides of primary when
+  no concepts match).
+- `askAgenticRag({question, learnerDid, primary, federation, history,
+  llmApiKey, …})` — full agentic loop: retrieval → optional Anthropic
+  messages API call → emit Interego trace.
+- `payloadToAgenticCourse` + `courseContentToAgenticCourse` — adapters
+  from the parser's federation_payload shape (or LPC's
+  FoxxiCourseContent) into the agentic-rag course shape.
+
+**Interego trace** — every step of the agent loop is a typed
+descriptor blueprint with proper modal status + provenance chain:
+
+  `fxa:LearnerQuestionEvent`   Asserted     (the question itself)
+  `fxa:RetrievalActivity`      Hypothetical (seeds + expansion + slides)
+                               wasDerivedFrom: [question]
+  `fxa:LlmCompletion`          Hypothetical (the LLM's raw response)
+                               wasDerivedFrom: [retrieval]
+  `fxa:CitedAnswer`            Asserted     (the final cited answer)
+                               wasDerivedFrom: [llm, retrieval, question]
+                               cg:supersedes  → llm
+
+The auditor can walk the chain from the final answer back to the
+original question. The trace descriptors are returned as data on the
+response; production callers publish them to the tenant pod via the
+standard `publish()` flow.
+
+**LLM is pluggable.** With `FOXXI_LLM_API_KEY` (or `ANTHROPIC_API_KEY`)
+configured server-side on the bridge, the substrate calls Anthropic's
+messages API (`claude-sonnet-4-5` default; configurable via
+`llm_model` arg). Without a key, retrieval scaffold + descriptor
+trace ship alone — the dashboard renders cited slide transcripts
+verbatim from the bridge response, so the learner still gets a useful
+answer (just without LLM prose synthesis on top).
+
+**New affordance** `foxxi.ask_course_question_agentic` declared in
+[`affordances.ts`](applications/foxxi-content-intelligence/affordances.ts)
+(12 total now — 4 learner + 8 admin). Bridge handler accepts either
+the rich `FoxxiAgenticPayload` shape (with slides + prereq edges) or
+the simpler `FoxxiCourseContent` (transcripts + concepts; auto-adapted
+via `courseContentToAgenticCourse`).
+
+**Dashboard wired** — [`dashboard-app/src/components/ChatPanel.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/components/ChatPanel.tsx)
+replaced. Routes to the agentic endpoint, renders:
+- Synthesized prose (when LLM is configured)
+- "no llm synthesis" pill + cited transcripts (when LLM isn't)
+- Retrieval breadcrumbs: seed concepts (with scores + course
+  attribution), cited slides (verbatim transcripts, expandable)
+- The full Interego trace: each descriptor with its IRI, modal-status
+  pill, `prov:wasDerivedFrom` chain, and `cg:supersedes` arrow
+- Multi-turn history with prior-turn replay into `history` arg
+
+Dashboard's [`interego/client.ts`](applications/foxxi-content-intelligence/dashboard-app/src/interego/client.ts)
+gained `askCourseQuestionAgentic` typed wrapper + offline-mode synthesis
+of the agentic call shape (so the dashboard's offline-sample mode
+exercises the same UX without the bridge).
+
+**8 new contract tests** in [`tests/agentic-rag.test.ts`](applications/foxxi-content-intelligence/tests/agentic-rag.test.ts):
+- `buildGraphContext` against real `federation_payload.json`: seed
+  matching for "handicap" finds primary-course concepts;
+  cross-course "golf voltage current control" matches both
+  lessons; truly off-topic question falls back; round-robin
+  allocation respects primary-priority + slide cap
+- `askAgenticRag` end-to-end:
+  - no-LLM path: 2-step trace (question + retrieval)
+  - mocked-LLM path: full 4-step trace, citedAnswer supersedes
+    llmCompletion, wasDerivedFrom chains correctly
+  - LLM failure path: honest error annotation + still 4-step trace
+- `courseContentToAgenticCourse` adapter test (synthesizes slides
+  from transcripts, computes taught_in_slides via label inclusion)
+
+**Live MCP smoke** (bridge :6080):
+- `tools/list` returns 12 tools incl. `foxxi.ask_course_question_agentic`
+- Browser-origin `POST /mcp tools/call` with the full
+  `federation_payload.json` (primary golf-explained + 1 federation peer
+  golf-fundamentals) + question "what is handicap?" returns:
+  - retrievalKind: graph
+  - 6 seed concepts (top: "handicap" score 4.0 from Golf Explained)
+  - 16 expanded concepts (after prereq + modifier-of edge expansion)
+  - 5 cited slides spanning golf-explained AND golf-fundamentals (federation works)
+  - contributingCourseIds: ['golf-explained', 'golf-fundamentals']
+  - 2-step Interego trace (Asserted question + Hypothetical retrieval;
+    full 4-step trace with the LLM key configured)
+
+**Honest framing on what changed**: the keyword-overlap I shipped in
+the prior commit composed LPC's `groundedAnswer` — which gave me the
+honest-citation discipline but was strictly inferior to the prior
+React app's agentic RAG. This commit catches up: same agentic
+retrieval, now wired through Interego at every layer (substrate
+primitive → bridge affordance → dashboard UI → descriptor trace).
+
+---
+
 ## 2026-05-16 — Foxxi: browser dashboard refactored onto Interego
 
 Refactors the standalone `foxxi_admin_v01.jsx` (2.4k LOC) + `foxxi_dashboard_v03.jsx`

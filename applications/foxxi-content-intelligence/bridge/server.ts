@@ -39,6 +39,12 @@ import {
   askCourseQuestion,
   type FoxxiCourseContent,
 } from '../src/course-qa.js';
+import {
+  askAgenticRag,
+  payloadToAgenticCourse,
+  courseContentToAgenticCourse,
+  type FoxxiAgenticPayload,
+} from '../src/agentic-rag.js';
 import type { IRI } from '../../../src/index.js';
 
 const tenantPodUrl = process.env.FOXXI_TENANT_POD_URL ?? '';
@@ -82,6 +88,34 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
       learnerDid: args.learner_did as IRI,
       course: args.course_content as FoxxiCourseContent,
       question: args.question as string,
+    });
+  },
+
+  'foxxi.ask_course_question_agentic': async (args) => {
+    if (!args.primary && !args.course_content) {
+      return {
+        note: 'stub: pass either args.primary (FoxxiAgenticPayload — packageMeta + concepts + slides + edges) or args.course_content (FoxxiCourseContent — transcripts + concepts; will be adapted).',
+      };
+    }
+    // Accept either shape: the rich agentic payload (with slides + edges)
+    // OR the simpler course-content shape (transcripts only — derive a
+    // synthetic slide per transcript).
+    const primary = args.primary
+      ? payloadToAgenticCourse(args.primary as FoxxiAgenticPayload, (args.authoritative_source as IRI) ?? 'did:web:foxxi.example' as IRI)
+      : courseContentToAgenticCourse(args.course_content as FoxxiCourseContent, 'Course');
+    const federation = (args.federation as FoxxiAgenticPayload[] | undefined ?? []).map(p =>
+      payloadToAgenticCourse(p, (args.authoritative_source as IRI) ?? 'did:web:foxxi.example' as IRI),
+    );
+    // LLM API key lives server-side only — never crosses the wire from the dashboard.
+    const llmApiKey = process.env.FOXXI_LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY;
+    return askAgenticRag({
+      question: args.question as string,
+      learnerDid: args.learner_did as IRI,
+      primary,
+      federation,
+      history: args.history as { role: 'user' | 'assistant'; content: string }[] | undefined,
+      llmModel: args.llm_model as string | undefined,
+      llmApiKey,
     });
   },
 

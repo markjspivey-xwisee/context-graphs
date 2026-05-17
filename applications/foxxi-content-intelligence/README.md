@@ -94,7 +94,8 @@ Per [`applications/README.md`](../README.md):
 | Compose with aggregate-privacy for coverage queries | shipped |
 | Compose with compliance-overlay for audit | shipped |
 | Compose with LRS-adapter for activity projection | shipped (via existing lrs-adapter path) |
-| Real learner Q&A (grounded against transcripts via LPC's groundedAnswer) | shipped — [`src/course-qa.ts`](src/course-qa.ts) |
+| Real learner Q&A — lexical (grounded against transcripts via LPC's groundedAnswer) | shipped — [`src/course-qa.ts`](src/course-qa.ts) — keyword overlap + tamper-detected atom citations |
+| **Agentic RAG** — federated concept-graph retrieval + prereq-edge expansion + LLM synthesis + Interego descriptor trace | shipped — [`src/agentic-rag.ts`](src/agentic-rag.ts) — ports the prior React app's `buildGraphContext` to TS, exposes `foxxi.ask_course_question_agentic` affordance, emits a 4-step modal-statused trace (question Asserted → retrieval Hypothetical → llm Hypothetical → cited-answer Asserted via `cg:supersedes`); LLM is pluggable via `FOXXI_LLM_API_KEY` env var, retrieval works without it |
 | Real enrollment discovery (walks admin payload + audience-group membership) | shipped — [`src/enrollment.ts`](src/enrollment.ts) |
 | **Browser dashboard** | shipped — [`dashboard-app/`](dashboard-app/) (Vite + React, auto-probes the bridge, falls back to sample mode) |
 | Live deployment | not yet — adopters run the bridge + dashboard locally; production deploy is a Docker/Container Apps step |

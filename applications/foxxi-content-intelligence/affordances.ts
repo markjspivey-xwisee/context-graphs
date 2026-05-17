@@ -53,7 +53,7 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
     action: 'urn:cg:action:foxxi:ask-course-question' as IRI,
     toolName: 'foxxi.ask_course_question',
     title: 'Ask a question about a course',
-    description: 'Grounded Q&A over a course\'s narration transcripts + extracted concepts. The learner asks "what is handicap?" and the substrate returns verbatim-cited transcript segments + concept snippets that overlap the question. Composes the existing learner-performer-companion grounded-answer machinery (same honesty discipline: tamper-detected atoms, IRI citations, honest null when no atom overlaps the question).',
+    description: 'Grounded Q&A over a course\'s narration transcripts + extracted concepts. The learner asks "what is handicap?" and the substrate returns verbatim-cited transcript segments + concept snippets that overlap the question. Composes the existing learner-performer-companion grounded-answer machinery (same honesty discipline: tamper-detected atoms, IRI citations, honest null when no atom overlaps the question). Lexical retrieval only — use foxxi.ask_course_question_agentic for graph-aware retrieval + LLM synthesis.',
     method: 'POST',
     targetTemplate: '{base}/foxxi/ask_course_question',
     inputs: [
@@ -61,6 +61,23 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'learner_did', type: 'string', required: true, description: 'Asking learner DID. Recorded on the response descriptor for audit.' },
       { name: 'question', type: 'string', required: true, description: 'Natural-language question (e.g., "what is handicap?").' },
       { name: 'course_content', type: 'object', required: true, description: 'The course\'s narration transcripts + extracted concepts. In a real deployment the bridge fetches this from the tenant pod via the published fxs/fxk descriptors; for the in-process invocation supply the shape from the parser\'s dashboard_data + transcripts payloads.' },
+    ],
+  },
+
+  {
+    action: 'urn:cg:action:foxxi:ask-course-question-agentic' as IRI,
+    toolName: 'foxxi.ask_course_question_agentic',
+    title: 'Agentic RAG Q&A over a course federation',
+    description: 'Multi-step agentic retrieval: (1) federated concept-graph search across the primary course + any loaded federation peers, (2) prereq + modifier-of edge expansion within each concept\'s home course, (3) round-robin slide allocation so peer-course slides survive the citation cap, (4) optional LLM synthesis with the substrate-assembled structured context as the system prompt. Each step of the agent loop emits an Interego descriptor (fxa:LearnerQuestionEvent Asserted → fxa:RetrievalActivity Hypothetical → fxa:LlmCompletion Hypothetical → fxa:CitedAnswer Asserted with cg:supersedes back through the trace). Auditor walks the chain from final answer back to the original question. Without an LLM API key, returns the retrieval scaffold + descriptor trace alone (still useful — dashboard renders cited slide transcripts verbatim).',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/ask_course_question_agentic',
+    inputs: [
+      { name: 'learner_did', type: 'string', required: true, description: 'Asking learner DID. Recorded on the fxa:LearnerQuestionEvent descriptor.' },
+      { name: 'question', type: 'string', required: true, description: 'Natural-language question.' },
+      { name: 'primary', type: 'object', required: true, description: 'Primary course payload — matches the FoxxiAgenticPayload shape (packageMeta + concepts + slides + modifier_pairs + prereq_edges). In a real deployment the bridge fetches this via discover_context against the tenant pod\'s published fxk:ConceptMap + fxs:Slide descriptors.' },
+      { name: 'federation', type: 'array', required: false, description: 'Optional array of federation peer course payloads — same shape as primary. Cross-course concept matching + slide citation works across the full federation.' },
+      { name: 'history', type: 'array', required: false, description: 'Prior conversation turns (role/content) for multi-turn Q&A.' },
+      { name: 'llm_model', type: 'string', required: false, description: 'Anthropic model id (default claude-sonnet-4-5).' },
     ],
   },
 

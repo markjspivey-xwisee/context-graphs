@@ -143,6 +143,99 @@ function sampleHandle<T>(name: string, args: Record<string, unknown>): T {
           : null,
       } as unknown as T;
     }
+    case 'foxxi.ask_course_question_agentic': {
+      // Offline-mode synthesis of the agentic call so the dashboard
+      // demonstrates the SHAPE without needing the bridge. Light
+      // concept-overlap retrieval + no LLM synthesis (just the
+      // scaffold + the 4-step descriptor trace).
+      const primary = args.primary as AgenticCoursePayload;
+      const federation = (args.federation as AgenticCoursePayload[] | undefined) ?? [];
+      const allCourses = [primary, ...federation];
+      const q = String(args.question).toLowerCase();
+      const qTokens = q.split(/\W+/).filter(t => t.length >= 4);
+      const seedConcepts: AgenticSeedConcept[] = [];
+      for (const course of allCourses) {
+        for (const c of course.concepts) {
+          let score = 0;
+          const lower = c.label.toLowerCase();
+          for (const t of qTokens) {
+            if (lower === t) score += 5;
+            else if (lower.includes(t)) score += 2;
+            else if (t.includes(lower) && lower.length >= 4) score += 1;
+          }
+          const freeStanding = c.is_free_standing ?? ((c.tier ?? 3) <= 2);
+          if (!freeStanding) score *= 0.5;
+          if (score > 0) {
+            seedConcepts.push({
+              course: { courseId: course.packageMeta.course_id, courseLabel: course.packageMeta.course_label },
+              conceptId: c.id, conceptLabel: c.label, score,
+            });
+          }
+        }
+      }
+      seedConcepts.sort((a, b) => b.score - a.score);
+      const topSeeds = seedConcepts.slice(0, 6);
+      const citedSlides: AgenticCitedSlide[] = [];
+      const seenSlides = new Set<string>();
+      for (const seed of topSeeds) {
+        const course = allCourses.find(c => c.packageMeta.course_id === seed.course.courseId)!;
+        const concept = course.concepts.find(c => c.id === seed.conceptId)!;
+        for (const sid of concept.taught_in_slides) {
+          const slide = course.slides.find(s => s.id === sid);
+          if (!slide) continue;
+          const key = `${course.packageMeta.course_id}:${sid}`;
+          if (seenSlides.has(key)) continue;
+          seenSlides.add(key);
+          citedSlides.push({
+            course: { courseId: course.packageMeta.course_id, courseLabel: course.packageMeta.course_label },
+            slideId: slide.id, slideTitle: slide.title, sequenceIndex: slide.sequence_index,
+            transcriptCombined: slide.transcript_combined ?? '',
+            conceptIds: slide.concept_ids ?? [],
+          });
+          if (citedSlides.length >= 5) break;
+        }
+        if (citedSlides.length >= 5) break;
+      }
+      const traceTime = new Date().toISOString();
+      const traceId = `sample-${Date.now()}`;
+      const qIri = `urn:cg:foxxi:trace:question:${traceId}`;
+      const rIri = `urn:cg:foxxi:trace:retrieval:${traceId}`;
+      const trace: AgenticTraceStep[] = [
+        {
+          iri: qIri, graphIri: `urn:graph:${qIri}`,
+          type: 'fxa:LearnerQuestionEvent', modalStatus: 'Asserted',
+          wasDerivedFrom: [],
+          body: { learnerDid: args.learner_did, questionText: args.question, courseIri: `${primary.packageMeta.federation_iri_base}#package` },
+          recordedAt: traceTime,
+        },
+        {
+          iri: rIri, graphIri: `urn:graph:${rIri}`,
+          type: 'fxa:RetrievalActivity', modalStatus: 'Hypothetical',
+          wasDerivedFrom: [qIri],
+          body: {
+            retrievalKind: topSeeds.length > 0 ? 'graph' : 'fallback',
+            seedConcepts: topSeeds,
+            citedSlideIds: citedSlides.map(c => `${c.course.courseId}:${c.slideId}`),
+            contributingCourseIds: [...new Set(topSeeds.map(s => s.course.courseId))],
+          },
+          recordedAt: traceTime,
+        },
+      ];
+      return {
+        retrieval: {
+          seedConcepts: topSeeds,
+          expandedConcepts: topSeeds.map(s => ({
+            course: s.course, conceptId: s.conceptId, conceptLabel: s.conceptLabel,
+          })),
+          citedSlides,
+          retrievalKind: topSeeds.length > 0 ? 'graph' : 'fallback',
+          contributingCourseIds: [...new Set(topSeeds.map(s => s.course.courseId))],
+        },
+        synthesizedAnswer: null,
+        llmModel: 'no-llm (offline sample mode)',
+        trace,
+      } as unknown as T;
+    }
     case 'foxxi.coverage_query': {
       const coverage = (args.coverage as { concept: string; taughtIn: string[] }[]) ?? [];
       const mode = (args.privacy_mode as string) ?? 'merkle-attested-opt-in';
@@ -209,6 +302,74 @@ export async function askCourseQuestion(args: {
     question: args.question,
     course_content: args.courseContent,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Agentic RAG
+// ─────────────────────────────────────────────────────────────────────
+
+export interface AgenticTraceStep {
+  iri: string;
+  graphIri: string;
+  type: 'fxa:LearnerQuestionEvent' | 'fxa:RetrievalActivity' | 'fxa:LlmCompletion' | 'fxa:CitedAnswer';
+  modalStatus: 'Asserted' | 'Hypothetical';
+  wasDerivedFrom: string[];
+  supersedes?: string;
+  body: Record<string, unknown>;
+  recordedAt: string;
+}
+
+export interface AgenticSeedConcept {
+  course: { courseId: string; courseLabel: string };
+  conceptId: string;
+  conceptLabel: string;
+  score: number;
+}
+
+export interface AgenticCitedSlide {
+  course: { courseId: string; courseLabel: string };
+  slideId: string;
+  slideTitle: string;
+  sequenceIndex: number;
+  transcriptCombined: string;
+  conceptIds: string[];
+}
+
+export interface AskAgenticResult {
+  retrieval: {
+    seedConcepts: AgenticSeedConcept[];
+    expandedConcepts: { course: { courseId: string; courseLabel: string }; conceptId: string; conceptLabel: string }[];
+    citedSlides: AgenticCitedSlide[];
+    retrievalKind: 'graph' | 'fallback';
+    contributingCourseIds: string[];
+  };
+  synthesizedAnswer: string | null;
+  llmModel: string;
+  trace: AgenticTraceStep[];
+}
+
+export async function askCourseQuestionAgentic(args: {
+  learnerDid: string;
+  question: string;
+  primary: AgenticCoursePayload;
+  federation?: AgenticCoursePayload[];
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<AskAgenticResult> {
+  return callTool('foxxi.ask_course_question_agentic', {
+    learner_did: args.learnerDid,
+    question: args.question,
+    primary: args.primary,
+    federation: args.federation ?? [],
+    history: args.history ?? [],
+  });
+}
+
+export interface AgenticCoursePayload {
+  packageMeta: { course_id: string; course_label: string; title: string; federation_iri_base: string };
+  concepts: Array<{ id: string; label: string; confidence: number; tier?: number; is_free_standing?: boolean; taught_in_slides: string[]; total_freq?: number }>;
+  slides: Array<{ id: string; title: string; sequence_index: number; concept_ids?: string[]; transcript_combined?: string }>;
+  modifier_pairs?: Array<{ modifier: string; target: string }>;
+  prereq_edges?: Array<{ from: string; to: string; confidence?: number }>;
 }
 
 export interface CoverageQueryResult {
