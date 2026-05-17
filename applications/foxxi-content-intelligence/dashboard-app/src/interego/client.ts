@@ -143,6 +143,7 @@ function sampleHandle<T>(name: string, args: Record<string, unknown>): T {
           : null,
       } as unknown as T;
     }
+    case 'foxxi.retrieve_course_context':
     case 'foxxi.ask_course_question_agentic': {
       // Offline-mode synthesis of the agentic call so the dashboard
       // demonstrates the SHAPE without needing the bridge. Light
@@ -221,6 +222,9 @@ function sampleHandle<T>(name: string, args: Record<string, unknown>): T {
           recordedAt: traceTime,
         },
       ];
+      const sourceForSample: AgenticLlmKeySource = name === 'foxxi.retrieve_course_context'
+        ? 'mcp-client'
+        : 'none';
       return {
         retrieval: {
           seedConcepts: topSeeds,
@@ -232,7 +236,8 @@ function sampleHandle<T>(name: string, args: Record<string, unknown>): T {
           contributingCourseIds: [...new Set(topSeeds.map(s => s.course.courseId))],
         },
         synthesizedAnswer: null,
-        llmModel: 'no-llm (offline sample mode)',
+        llmModel: name === 'foxxi.retrieve_course_context' ? 'mcp-client-as-llm (offline sample)' : 'no-llm (offline sample mode)',
+        llmKeySource: sourceForSample,
         trace,
       } as unknown as T;
     }
@@ -335,6 +340,8 @@ export interface AgenticCitedSlide {
   conceptIds: string[];
 }
 
+export type AgenticLlmKeySource = 'none' | 'bridge-env' | 'per-request-byok' | 'mcp-client';
+
 export interface AskAgenticResult {
   retrieval: {
     seedConcepts: AgenticSeedConcept[];
@@ -345,8 +352,11 @@ export interface AskAgenticResult {
   };
   synthesizedAnswer: string | null;
   llmModel: string;
+  llmKeySource?: AgenticLlmKeySource;
   trace: AgenticTraceStep[];
 }
+
+export type LlmCallMode = 'bridge-env' | 'byok' | 'mcp-client';
 
 export async function askCourseQuestionAgentic(args: {
   learnerDid: string;
@@ -354,13 +364,30 @@ export async function askCourseQuestionAgentic(args: {
   primary: AgenticCoursePayload;
   federation?: AgenticCoursePayload[];
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  mode?: LlmCallMode;          // default 'bridge-env'
+  byokKey?: string;            // honored when mode === 'byok'
+  llmModel?: string;
 }): Promise<AskAgenticResult> {
+  const mode = args.mode ?? 'bridge-env';
+  if (mode === 'mcp-client') {
+    // Route to the retrieval-only tool — no LLM call anywhere.
+    return callTool('foxxi.retrieve_course_context', {
+      learner_did: args.learnerDid,
+      question: args.question,
+      primary: args.primary,
+      federation: args.federation ?? [],
+    });
+  }
+  const extra: Record<string, unknown> = {};
+  if (mode === 'byok' && args.byokKey) extra.llm_api_key = args.byokKey;
+  if (args.llmModel) extra.llm_model = args.llmModel;
   return callTool('foxxi.ask_course_question_agentic', {
     learner_did: args.learnerDid,
     question: args.question,
     primary: args.primary,
     federation: args.federation ?? [],
     history: args.history ?? [],
+    ...extra,
   });
 }
 

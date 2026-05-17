@@ -67,8 +67,8 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
   {
     action: 'urn:cg:action:foxxi:ask-course-question-agentic' as IRI,
     toolName: 'foxxi.ask_course_question_agentic',
-    title: 'Agentic RAG Q&A over a course federation',
-    description: 'Multi-step agentic retrieval: (1) federated concept-graph search across the primary course + any loaded federation peers, (2) prereq + modifier-of edge expansion within each concept\'s home course, (3) round-robin slide allocation so peer-course slides survive the citation cap, (4) optional LLM synthesis with the substrate-assembled structured context as the system prompt. Each step of the agent loop emits an Interego descriptor (fxa:LearnerQuestionEvent Asserted → fxa:RetrievalActivity Hypothetical → fxa:LlmCompletion Hypothetical → fxa:CitedAnswer Asserted with cg:supersedes back through the trace). Auditor walks the chain from final answer back to the original question. Without an LLM API key, returns the retrieval scaffold + descriptor trace alone (still useful — dashboard renders cited slide transcripts verbatim).',
+    title: 'Agentic RAG Q&A over a course federation (with LLM synthesis)',
+    description: 'Multi-step agentic retrieval + LLM synthesis: (1) federated concept-graph search across the primary course + any loaded federation peers, (2) prereq + modifier-of edge expansion within each concept\'s home course, (3) round-robin slide allocation so peer-course slides survive the citation cap, (4) LLM synthesis with the substrate-assembled structured context as the system prompt. Each step of the agent loop emits an Interego descriptor (fxa:LearnerQuestionEvent Asserted → fxa:RetrievalActivity Hypothetical → fxa:LlmCompletion Hypothetical → fxa:CitedAnswer Asserted with cg:supersedes back through the trace). LLM key precedence: per-request llm_api_key (BYOK from the caller) > server-side FOXXI_LLM_API_KEY / ANTHROPIC_API_KEY env. The trace records which key source was used (bridge-env vs per-request-byok). Without any key, returns retrieval scaffold + descriptor trace alone (use foxxi.retrieve_course_context for the explicit no-LLM path).',
     method: 'POST',
     targetTemplate: '{base}/foxxi/ask_course_question_agentic',
     inputs: [
@@ -78,6 +78,22 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'federation', type: 'array', required: false, description: 'Optional array of federation peer course payloads — same shape as primary. Cross-course concept matching + slide citation works across the full federation.' },
       { name: 'history', type: 'array', required: false, description: 'Prior conversation turns (role/content) for multi-turn Q&A.' },
       { name: 'llm_model', type: 'string', required: false, description: 'Anthropic model id (default claude-sonnet-4-5).' },
+      { name: 'llm_api_key', type: 'string', required: false, description: 'BYOK: per-request Anthropic API key. Used transiently for the one LLM call; bridge does not store/log. Takes precedence over the server-side FOXXI_LLM_API_KEY / ANTHROPIC_API_KEY env. Caller is responsible for transport security (TLS to the bridge).' },
+    ],
+  },
+
+  {
+    action: 'urn:cg:action:foxxi:retrieve-course-context' as IRI,
+    toolName: 'foxxi.retrieve_course_context',
+    title: 'Retrieval-only path (MCP-client-as-LLM — your agent does synthesis)',
+    description: 'Pure retrieval, no LLM call. Designed for MCP clients where the AGENT itself (Claude.ai connector / Claude Desktop / Claude Code / Cursor / Codex) is the LLM and uses the user\'s existing subscription. Returns the same federated concept-graph retrieval scaffold (seed concepts + expanded neighborhood + cited slides with verbatim transcripts) as foxxi.ask_course_question_agentic, plus a 2-step Interego trace (fxa:LearnerQuestionEvent Asserted + fxa:RetrievalActivity Hypothetical). The calling agent synthesises the answer in its own context using the cited transcripts as grounding, and optionally closes the trace by publishing its own fxa:CitedAnswer descriptor back to the tenant pod. NO API key required anywhere — user\'s subscription pays via the MCP client.',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/retrieve_course_context',
+    inputs: [
+      { name: 'learner_did', type: 'string', required: true, description: 'Asking learner DID.' },
+      { name: 'question', type: 'string', required: true, description: 'Natural-language question.' },
+      { name: 'primary', type: 'object', required: true, description: 'Primary course payload (FoxxiAgenticPayload).' },
+      { name: 'federation', type: 'array', required: false, description: 'Optional federation peer payloads.' },
     ],
   },
 

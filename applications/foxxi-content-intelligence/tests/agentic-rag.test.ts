@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   askAgenticRag, buildGraphContext,
+  retrieveCourseContext,
   payloadToAgenticCourse,
   courseContentToAgenticCourse,
   type FoxxiAgenticPayload, type FoxxiAgenticCourse,
@@ -188,6 +189,78 @@ describe('agentic-rag: askAgenticRag with mocked LLM (proves full trace shape)',
     expect(r.synthesizedAnswer).toContain('LLM call failed');
     // Still emits the full trace shape (the LLM result is honestly the error message).
     expect(r.trace.length).toBe(4);
+  });
+});
+
+describe('agentic-rag: three LLM architectures (key-source provenance)', () => {
+  it('mode=none (no key): llmKeySource = "none", trace omits llm + answer steps', async () => {
+    const { primary } = loadPayload();
+    const r = await askAgenticRag({
+      question: 'what is handicap?',
+      learnerDid: 'did:web:test' as IRI,
+      primary,
+    });
+    expect(r.llmKeySource).toBe('none');
+    expect(r.synthesizedAnswer).toBeNull();
+    expect(r.trace.length).toBe(2);
+  });
+
+  it('mode=bridge-env (key supplied, no explicit source): llmKeySource defaults to "bridge-env"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ content: [{ type: 'text', text: 'mocked answer' }] }), { status: 200 }),
+    );
+    try {
+      const { primary } = loadPayload();
+      const r = await askAgenticRag({
+        question: 'what is handicap?',
+        learnerDid: 'did:web:test' as IRI,
+        primary,
+        llmApiKey: 'sk-mock',
+      });
+      expect(r.llmKeySource).toBe('bridge-env');
+      expect(r.synthesizedAnswer).toBe('mocked answer');
+      // LLM step body records the key source for honest provenance.
+      const llmStep = r.trace.find(t => t.type === 'fxa:LlmCompletion');
+      expect((llmStep!.body as { keySource: string }).keySource).toBe('bridge-env');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('mode=per-request-byok (explicit source): llmKeySource = "per-request-byok"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ content: [{ type: 'text', text: 'byok answer' }] }), { status: 200 }),
+    );
+    try {
+      const { primary } = loadPayload();
+      const r = await askAgenticRag({
+        question: 'what is handicap?',
+        learnerDid: 'did:web:test' as IRI,
+        primary,
+        llmApiKey: 'sk-user-key',
+        llmKeySource: 'per-request-byok',
+      });
+      expect(r.llmKeySource).toBe('per-request-byok');
+      const llmStep = r.trace.find(t => t.type === 'fxa:LlmCompletion');
+      expect((llmStep!.body as { keySource: string }).keySource).toBe('per-request-byok');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('retrieveCourseContext (mcp-client-as-LLM): no LLM call, llmKeySource = "mcp-client", trace is 2-step', () => {
+    const { primary, federation } = loadPayload();
+    const r = retrieveCourseContext({
+      question: 'what is handicap?',
+      learnerDid: 'did:web:test' as IRI,
+      primary, federation,
+    });
+    expect(r.synthesizedAnswer).toBeNull();
+    expect(r.llmKeySource).toBe('mcp-client');
+    expect(r.llmModel).toBe('mcp-client-as-llm');
+    expect(r.trace.length).toBe(2);
+    expect(r.retrieval.seedConcepts.length).toBeGreaterThan(0);
+    expect(r.retrieval.citedSlides.length).toBeGreaterThan(0);
   });
 });
 

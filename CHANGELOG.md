@@ -8,6 +8,106 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-05-17 — Foxxi: three LLM architectures (mcp-client-as-LLM, BYOK, bridge-env)
+
+Adds two more LLM-key paths so users aren't forced into either "the
+bridge has a key" or "no LLM at all." Three architectures now, all
+routed through the same substrate primitives:
+
+| Mode | Who pays | Key location | Tool |
+|---|---|---|---|
+| `bridge-env` | Tenant op | `FOXXI_LLM_API_KEY` env | `foxxi.ask_course_question_agentic` |
+| `byok` | End user | Per-request `llm_api_key` (browser localStorage → bridge transient) | `foxxi.ask_course_question_agentic` |
+| `mcp-client` | End user's existing agent subscription | NO API key anywhere | `foxxi.retrieve_course_context` |
+
+The `mcp-client` mode is the answer to "I'm already using Interego in
+my own Claude/Cursor/Codex agent — can the Foxxi dashboard use THAT
+LLM instead of needing its own key?" Yes: the dashboard's chat panel
+calls the retrieval-only tool, gets back the federated concept graph +
+verbatim cited transcripts, and offers a "Copy structured prompt"
+button so you paste it into your existing agent session. The agent
+synthesises the answer using its existing subscription. The
+substrate's Interego trace records `keySource: 'mcp-client'` so the
+audit chain is honest about who paid for the inference.
+
+NEW substrate-side in [`applications/foxxi-content-intelligence/src/agentic-rag.ts`](applications/foxxi-content-intelligence/src/agentic-rag.ts):
+- `retrieveCourseContext({question, learnerDid, primary, federation})`
+  — pure retrieval path. Emits 2-step trace
+  (`fxa:LearnerQuestionEvent` Asserted + `fxa:RetrievalActivity`
+  Hypothetical). Caller's agent synthesises and optionally publishes
+  its own `fxa:CitedAnswer` to close the chain.
+- `LlmKeySource` type added: `'none' | 'bridge-env' | 'per-request-byok' | 'mcp-client'`.
+- `askAgenticRag` now accepts `llmKeySource?: LlmKeySource` and records
+  it on the result + on the `fxa:LlmCompletion` descriptor's
+  `body.keySource`. Defaults to `'bridge-env'` when a key is supplied
+  without explicit source, `'none'` when no key at all.
+
+NEW bridge-side:
+- `foxxi.retrieve_course_context` affordance + handler.
+- `foxxi.ask_course_question_agentic` handler accepts `llm_api_key`
+  per-request arg. Key precedence: per-request BYOK > server-side env
+  (`FOXXI_LLM_API_KEY` / `ANTHROPIC_API_KEY`). Bridge uses the key
+  transiently for the one outbound Anthropic call; never persists or
+  logs it.
+
+NEW dashboard-side in [`applications/foxxi-content-intelligence/dashboard-app/`](applications/foxxi-content-intelligence/dashboard-app/):
+- `src/auth/llm-settings.ts` — load/save/clear LLM mode + BYOK key.
+  Stored in browser localStorage; key is stripped when mode changes
+  away from byok.
+- `src/components/LlmSettings.tsx` — three-mode selector dialog with
+  per-mode explanation (who pays / where the key lives / which tool
+  is called) + masked password input for BYOK + warning panel for
+  mcp-client mode.
+- `src/components/ChatPanel.tsx` — `LLM ⚙` button opens the dialog;
+  the active mode is shown as a header pill; each turn's response
+  surfaces the `keySource` pill so the user sees which path actually
+  ran. New `McpClientHandoff` component in mcp-client mode that
+  generates a structured prompt (question + seed concepts + verbatim
+  cited transcripts) ready to paste into any agent session, with
+  Copy buttons for the full prompt OR the cited transcripts only.
+- `src/interego/client.ts` — `askCourseQuestionAgentic` gains
+  `mode: 'bridge-env' | 'byok' | 'mcp-client'` + `byokKey` args.
+  Routes to `foxxi.retrieve_course_context` when `mode === 'mcp-client'`,
+  otherwise sends `llm_api_key` in the request body when `mode === 'byok'`.
+  Offline-sample mode adopts the appropriate `llmKeySource`.
+
+4 new contract tests in [`tests/agentic-rag.test.ts`](applications/foxxi-content-intelligence/tests/agentic-rag.test.ts)
+(12 total in that file now; 32 total in the vertical):
+- `mode=none` → `llmKeySource: 'none'`, 2-step trace
+- `mode=bridge-env` (mocked LLM) → `llmKeySource: 'bridge-env'` on
+  result + on LLM descriptor body
+- `mode=per-request-byok` (mocked LLM, explicit source) →
+  `llmKeySource: 'per-request-byok'`
+- `retrieveCourseContext` → no LLM call, `llmKeySource: 'mcp-client'`,
+  `llmModel: 'mcp-client-as-llm'`, 2-step trace with seeds + cited
+  slides
+
+Live MCP smoke against the bridge for all three architectures:
+- `tools/list` returns 13 tools (was 12; +1 for `foxxi.retrieve_course_context`)
+- `foxxi.retrieve_course_context` for "what is handicap?"
+  with full federation payload returns retrievalKind=graph, 6 seeds,
+  16 expanded, 5 cited slides spanning golf-explained+golf-fundamentals,
+  `llmKeySource: 'mcp-client'`, 2-step trace
+- `foxxi.ask_course_question_agentic` with `llm_api_key: 'sk-ant-invalid-test-key-from-dashboard'`
+  returns `llmKeySource: 'per-request-byok'`, the key actually reached
+  Anthropic (proven by the response: `Anthropic API 401: invalid x-api-key`),
+  honest error message bubbled back, full 4-step trace with
+  `body.keySource: 'per-request-byok'` on the LlmCompletion descriptor
+
+Why this matters: the dashboard now ships with a clean
+"bring-your-existing-agent" path that doesn't require either the
+bridge operator to provide an API key OR the end user to paste one.
+Anyone who's already using Interego from Claude Code (the user's
+described pattern) can switch the dashboard to `mcp-client` mode and
+copy the substrate-retrieved prompt straight into their existing
+session — Interego is the substrate, their agent is the LLM, no new
+auth setup.
+
+Repo tsc: clean. Dashboard tsc + Vite build: clean. Vertical tests:
+32/32 passing (11 affordance + 9 learner-flow + 12 agentic-rag).
+
+---
+
 ## 2026-05-17 — Foxxi: agentic RAG (replaces lexical Q&A in the dashboard)
 
 The prior commit's dashboard used `foxxi.ask_course_question` (lexical

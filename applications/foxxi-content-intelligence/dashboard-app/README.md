@@ -61,6 +61,28 @@ npm run dev
 (Step 1 is optional — the dashboard falls back to sample mode if you
 skip it. The header pill makes it explicit.)
 
+## Three LLM architectures (pick via Settings ⚙)
+
+The dashboard's chat panel routes through the substrate three ways
+depending on who owns the LLM call:
+
+| Mode | Who pays for inference | Where the key lives | Tool called |
+|---|---|---|---|
+| `bridge-env` | The tenant operating the bridge | `FOXXI_LLM_API_KEY` env on the bridge | `foxxi.ask_course_question_agentic` (no per-request key) |
+| `byok` | The end user (their Anthropic subscription) | Paste into Settings → browser `localStorage` → sent as `llm_api_key` per request; bridge uses transiently, never persists/logs | `foxxi.ask_course_question_agentic` (with `llm_api_key`) |
+| `mcp-client` | The end user's existing agent subscription (Claude.ai connector / Claude Desktop / Claude Code / Cursor) | NO API key anywhere | `foxxi.retrieve_course_context` (substrate returns retrieval scaffold + verbatim cited transcripts; you copy them into YOUR agent session and have it synthesise) |
+
+Each mode records its key source on the LLM-completion descriptor
+(`body.keySource: 'bridge-env' | 'per-request-byok' | 'mcp-client'`)
+so the audit trail is honest about who paid for the inference.
+
+In `mcp-client` mode the chat panel shows a "Copy structured prompt"
+button that gives you a ready-to-paste prompt with the cited
+transcripts pre-attached — drop it into Claude.ai / Claude Desktop /
+Claude Code / etc. and the agent synthesises against the retrieval
+the substrate just produced for you. Your existing subscription
+pays. No second auth setup, no bridge-side key.
+
 ## Identity flow
 
 The dashboard's login screen lets you pick:

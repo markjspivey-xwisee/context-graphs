@@ -129,12 +129,20 @@ export interface AgentTraceDescriptor {
   readonly recordedAt: string;
 }
 
+export type LlmKeySource =
+  | 'none'             // no key supplied; retrieval scaffold only
+  | 'bridge-env'       // key from FOXXI_LLM_API_KEY / ANTHROPIC_API_KEY env on the bridge
+  | 'per-request-byok' // key supplied per-request (BYOK from the dashboard / MCP client)
+  | 'mcp-client';      // call originated from foxxi.retrieve_course_context — caller IS the LLM
+
 export interface AgenticRagResult {
   readonly retrieval: RetrievalContext;
-  /** Null when no LLM API key configured. */
+  /** Null when no LLM was called (mcp-client / none modes). */
   readonly synthesizedAnswer: string | null;
   /** Provenance: which LLM (or "no-llm"). */
   readonly llmModel: string;
+  /** Which key source powered the LLM (or "none" / "mcp-client"). Recorded on the trace. */
+  readonly llmKeySource: LlmKeySource;
   /** Interego descriptor trace — caller publishes via publish(). */
   readonly trace: readonly AgentTraceDescriptor[];
 }
@@ -431,6 +439,7 @@ function emitTrace(args: {
   course: FoxxiAgenticCourse;
   retrieval: RetrievalContext;
   llmModel: string;
+  llmKeySource: LlmKeySource;
   synthesizedAnswer: string | null;
 }): AgentTraceDescriptor[] {
   const traceId = sha256Hex(`${args.learnerDid}|${args.course.courseIri}|${args.question}|${nowIso()}`).slice(0, 16);
@@ -481,7 +490,7 @@ function emitTrace(args: {
       type: 'fxa:LlmCompletion',
       modalStatus: 'Hypothetical',
       wasDerivedFrom: [rIri],
-      body: { model: args.llmModel, responseText: args.synthesizedAnswer },
+      body: { model: args.llmModel, keySource: args.llmKeySource, responseText: args.synthesizedAnswer },
       recordedAt: at,
     };
     traceList.push(llm);
@@ -522,6 +531,8 @@ export interface AskAgenticRagArgs {
   readonly llmModel?: string;
   /** If supplied, used to call the Anthropic API. Without it, retrieval-only result. */
   readonly llmApiKey?: string;
+  /** Which source the key came from (for honest provenance recording). */
+  readonly llmKeySource?: LlmKeySource;
 }
 
 export async function askAgenticRag(args: AskAgenticRagArgs): Promise<AgenticRagResult> {
@@ -529,6 +540,7 @@ export async function askAgenticRag(args: AskAgenticRagArgs): Promise<AgenticRag
   const ctx = buildGraphContext({ question: args.question, primary: args.primary, federation });
   const llmModel = args.llmModel ?? 'claude-sonnet-4-5';
   let synthesizedAnswer: string | null = null;
+  const llmKeySource: LlmKeySource = args.llmApiKey ? (args.llmKeySource ?? 'bridge-env') : 'none';
   if (args.llmApiKey) {
     const system = buildSystemPrompt({ question: args.question, primary: args.primary, federation, ctx });
     const messages: AnthropicMessage[] = [
@@ -542,15 +554,61 @@ export async function askAgenticRag(args: AskAgenticRagArgs): Promise<AgenticRag
       synthesizedAnswer = `(LLM call failed: ${(err as Error).message}) — retrieval scaffold above is intact; render slides as verbatim citations.`;
     }
   }
+  const effectiveModel = args.llmApiKey ? llmModel : 'no-llm';
   const trace = emitTrace({
     question: args.question,
     learnerDid: args.learnerDid,
     course: args.primary,
     retrieval: ctx,
-    llmModel: args.llmApiKey ? llmModel : 'no-llm',
+    llmModel: effectiveModel,
+    llmKeySource,
     synthesizedAnswer,
   });
-  return { retrieval: ctx, synthesizedAnswer, llmModel: args.llmApiKey ? llmModel : 'no-llm', trace };
+  return { retrieval: ctx, synthesizedAnswer, llmModel: effectiveModel, llmKeySource, trace };
+}
+
+/**
+ * MCP-client-as-LLM path: pure retrieval, no synthesis. Designed for
+ * the case where the user's agent (Claude.ai connector, Claude Desktop,
+ * Claude Code, Cursor, Codex, etc.) IS the LLM and uses the user's
+ * existing subscription. The MCP client receives the retrieval scaffold
+ * + a 2-step Interego trace (question Asserted + retrieval Hypothetical)
+ * and is expected to (a) synthesize the answer in its own context using
+ * the cited slide transcripts as grounding, and (b) optionally publish
+ * its own fxa:CitedAnswer descriptor back to the tenant pod to close
+ * out the trace with a final Asserted answer that supersedes the
+ * retrieval Hypothetical.
+ *
+ * Net effect: NO API key on the bridge OR the dashboard. The user's
+ * subscription pays. Substrate-pure — same primitives as the LLM-
+ * augmented path, just without the centralised LLM call.
+ */
+export interface RetrieveCourseContextArgs {
+  readonly question: string;
+  readonly learnerDid: IRI;
+  readonly primary: FoxxiAgenticCourse;
+  readonly federation?: readonly FoxxiAgenticCourse[];
+}
+
+export function retrieveCourseContext(args: RetrieveCourseContextArgs): AgenticRagResult {
+  const federation = args.federation ?? [];
+  const ctx = buildGraphContext({ question: args.question, primary: args.primary, federation });
+  const trace = emitTrace({
+    question: args.question,
+    learnerDid: args.learnerDid,
+    course: args.primary,
+    retrieval: ctx,
+    llmModel: 'mcp-client-as-llm',
+    llmKeySource: 'mcp-client',
+    synthesizedAnswer: null,
+  });
+  return {
+    retrieval: ctx,
+    synthesizedAnswer: null,
+    llmModel: 'mcp-client-as-llm',
+    llmKeySource: 'mcp-client',
+    trace,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────
