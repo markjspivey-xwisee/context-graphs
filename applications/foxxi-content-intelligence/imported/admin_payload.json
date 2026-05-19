@@ -228,14 +228,15 @@
       "web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/le/profile/card#me",
       "name": "Ngozi Kowalski",
       "email": "le@interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io",
-      "department": "People Ops",
+      "department": "Learning R&D",
       "job_title": "Learning Engineer",
       "manager_user_id": "u-admin",
       "location": "Remote",
       "audience_tags": [
         "all-employees",
         "managers",
-        "learning-engineering"
+        "learning-engineering",
+        "engineering"
       ],
       "status": "active",
       "employee_id": "EMP-0002",
@@ -1862,10 +1863,9 @@
       "group_id": "dept-people-ops",
       "name": "People Ops",
       "kind": "department",
-      "member_count": 16,
+      "member_count": 15,
       "member_ids": [
         "u-admin",
-        "u-le",
         "u-mgr4",
         "u-0013",
         "u-0019",
@@ -2167,8 +2167,9 @@
       "group_id": "tag-engineering",
       "name": "Engineering",
       "kind": "audience",
-      "member_count": 15,
+      "member_count": 16,
       "member_ids": [
+        "u-le",
         "u-joshua",
         "u-0010",
         "u-0016",
@@ -2321,7 +2322,7 @@
       "course_title": "Data Classification & Handling",
       "audience_group_id": "tag-engineering",
       "audience_label": "Engineering",
-      "audience_member_count": 15,
+      "audience_member_count": 16,
       "requirement_type": "required",
       "trigger": "on-hire",
       "due_relative_days": 60,
@@ -2414,7 +2415,7 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -2425,8 +2426,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2436,8 +2437,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2447,8 +2448,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2458,8 +2459,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2469,8 +2470,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2480,7 +2481,7 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -2502,8 +2503,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2513,8 +2514,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2524,8 +2525,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2546,8 +2547,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2557,8 +2558,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2568,8 +2569,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2579,7 +2580,7 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -2590,7 +2591,7 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -2601,7 +2602,7 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -2634,8 +2635,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2667,8 +2668,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2678,8 +2679,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -2744,8 +2745,8 @@
       "policy_id": "pol-001",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -2755,8 +2756,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2788,8 +2789,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2810,8 +2811,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2821,8 +2822,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2832,7 +2833,7 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "recommended"
     },
@@ -2843,7 +2844,7 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "recommended"
     },
@@ -2854,8 +2855,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2876,8 +2877,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2887,8 +2888,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2898,8 +2899,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2909,8 +2910,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2942,8 +2943,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -2964,8 +2965,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2986,8 +2987,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -2997,7 +2998,7 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "recommended"
     },
@@ -3008,8 +3009,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3052,8 +3053,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "recommended"
     },
     {
@@ -3074,8 +3075,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3085,7 +3086,7 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "recommended"
     },
@@ -3107,8 +3108,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3118,8 +3119,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3129,8 +3130,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3162,8 +3163,8 @@
       "policy_id": "pol-002",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
@@ -3195,8 +3196,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3217,8 +3218,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3239,8 +3240,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3250,8 +3251,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3261,8 +3262,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3272,8 +3273,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3283,8 +3284,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3316,8 +3317,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3338,8 +3339,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3349,7 +3350,7 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -3382,8 +3383,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3404,8 +3405,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3415,8 +3416,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3426,8 +3427,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3437,7 +3438,7 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -3448,8 +3449,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3459,8 +3460,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3470,8 +3471,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3481,8 +3482,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3492,8 +3493,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3503,7 +3504,7 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -3514,8 +3515,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3525,8 +3526,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3547,8 +3548,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3591,8 +3592,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3602,8 +3603,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3613,8 +3614,8 @@
       "policy_id": "pol-003",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3635,8 +3636,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3646,8 +3647,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3657,8 +3658,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3668,8 +3669,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3679,8 +3680,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3690,8 +3691,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3723,7 +3724,7 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -3745,8 +3746,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3778,8 +3779,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3789,8 +3790,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3822,8 +3823,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3833,8 +3834,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3844,8 +3845,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3877,8 +3878,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3888,8 +3889,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3899,8 +3900,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3910,8 +3911,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3921,8 +3922,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -3932,8 +3933,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -3987,7 +3988,7 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
@@ -3998,8 +3999,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -4020,8 +4021,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -4031,8 +4032,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
@@ -4042,8 +4043,8 @@
       "policy_id": "pol-004",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
@@ -4070,7 +4071,7 @@
     },
     {
       "event_id": "evt-000152",
-      "user_id": "u-joshua",
+      "user_id": "u-le",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4081,18 +4082,18 @@
     },
     {
       "event_id": "evt-000153",
-      "user_id": "u-0010",
+      "user_id": "u-joshua",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000154",
-      "user_id": "u-0016",
+      "user_id": "u-0010",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4103,7 +4104,7 @@
     },
     {
       "event_id": "evt-000155",
-      "user_id": "u-0022",
+      "user_id": "u-0016",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4114,18 +4115,18 @@
     },
     {
       "event_id": "evt-000156",
-      "user_id": "u-0028",
+      "user_id": "u-0022",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000157",
-      "user_id": "u-0034",
+      "user_id": "u-0028",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4136,18 +4137,18 @@
     },
     {
       "event_id": "evt-000158",
-      "user_id": "u-0040",
+      "user_id": "u-0034",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000159",
-      "user_id": "u-0046",
+      "user_id": "u-0040",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4158,7 +4159,7 @@
     },
     {
       "event_id": "evt-000160",
-      "user_id": "u-0052",
+      "user_id": "u-0046",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4169,7 +4170,7 @@
     },
     {
       "event_id": "evt-000161",
-      "user_id": "u-0058",
+      "user_id": "u-0052",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4180,40 +4181,40 @@
     },
     {
       "event_id": "evt-000162",
-      "user_id": "u-0064",
+      "user_id": "u-0058",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000163",
+      "user_id": "u-0064",
+      "course_id": "stub-003",
+      "policy_id": "pol-005",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000164",
       "user_id": "u-0070",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000164",
-      "user_id": "u-0076",
-      "course_id": "stub-003",
-      "policy_id": "pol-005",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000165",
-      "user_id": "u-0082",
+      "user_id": "u-0076",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4224,7 +4225,7 @@
     },
     {
       "event_id": "evt-000166",
-      "user_id": "u-0088",
+      "user_id": "u-0082",
       "course_id": "stub-003",
       "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
@@ -4235,20 +4236,9 @@
     },
     {
       "event_id": "evt-000167",
-      "user_id": "u-joshua",
-      "course_id": "stub-004",
-      "policy_id": "pol-006",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000168",
-      "user_id": "u-0010",
-      "course_id": "stub-004",
-      "policy_id": "pol-006",
+      "user_id": "u-0088",
+      "course_id": "stub-003",
+      "policy_id": "pol-005",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
       "status": "completed",
@@ -4256,8 +4246,19 @@
       "requirement_type": "required"
     },
     {
+      "event_id": "evt-000168",
+      "user_id": "u-joshua",
+      "course_id": "stub-004",
+      "policy_id": "pol-006",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "in_progress",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
       "event_id": "evt-000169",
-      "user_id": "u-0011",
+      "user_id": "u-0010",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4268,7 +4269,7 @@
     },
     {
       "event_id": "evt-000170",
-      "user_id": "u-0012",
+      "user_id": "u-0011",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4279,18 +4280,18 @@
     },
     {
       "event_id": "evt-000171",
-      "user_id": "u-0013",
+      "user_id": "u-0012",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000172",
-      "user_id": "u-0014",
+      "user_id": "u-0013",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4301,6 +4302,17 @@
     },
     {
       "event_id": "evt-000173",
+      "user_id": "u-0014",
+      "course_id": "stub-004",
+      "policy_id": "pol-006",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "overdue",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000174",
       "user_id": "u-0015",
       "course_id": "stub-004",
       "policy_id": "pol-006",
@@ -4311,52 +4323,41 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000174",
+      "event_id": "evt-000175",
       "user_id": "u-0016",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000175",
-      "user_id": "u-0017",
-      "course_id": "stub-004",
-      "policy_id": "pol-006",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000176",
-      "user_id": "u-0018",
+      "user_id": "u-0017",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000177",
-      "user_id": "u-0019",
+      "user_id": "u-0018",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000178",
-      "user_id": "u-0020",
+      "user_id": "u-0019",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4367,7 +4368,7 @@
     },
     {
       "event_id": "evt-000179",
-      "user_id": "u-0021",
+      "user_id": "u-0020",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4378,7 +4379,7 @@
     },
     {
       "event_id": "evt-000180",
-      "user_id": "u-0022",
+      "user_id": "u-0021",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4389,7 +4390,7 @@
     },
     {
       "event_id": "evt-000181",
-      "user_id": "u-0023",
+      "user_id": "u-0022",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4400,18 +4401,7 @@
     },
     {
       "event_id": "evt-000182",
-      "user_id": "u-0024",
-      "course_id": "stub-004",
-      "policy_id": "pol-006",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000183",
-      "user_id": "u-0025",
+      "user_id": "u-0023",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4421,8 +4411,19 @@
       "requirement_type": "required"
     },
     {
+      "event_id": "evt-000183",
+      "user_id": "u-0024",
+      "course_id": "stub-004",
+      "policy_id": "pol-006",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
       "event_id": "evt-000184",
-      "user_id": "u-0026",
+      "user_id": "u-0025",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4433,18 +4434,18 @@
     },
     {
       "event_id": "evt-000185",
-      "user_id": "u-0027",
+      "user_id": "u-0026",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000186",
-      "user_id": "u-0028",
+      "user_id": "u-0027",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4455,29 +4456,29 @@
     },
     {
       "event_id": "evt-000187",
+      "user_id": "u-0028",
+      "course_id": "stub-004",
+      "policy_id": "pol-006",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000188",
       "user_id": "u-0029",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000188",
-      "user_id": "u-0030",
-      "course_id": "stub-004",
-      "policy_id": "pol-006",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000189",
-      "user_id": "u-0031",
+      "user_id": "u-0030",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4488,7 +4489,7 @@
     },
     {
       "event_id": "evt-000190",
-      "user_id": "u-0032",
+      "user_id": "u-0031",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4499,18 +4500,18 @@
     },
     {
       "event_id": "evt-000191",
-      "user_id": "u-0033",
+      "user_id": "u-0032",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000192",
-      "user_id": "u-0034",
+      "user_id": "u-0033",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4521,18 +4522,18 @@
     },
     {
       "event_id": "evt-000193",
-      "user_id": "u-0035",
+      "user_id": "u-0034",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000194",
-      "user_id": "u-0036",
+      "user_id": "u-0035",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4543,7 +4544,7 @@
     },
     {
       "event_id": "evt-000195",
-      "user_id": "u-0037",
+      "user_id": "u-0036",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
@@ -4554,6 +4555,17 @@
     },
     {
       "event_id": "evt-000196",
+      "user_id": "u-0037",
+      "course_id": "stub-004",
+      "policy_id": "pol-006",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "overdue",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000197",
       "user_id": "u-0038",
       "course_id": "stub-004",
       "policy_id": "pol-006",
@@ -4564,30 +4576,19 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000197",
+      "event_id": "evt-000198",
       "user_id": "u-0039",
       "course_id": "stub-004",
       "policy_id": "pol-006",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000198",
-      "user_id": "u-joshua",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000199",
-      "user_id": "u-0010",
+      "user_id": "u-joshua",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4598,7 +4599,7 @@
     },
     {
       "event_id": "evt-000200",
-      "user_id": "u-0011",
+      "user_id": "u-0010",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4609,18 +4610,7 @@
     },
     {
       "event_id": "evt-000201",
-      "user_id": "u-0012",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000202",
-      "user_id": "u-0013",
+      "user_id": "u-0011",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4630,8 +4620,8 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000203",
-      "user_id": "u-0014",
+      "event_id": "evt-000202",
+      "user_id": "u-0012",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4641,7 +4631,29 @@
       "requirement_type": "required"
     },
     {
+      "event_id": "evt-000203",
+      "user_id": "u-0013",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
       "event_id": "evt-000204",
+      "user_id": "u-0014",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000205",
       "user_id": "u-0015",
       "course_id": "stub-005",
       "policy_id": "pol-007",
@@ -4652,18 +4664,18 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000205",
+      "event_id": "evt-000206",
       "user_id": "u-0016",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000206",
+      "event_id": "evt-000207",
       "user_id": "u-0017",
       "course_id": "stub-005",
       "policy_id": "pol-007",
@@ -4674,19 +4686,8 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000207",
-      "user_id": "u-0018",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
       "event_id": "evt-000208",
-      "user_id": "u-0019",
+      "user_id": "u-0018",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4697,7 +4698,7 @@
     },
     {
       "event_id": "evt-000209",
-      "user_id": "u-0020",
+      "user_id": "u-0019",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4708,29 +4709,18 @@
     },
     {
       "event_id": "evt-000210",
-      "user_id": "u-0021",
+      "user_id": "u-0020",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000211",
-      "user_id": "u-0022",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000212",
-      "user_id": "u-0023",
+      "user_id": "u-0021",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4740,8 +4730,19 @@
       "requirement_type": "required"
     },
     {
+      "event_id": "evt-000212",
+      "user_id": "u-0022",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "in_progress",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
       "event_id": "evt-000213",
-      "user_id": "u-0024",
+      "user_id": "u-0023",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4752,6 +4753,17 @@
     },
     {
       "event_id": "evt-000214",
+      "user_id": "u-0024",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000215",
       "user_id": "u-0025",
       "course_id": "stub-005",
       "policy_id": "pol-007",
@@ -4762,41 +4774,30 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000215",
+      "event_id": "evt-000216",
       "user_id": "u-0026",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000216",
+      "event_id": "evt-000217",
       "user_id": "u-0027",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000217",
-      "user_id": "u-0028",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000218",
-      "user_id": "u-0029",
+      "user_id": "u-0028",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4807,29 +4808,29 @@
     },
     {
       "event_id": "evt-000219",
-      "user_id": "u-0030",
+      "user_id": "u-0029",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000220",
-      "user_id": "u-0031",
+      "user_id": "u-0030",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000221",
-      "user_id": "u-0032",
+      "user_id": "u-0031",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4840,6 +4841,17 @@
     },
     {
       "event_id": "evt-000222",
+      "user_id": "u-0032",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000223",
       "user_id": "u-0033",
       "course_id": "stub-005",
       "policy_id": "pol-007",
@@ -4850,30 +4862,19 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000223",
+      "event_id": "evt-000224",
       "user_id": "u-0034",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
+      "status": "in_progress",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000224",
-      "user_id": "u-0035",
-      "course_id": "stub-005",
-      "policy_id": "pol-007",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
       "event_id": "evt-000225",
-      "user_id": "u-0036",
+      "user_id": "u-0035",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4884,18 +4885,18 @@
     },
     {
       "event_id": "evt-000226",
-      "user_id": "u-0037",
+      "user_id": "u-0036",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000227",
-      "user_id": "u-0038",
+      "user_id": "u-0037",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
@@ -4906,62 +4907,62 @@
     },
     {
       "event_id": "evt-000228",
+      "user_id": "u-0038",
+      "course_id": "stub-005",
+      "policy_id": "pol-007",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000229",
       "user_id": "u-0039",
       "course_id": "stub-005",
       "policy_id": "pol-007",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000229",
+      "event_id": "evt-000230",
       "user_id": "u-admin",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "overdue",
+      "status": "pending",
       "completed_at": null,
       "requirement_type": "recommended"
     },
     {
-      "event_id": "evt-000230",
+      "event_id": "evt-000231",
       "user_id": "u-le",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
-      "event_id": "evt-000231",
+      "event_id": "evt-000232",
       "user_id": "u-mgr1",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "recommended"
-    },
-    {
-      "event_id": "evt-000232",
-      "user_id": "u-mgr2",
-      "course_id": "stub-006",
-      "policy_id": "pol-008",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
       "event_id": "evt-000233",
-      "user_id": "u-mgr3",
+      "user_id": "u-mgr2",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
@@ -4972,40 +4973,40 @@
     },
     {
       "event_id": "evt-000234",
+      "user_id": "u-mgr3",
+      "course_id": "stub-006",
+      "policy_id": "pol-008",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "recommended"
+    },
+    {
+      "event_id": "evt-000235",
       "user_id": "u-mgr4",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "pending",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
-      "event_id": "evt-000235",
+      "event_id": "evt-000236",
       "user_id": "u-mgr5",
       "course_id": "stub-006",
       "policy_id": "pol-008",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "recommended"
     },
     {
-      "event_id": "evt-000236",
-      "user_id": "u-0012",
-      "course_id": "stub-007",
-      "policy_id": "pol-009",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
       "event_id": "evt-000237",
-      "user_id": "u-0018",
+      "user_id": "u-0012",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
@@ -5016,18 +5017,18 @@
     },
     {
       "event_id": "evt-000238",
-      "user_id": "u-0024",
+      "user_id": "u-0018",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000239",
-      "user_id": "u-0030",
+      "user_id": "u-0024",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
@@ -5038,7 +5039,7 @@
     },
     {
       "event_id": "evt-000240",
-      "user_id": "u-0036",
+      "user_id": "u-0030",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
@@ -5049,6 +5050,17 @@
     },
     {
       "event_id": "evt-000241",
+      "user_id": "u-0036",
+      "course_id": "stub-007",
+      "policy_id": "pol-009",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000242",
       "user_id": "u-0042",
       "course_id": "stub-007",
       "policy_id": "pol-009",
@@ -5059,19 +5071,8 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000242",
-      "user_id": "u-0048",
-      "course_id": "stub-007",
-      "policy_id": "pol-009",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
       "event_id": "evt-000243",
-      "user_id": "u-0054",
+      "user_id": "u-0048",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
@@ -5082,39 +5083,50 @@
     },
     {
       "event_id": "evt-000244",
+      "user_id": "u-0054",
+      "course_id": "stub-007",
+      "policy_id": "pol-009",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000245",
       "user_id": "u-0060",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "in_progress",
+      "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000245",
+      "event_id": "evt-000246",
       "user_id": "u-0066",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000246",
+      "event_id": "evt-000247",
       "user_id": "u-0072",
       "course_id": "stub-007",
       "policy_id": "pol-009",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000247",
+      "event_id": "evt-000248",
       "user_id": "u-0078",
       "course_id": "stub-007",
       "policy_id": "pol-009",
@@ -5125,7 +5137,7 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000248",
+      "event_id": "evt-000249",
       "user_id": "u-0084",
       "course_id": "stub-007",
       "policy_id": "pol-009",
@@ -5136,18 +5148,18 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000249",
+      "event_id": "evt-000250",
       "user_id": "u-0011",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "overdue",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000250",
+      "event_id": "evt-000251",
       "user_id": "u-0017",
       "course_id": "stub-008",
       "policy_id": "pol-010",
@@ -5158,7 +5170,7 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000251",
+      "event_id": "evt-000252",
       "user_id": "u-0023",
       "course_id": "stub-008",
       "policy_id": "pol-010",
@@ -5169,18 +5181,18 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000252",
+      "event_id": "evt-000253",
       "user_id": "u-0029",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
+      "status": "in_progress",
+      "completed_at": null,
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000253",
+      "event_id": "evt-000254",
       "user_id": "u-0035",
       "course_id": "stub-008",
       "policy_id": "pol-010",
@@ -5191,52 +5203,8 @@
       "requirement_type": "required"
     },
     {
-      "event_id": "evt-000254",
-      "user_id": "u-0041",
-      "course_id": "stub-008",
-      "policy_id": "pol-010",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
       "event_id": "evt-000255",
-      "user_id": "u-0047",
-      "course_id": "stub-008",
-      "policy_id": "pol-010",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000256",
-      "user_id": "u-0053",
-      "course_id": "stub-008",
-      "policy_id": "pol-010",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "completed",
-      "completed_at": "2026-01-15",
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000257",
-      "user_id": "u-0059",
-      "course_id": "stub-008",
-      "policy_id": "pol-010",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "in_progress",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000258",
-      "user_id": "u-0065",
+      "user_id": "u-0041",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
@@ -5246,8 +5214,41 @@
       "requirement_type": "required"
     },
     {
+      "event_id": "evt-000256",
+      "user_id": "u-0047",
+      "course_id": "stub-008",
+      "policy_id": "pol-010",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000257",
+      "user_id": "u-0053",
+      "course_id": "stub-008",
+      "policy_id": "pol-010",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "pending",
+      "completed_at": null,
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000258",
+      "user_id": "u-0059",
+      "course_id": "stub-008",
+      "policy_id": "pol-010",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
+    },
+    {
       "event_id": "evt-000259",
-      "user_id": "u-0071",
+      "user_id": "u-0065",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
@@ -5258,29 +5259,18 @@
     },
     {
       "event_id": "evt-000260",
-      "user_id": "u-0077",
+      "user_id": "u-0071",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
       "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
+      "status": "completed",
+      "completed_at": "2026-01-15",
       "requirement_type": "required"
     },
     {
       "event_id": "evt-000261",
-      "user_id": "u-0083",
-      "course_id": "stub-008",
-      "policy_id": "pol-010",
-      "assigned_at": "2025-12-20",
-      "due_at": "2026-01-19",
-      "status": "pending",
-      "completed_at": null,
-      "requirement_type": "required"
-    },
-    {
-      "event_id": "evt-000262",
-      "user_id": "u-0089",
+      "user_id": "u-0077",
       "course_id": "stub-008",
       "policy_id": "pol-010",
       "assigned_at": "2025-12-20",
@@ -5288,14 +5278,36 @@
       "status": "overdue",
       "completed_at": null,
       "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000262",
+      "user_id": "u-0083",
+      "course_id": "stub-008",
+      "policy_id": "pol-010",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
+    },
+    {
+      "event_id": "evt-000263",
+      "user_id": "u-0089",
+      "course_id": "stub-008",
+      "policy_id": "pol-010",
+      "assigned_at": "2025-12-20",
+      "due_at": "2026-01-19",
+      "status": "completed",
+      "completed_at": "2026-01-15",
+      "requirement_type": "required"
     }
   ],
   "audit": [
     {
       "audit_id": "aud-000000",
       "timestamp": "2026-03-01T08:15:00",
-      "actor_user_id": "u-0038",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia28/profile/card#me",
+      "actor_user_id": "u-0045",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin35/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5304,8 +5316,8 @@
     {
       "audit_id": "aud-000001",
       "timestamp": "2026-04-02T09:16:00",
-      "actor_user_id": "u-0068",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez58/profile/card#me",
+      "actor_user_id": "u-0060",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson50/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5314,8 +5326,8 @@
     {
       "audit_id": "aud-000002",
       "timestamp": "2026-05-03T10:17:00",
-      "actor_user_id": "u-0022",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson12/profile/card#me",
+      "actor_user_id": "u-0042",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson32/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5325,8 +5337,8 @@
     {
       "audit_id": "aud-000003",
       "timestamp": "2026-03-04T11:18:00",
-      "actor_user_id": "u-0039",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/cameronbrown29/profile/card#me",
+      "actor_user_id": "u-0015",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/quinnwhite5/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5336,8 +5348,8 @@
     {
       "audit_id": "aud-000004",
       "timestamp": "2026-04-05T12:19:00",
-      "actor_user_id": "u-0064",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee54/profile/card#me",
+      "actor_user_id": "u-0042",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson32/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5347,8 +5359,8 @@
     {
       "audit_id": "aud-000005",
       "timestamp": "2026-05-06T13:20:00",
-      "actor_user_id": "u-0059",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/cameronbrown49/profile/card#me",
+      "actor_user_id": "u-admin",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/admin/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5357,8 +5369,8 @@
     {
       "audit_id": "aud-000006",
       "timestamp": "2026-03-07T14:21:00",
-      "actor_user_id": "u-0025",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin15/profile/card#me",
+      "actor_user_id": "u-0023",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rowanlewis13/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5367,8 +5379,8 @@
     {
       "audit_id": "aud-000007",
       "timestamp": "2026-04-08T15:22:00",
-      "actor_user_id": "u-0069",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/emersonharris59/profile/card#me",
+      "actor_user_id": "u-0068",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez58/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5377,8 +5389,8 @@
     {
       "audit_id": "aud-000008",
       "timestamp": "2026-05-09T16:23:00",
-      "actor_user_id": "u-0038",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia28/profile/card#me",
+      "actor_user_id": "u-0046",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis36/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5387,8 +5399,8 @@
     {
       "audit_id": "aud-000009",
       "timestamp": "2026-03-10T17:24:00",
-      "actor_user_id": "u-0071",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel61/profile/card#me",
+      "actor_user_id": "u-0058",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia48/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5397,8 +5409,8 @@
     {
       "audit_id": "aud-000010",
       "timestamp": "2026-04-11T08:25:00",
-      "actor_user_id": "u-0021",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson11/profile/card#me",
+      "actor_user_id": "u-0038",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia28/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5407,8 +5419,8 @@
     {
       "audit_id": "aud-000011",
       "timestamp": "2026-05-12T09:26:00",
-      "actor_user_id": "u-0052",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen42/profile/card#me",
+      "actor_user_id": "u-0035",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/quinnwhite25/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5417,8 +5429,8 @@
     {
       "audit_id": "aud-000012",
       "timestamp": "2026-03-13T10:27:00",
-      "actor_user_id": "u-0071",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel61/profile/card#me",
+      "actor_user_id": "u-0024",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee14/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5428,8 +5440,8 @@
     {
       "audit_id": "aud-000013",
       "timestamp": "2026-04-14T11:28:00",
-      "actor_user_id": "u-0037",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson27/profile/card#me",
+      "actor_user_id": "u-0074",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore64/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5439,8 +5451,8 @@
     {
       "audit_id": "aud-000014",
       "timestamp": "2026-05-15T12:29:00",
-      "actor_user_id": "u-mgr5",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr5/profile/card#me",
+      "actor_user_id": "u-0021",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson11/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5450,8 +5462,8 @@
     {
       "audit_id": "aud-000015",
       "timestamp": "2026-03-16T13:30:00",
-      "actor_user_id": "u-0048",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez38/profile/card#me",
+      "actor_user_id": "u-0027",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor17/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5460,8 +5472,8 @@
     {
       "audit_id": "aud-000016",
       "timestamp": "2026-04-17T14:31:00",
-      "actor_user_id": "u-0040",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson30/profile/card#me",
+      "actor_user_id": "u-0071",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel61/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5470,8 +5482,8 @@
     {
       "audit_id": "aud-000017",
       "timestamp": "2026-05-18T15:32:00",
-      "actor_user_id": "u-0042",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson32/profile/card#me",
+      "actor_user_id": "u-0069",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/emersonharris59/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5480,8 +5492,8 @@
     {
       "audit_id": "aud-000018",
       "timestamp": "2026-03-19T16:33:00",
-      "actor_user_id": "u-0052",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen42/profile/card#me",
+      "actor_user_id": "u-0088",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez78/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5490,8 +5502,8 @@
     {
       "audit_id": "aud-000019",
       "timestamp": "2026-04-20T17:34:00",
-      "actor_user_id": "u-0072",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen62/profile/card#me",
+      "actor_user_id": "u-le",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/le/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5500,8 +5512,8 @@
     {
       "audit_id": "aud-000020",
       "timestamp": "2026-05-21T08:35:00",
-      "actor_user_id": "u-0024",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee14/profile/card#me",
+      "actor_user_id": "u-0075",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/quinnwhite65/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5510,8 +5522,8 @@
     {
       "audit_id": "aud-000021",
       "timestamp": "2026-03-22T09:36:00",
-      "actor_user_id": "u-0030",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/alexsmith20/profile/card#me",
+      "actor_user_id": "u-0053",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/caseywilson43/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5520,8 +5532,8 @@
     {
       "audit_id": "aud-000022",
       "timestamp": "2026-04-23T10:37:00",
-      "actor_user_id": "u-0011",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel1/profile/card#me",
+      "actor_user_id": "u-le",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/le/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5531,8 +5543,8 @@
     {
       "audit_id": "aud-000023",
       "timestamp": "2026-05-24T11:38:00",
-      "actor_user_id": "u-0014",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore4/profile/card#me",
+      "actor_user_id": "u-0011",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel1/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5542,8 +5554,8 @@
     {
       "audit_id": "aud-000024",
       "timestamp": "2026-03-25T12:39:00",
-      "actor_user_id": "u-0039",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/cameronbrown29/profile/card#me",
+      "actor_user_id": "u-mgr1",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr1/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5553,8 +5565,8 @@
     {
       "audit_id": "aud-000025",
       "timestamp": "2026-04-26T13:40:00",
-      "actor_user_id": "u-0013",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/caseywilson3/profile/card#me",
+      "actor_user_id": "u-0080",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson70/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5563,8 +5575,8 @@
     {
       "audit_id": "aud-000026",
       "timestamp": "2026-05-27T14:41:00",
-      "actor_user_id": "u-0058",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia48/profile/card#me",
+      "actor_user_id": "u-0037",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson27/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5573,8 +5585,8 @@
     {
       "audit_id": "aud-000027",
       "timestamp": "2026-03-01T15:42:00",
-      "actor_user_id": "u-0066",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis56/profile/card#me",
+      "actor_user_id": "u-0055",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/quinnwhite45/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5583,8 +5595,8 @@
     {
       "audit_id": "aud-000028",
       "timestamp": "2026-04-02T16:43:00",
-      "actor_user_id": "u-0027",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor17/profile/card#me",
+      "actor_user_id": "u-mgr2",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr2/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5593,8 +5605,8 @@
     {
       "audit_id": "aud-000029",
       "timestamp": "2026-05-03T17:44:00",
-      "actor_user_id": "u-0060",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson50/profile/card#me",
+      "actor_user_id": "u-mgr5",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr5/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5603,8 +5615,8 @@
     {
       "audit_id": "aud-000030",
       "timestamp": "2026-03-04T08:45:00",
-      "actor_user_id": "u-mgr4",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr4/profile/card#me",
+      "actor_user_id": "u-0087",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor77/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5613,8 +5625,8 @@
     {
       "audit_id": "aud-000031",
       "timestamp": "2026-04-05T09:46:00",
-      "actor_user_id": "u-0065",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin55/profile/card#me",
+      "actor_user_id": "u-0014",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore4/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5623,8 +5635,8 @@
     {
       "audit_id": "aud-000032",
       "timestamp": "2026-05-06T10:47:00",
-      "actor_user_id": "u-0012",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen2/profile/card#me",
+      "actor_user_id": "u-0045",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin35/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5634,8 +5646,8 @@
     {
       "audit_id": "aud-000033",
       "timestamp": "2026-03-07T11:48:00",
-      "actor_user_id": "u-0018",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia8/profile/card#me",
+      "actor_user_id": "u-0021",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson11/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5645,8 +5657,8 @@
     {
       "audit_id": "aud-000034",
       "timestamp": "2026-04-08T12:49:00",
-      "actor_user_id": "u-0087",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor77/profile/card#me",
+      "actor_user_id": "u-0063",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rowanlewis53/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5656,8 +5668,8 @@
     {
       "audit_id": "aud-000035",
       "timestamp": "2026-05-09T13:50:00",
-      "actor_user_id": "u-0019",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/cameronbrown9/profile/card#me",
+      "actor_user_id": "u-0088",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez78/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5666,8 +5678,8 @@
     {
       "audit_id": "aud-000036",
       "timestamp": "2026-03-10T14:51:00",
-      "actor_user_id": "u-0048",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez38/profile/card#me",
+      "actor_user_id": "u-0027",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor17/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5676,8 +5688,8 @@
     {
       "audit_id": "aud-000037",
       "timestamp": "2026-04-11T15:52:00",
-      "actor_user_id": "u-0044",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee34/profile/card#me",
+      "actor_user_id": "u-0067",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor57/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5686,8 +5698,8 @@
     {
       "audit_id": "aud-000038",
       "timestamp": "2026-05-12T16:53:00",
-      "actor_user_id": "u-0025",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin15/profile/card#me",
+      "actor_user_id": "u-0027",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor17/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5696,8 +5708,8 @@
     {
       "audit_id": "aud-000039",
       "timestamp": "2026-03-13T17:54:00",
-      "actor_user_id": "u-0076",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/averyclark66/profile/card#me",
+      "actor_user_id": "u-mgr1",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr1/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5716,8 +5728,8 @@
     {
       "audit_id": "aud-000041",
       "timestamp": "2026-05-15T09:16:00",
-      "actor_user_id": "u-0087",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor77/profile/card#me",
+      "actor_user_id": "u-0054",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore44/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5726,8 +5738,8 @@
     {
       "audit_id": "aud-000042",
       "timestamp": "2026-03-16T10:17:00",
-      "actor_user_id": "u-0048",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez38/profile/card#me",
+      "actor_user_id": "u-0062",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson52/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5737,8 +5749,8 @@
     {
       "audit_id": "aud-000043",
       "timestamp": "2026-04-17T11:18:00",
-      "actor_user_id": "u-0060",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson50/profile/card#me",
+      "actor_user_id": "u-0026",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis16/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5748,8 +5760,8 @@
     {
       "audit_id": "aud-000044",
       "timestamp": "2026-05-18T12:19:00",
-      "actor_user_id": "u-0057",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson47/profile/card#me",
+      "actor_user_id": "u-0042",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson32/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5759,8 +5771,8 @@
     {
       "audit_id": "aud-000045",
       "timestamp": "2026-03-19T13:20:00",
-      "actor_user_id": "u-0082",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson72/profile/card#me",
+      "actor_user_id": "u-0043",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rowanlewis33/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5769,8 +5781,8 @@
     {
       "audit_id": "aud-000046",
       "timestamp": "2026-04-20T14:21:00",
-      "actor_user_id": "u-mgr2",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr2/profile/card#me",
+      "actor_user_id": "u-0016",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/averyclark6/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5779,8 +5791,8 @@
     {
       "audit_id": "aud-000047",
       "timestamp": "2026-05-21T15:22:00",
-      "actor_user_id": "u-0086",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis76/profile/card#me",
+      "actor_user_id": "u-0050",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/alexsmith40/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5789,8 +5801,8 @@
     {
       "audit_id": "aud-000048",
       "timestamp": "2026-03-22T16:23:00",
-      "actor_user_id": "u-0049",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/emersonharris39/profile/card#me",
+      "actor_user_id": "u-0028",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez18/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5799,8 +5811,8 @@
     {
       "audit_id": "aud-000049",
       "timestamp": "2026-04-23T17:24:00",
-      "actor_user_id": "u-0060",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson50/profile/card#me",
+      "actor_user_id": "u-0062",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson52/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5809,8 +5821,8 @@
     {
       "audit_id": "aud-000050",
       "timestamp": "2026-05-24T08:25:00",
-      "actor_user_id": "u-0014",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore4/profile/card#me",
+      "actor_user_id": "u-0020",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson10/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5819,8 +5831,8 @@
     {
       "audit_id": "aud-000051",
       "timestamp": "2026-03-25T09:26:00",
-      "actor_user_id": "u-0030",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/alexsmith20/profile/card#me",
+      "actor_user_id": "u-0067",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor57/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5829,8 +5841,8 @@
     {
       "audit_id": "aud-000052",
       "timestamp": "2026-04-26T10:27:00",
-      "actor_user_id": "u-0028",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez18/profile/card#me",
+      "actor_user_id": "u-0021",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson11/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5840,8 +5852,8 @@
     {
       "audit_id": "aud-000053",
       "timestamp": "2026-05-27T11:28:00",
-      "actor_user_id": "u-0070",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/alexsmith60/profile/card#me",
+      "actor_user_id": "u-0076",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/averyclark66/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5851,8 +5863,8 @@
     {
       "audit_id": "aud-000054",
       "timestamp": "2026-03-01T12:29:00",
-      "actor_user_id": "u-0036",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/averyclark26/profile/card#me",
+      "actor_user_id": "u-0017",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson7/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5862,8 +5874,8 @@
     {
       "audit_id": "aud-000055",
       "timestamp": "2026-04-02T13:30:00",
-      "actor_user_id": "u-0037",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson27/profile/card#me",
+      "actor_user_id": "u-0018",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia8/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5872,8 +5884,8 @@
     {
       "audit_id": "aud-000056",
       "timestamp": "2026-05-03T14:31:00",
-      "actor_user_id": "u-0056",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/averyclark46/profile/card#me",
+      "actor_user_id": "u-0031",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel21/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5882,8 +5894,8 @@
     {
       "audit_id": "aud-000057",
       "timestamp": "2026-03-04T15:32:00",
-      "actor_user_id": "u-0059",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/cameronbrown49/profile/card#me",
+      "actor_user_id": "u-0069",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/emersonharris59/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5892,8 +5904,8 @@
     {
       "audit_id": "aud-000058",
       "timestamp": "2026-04-05T16:33:00",
-      "actor_user_id": "u-0082",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/reesethompson72/profile/card#me",
+      "actor_user_id": "u-0051",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel41/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5902,8 +5914,8 @@
     {
       "audit_id": "aud-000059",
       "timestamp": "2026-05-06T17:34:00",
-      "actor_user_id": "u-0035",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/quinnwhite25/profile/card#me",
+      "actor_user_id": "u-0085",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin75/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-005",
@@ -5912,8 +5924,8 @@
     {
       "audit_id": "aud-000060",
       "timestamp": "2026-03-07T08:35:00",
-      "actor_user_id": "u-0069",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/emersonharris59/profile/card#me",
+      "actor_user_id": "u-0081",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson71/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-006",
@@ -5922,8 +5934,8 @@
     {
       "audit_id": "aud-000061",
       "timestamp": "2026-04-08T09:36:00",
-      "actor_user_id": "u-0045",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin35/profile/card#me",
+      "actor_user_id": "u-0087",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor77/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-007",
@@ -5932,8 +5944,8 @@
     {
       "audit_id": "aud-000062",
       "timestamp": "2026-05-09T10:37:00",
-      "actor_user_id": "u-0073",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/caseywilson63/profile/card#me",
+      "actor_user_id": "u-0052",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen42/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "stub-008",
@@ -5943,8 +5955,8 @@
     {
       "audit_id": "aud-000063",
       "timestamp": "2026-03-10T11:38:00",
-      "actor_user_id": "u-0028",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez18/profile/card#me",
+      "actor_user_id": "u-0068",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez58/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -5954,8 +5966,8 @@
     {
       "audit_id": "aud-000064",
       "timestamp": "2026-04-11T12:39:00",
-      "actor_user_id": "u-0032",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen22/profile/card#me",
+      "actor_user_id": "u-0065",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin55/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-001",
@@ -5965,8 +5977,8 @@
     {
       "audit_id": "aud-000065",
       "timestamp": "2026-05-12T13:40:00",
-      "actor_user_id": "u-0044",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee34/profile/card#me",
+      "actor_user_id": "u-0080",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson70/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-002",
@@ -5975,8 +5987,8 @@
     {
       "audit_id": "aud-000066",
       "timestamp": "2026-03-13T14:41:00",
-      "actor_user_id": "u-0041",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson31/profile/card#me",
+      "actor_user_id": "u-mgr3",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr3/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-003",
@@ -5985,8 +5997,8 @@
     {
       "audit_id": "aud-000067",
       "timestamp": "2026-04-14T15:42:00",
-      "actor_user_id": "u-0061",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson51/profile/card#me",
+      "actor_user_id": "u-0028",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/finleymartinez18/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-004",
@@ -5995,8 +6007,8 @@
     {
       "audit_id": "aud-000068",
       "timestamp": "2026-05-15T16:43:00",
-      "actor_user_id": "u-0078",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia68/profile/card#me",
+      "actor_user_id": "u-0087",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor77/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-005",
@@ -6005,8 +6017,8 @@
     {
       "audit_id": "aud-000069",
       "timestamp": "2026-03-16T17:44:00",
-      "actor_user_id": "u-0011",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel1/profile/card#me",
+      "actor_user_id": "u-0044",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/sagelee34/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-006",
@@ -6015,8 +6027,8 @@
     {
       "audit_id": "aud-000070",
       "timestamp": "2026-04-17T08:45:00",
-      "actor_user_id": "u-0066",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis56/profile/card#me",
+      "actor_user_id": "u-0061",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson51/profile/card#me",
       "action": "course.view",
       "target_type": "course",
       "target_id": "stub-007",
@@ -6025,8 +6037,8 @@
     {
       "audit_id": "aud-000071",
       "timestamp": "2026-05-18T09:46:00",
-      "actor_user_id": "u-0074",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/rileymoore64/profile/card#me",
+      "actor_user_id": "u-0047",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor37/profile/card#me",
       "action": "course.complete",
       "target_type": "course",
       "target_id": "stub-008",
@@ -6035,8 +6047,8 @@
     {
       "audit_id": "aud-000072",
       "timestamp": "2026-03-19T10:47:00",
-      "actor_user_id": "u-0051",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel41/profile/card#me",
+      "actor_user_id": "u-admin",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/admin/profile/card#me",
       "action": "policy.create",
       "target_type": "course",
       "target_id": "golf-explained",
@@ -6046,8 +6058,8 @@
     {
       "audit_id": "aud-000073",
       "timestamp": "2026-04-20T11:48:00",
-      "actor_user_id": "u-0027",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/charlietaylor17/profile/card#me",
+      "actor_user_id": "u-0058",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/drewgarcia48/profile/card#me",
       "action": "policy.update",
       "target_type": "course",
       "target_id": "stub-001",
@@ -6057,8 +6069,8 @@
     {
       "audit_id": "aud-000074",
       "timestamp": "2026-05-21T12:49:00",
-      "actor_user_id": "u-0086",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/parkerdavis76/profile/card#me",
+      "actor_user_id": "u-0081",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/skylerjackson71/profile/card#me",
       "action": "policy.delete",
       "target_type": "course",
       "target_id": "stub-002",
@@ -6068,8 +6080,8 @@
     {
       "audit_id": "aud-000075",
       "timestamp": "2026-03-22T13:50:00",
-      "actor_user_id": "u-0031",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel21/profile/card#me",
+      "actor_user_id": "u-0051",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel41/profile/card#me",
       "action": "credential.issue",
       "target_type": "course",
       "target_id": "stub-003",
@@ -6078,8 +6090,8 @@
     {
       "audit_id": "aud-000076",
       "timestamp": "2026-04-23T14:51:00",
-      "actor_user_id": "u-0050",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/alexsmith40/profile/card#me",
+      "actor_user_id": "u-0052",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen42/profile/card#me",
       "action": "credential.revoke",
       "target_type": "course",
       "target_id": "stub-004",
@@ -6088,8 +6100,8 @@
     {
       "audit_id": "aud-000077",
       "timestamp": "2026-05-24T15:52:00",
-      "actor_user_id": "u-0012",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/samnguyen2/profile/card#me",
+      "actor_user_id": "u-0031",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jordanpatel21/profile/card#me",
       "action": "audience.assign",
       "target_type": "course",
       "target_id": "stub-005",
@@ -6098,8 +6110,8 @@
     {
       "audit_id": "aud-000078",
       "timestamp": "2026-03-25T16:53:00",
-      "actor_user_id": "u-0045",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/haydenmartin35/profile/card#me",
+      "actor_user_id": "u-0017",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/morganjohnson7/profile/card#me",
       "action": "coverage.query",
       "target_type": "course",
       "target_id": "stub-006",
@@ -6108,8 +6120,8 @@
     {
       "audit_id": "aud-000079",
       "timestamp": "2026-04-26T17:54:00",
-      "actor_user_id": "u-mgr5",
-      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/mgr5/profile/card#me",
+      "actor_user_id": "u-0040",
+      "actor_web_id": "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/tayloranderson30/profile/card#me",
       "action": "admin.login",
       "target_type": "course",
       "target_id": "stub-007",

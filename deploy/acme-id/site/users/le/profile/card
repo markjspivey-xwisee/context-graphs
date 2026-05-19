@@ -13,7 +13,7 @@
     foaf:maker  <#me> ;
     foaf:primaryTopic  <#me> ;
     dct:created  "2026-05-19T00:00:00Z"^^xsd:dateTime ;
-    dct:description  "Demo WebID profile for Ngozi Kowalski — Foxxi Content Intelligence learning engineer persona (Acme Training Co tenant)." .
+    dct:description  "Demo WebID profile for Ngozi Kowalski — Foxxi Content Intelligence learning engineer persona (Acme Training Co tenant). Technical R&D role: instructional-design + data-science + edtech-standards engineering." .
 
 <#me>
     a foaf:Person, schema:Person ;
@@ -23,17 +23,35 @@
     foaf:familyName "Kowalski" ;
     foaf:title  "Learning Engineer" ;
     schema:jobTitle "Learning Engineer" ;
+    schema:description "Technical learning engineer — designs A/B experiments, calibrates mastery models (BKT / IRT), runs framework-gap analyses, and instruments cohort learning curves. Works at the layer where instructional design meets the ADL Total Learning Architecture stack and the IEEE P2247 Adaptive Instructional Systems family." ;
     schema:worksFor [
       a schema:Organization ;
       schema:name "Acme Training Co (demo tenant)" ;
       schema:identifier "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io"
     ] ;
-    schema:department "People Ops" ;
+    schema:department "Learning R&D" ;
+    schema:knowsAbout
+      "IEEE P2247 Adaptive Instructional Systems" ,
+      "IEEE 1484.12.1 LOM (Learning Object Metadata)" ,
+      "IEEE 1484.20.1 RDCEO" ,
+      "ADL Total Learning Architecture (TLA)" ,
+      "xAPI 1.0.3" ,
+      "cmi5" ,
+      "SCORM 2004 3rd Edition" ,
+      "1EdTech CASE 1.0" ,
+      "1EdTech CaSS" ,
+      "1EdTech CLR 2.0" ,
+      "1EdTech Open Badges 3.0" ,
+      "W3C Verifiable Credentials 2.0" ,
+      "Bayesian Knowledge Tracing" ,
+      "Item Response Theory" ,
+      "Cognitive Load Theory" ,
+      "Spaced repetition / SM-2" ;
     foaf:mbox  <mailto:le@interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io> ;
     pim:storage  <https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/> ;
     solid:account  <https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/le/> ;
     solid:oidcIssuer  <https://interego-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io/> ;
-    fxd:audienceTag  "learning-engineering", "all-employees", "managers" ;
+    fxd:audienceTag  "learning-engineering", "engineering", "all-employees", "managers" ;
     fxd:userId  "u-le" ;
     fxd:walletAddress  "0xBffbE299d15487f55AD5051FB32a26C6Da5Dd8Ec" ;
     sec:verificationMethod [
