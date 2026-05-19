@@ -36,7 +36,7 @@ import type { IRI } from '../../../src/index.js';
 export interface FoxxiCourseContent {
   /** Course IRI (federation_iri_base#package — matches publisher.ts). */
   readonly courseIri: IRI;
-  /** Display title (e.g., "Golf Explained: Golf Rules"). */
+  /** Display title (e.g., "Golf Explained"). */
   readonly title: string;
   /** Authoritative source DID. */
   readonly authoritativeSource: IRI;

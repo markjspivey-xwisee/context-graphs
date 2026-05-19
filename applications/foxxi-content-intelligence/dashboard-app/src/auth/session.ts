@@ -15,19 +15,27 @@
  */
 
 import { SAMPLE_ADMIN_PAYLOAD } from '../sample/data.js';
+import { mintSessionToken } from '../../../src/auth.js';
 
 export type SessionRole = 'learner' | 'admin';
 
 export interface FoxxiSession {
   role: SessionRole;
   webId: string;
+  /** Stable userId (e.g. u-joshua) — used to derive the per-user demo wallet. */
+  userId: string;
   name: string;
   audienceTags: string[];
   tenantPodUrl: string;
+  /** Signed bearer token presented to the bridge on every authenticated call. */
+  bearerToken: string;
+  /** ISO timestamp the bearer token expires — UI refresh trigger. */
+  bearerExpiresAt: string;
 }
 
 export interface SessionOption {
   webId: string;
+  userId: string;
   name: string;
   jobTitle: string;
   department: string;
@@ -53,10 +61,17 @@ export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+// The admin's userId is u-admin (Jordan Doe in the demo sample —
+// admin_payload.users entry matching meta.admin_user_web_id). The token
+// derivation MUST use a userId that's present in the published directory
+// so the bridge's address-map lookup resolves.
+const ADMIN_USER_ID = 'u-admin';
+
 export function adminSessionOption(): SessionOption {
   const m = SAMPLE_ADMIN_PAYLOAD.meta;
   return {
     webId: m.admin_user_web_id,
+    userId: ADMIN_USER_ID,
     name: m.admin_user_name,
     jobTitle: m.admin_user_role,
     department: 'L&D / Administration',
@@ -84,6 +99,7 @@ export function learnerSessionOptions(): SessionOption[] {
     const u = SAMPLE_ADMIN_PAYLOAD.users.find(x => x.user_id === id);
     if (u) picks.push({
       webId: u.web_id,
+      userId: u.user_id,
       name: u.name,
       jobTitle: u.job_title,
       department: u.department,
@@ -96,6 +112,7 @@ export function learnerSessionOptions(): SessionOption[] {
     if (picks.length >= 12) break;
     picks.push({
       webId: u.web_id,
+      userId: u.user_id,
       name: u.name,
       jobTitle: u.job_title,
       department: u.department,
@@ -105,12 +122,25 @@ export function learnerSessionOptions(): SessionOption[] {
   return picks;
 }
 
-export function sessionFromOption(opt: SessionOption, role: SessionRole, tenantPodUrl: string): FoxxiSession {
+export async function sessionFromOption(opt: SessionOption, role: SessionRole, tenantPodUrl: string): Promise<FoxxiSession> {
+  // Mint a real ECDSA-signed bearer token for the picked identity. The
+  // bridge verifies the signature recovers an address present in the
+  // published tenant-directory and uses the directory's wallet_address →
+  // web_id mapping to set caller_did.
+  const ttlMs = 8 * 60 * 60 * 1000; // 8h
+  const bearerToken = await mintSessionToken({
+    userId: opt.userId,
+    webId: opt.webId,
+    ttlMs,
+  });
   return {
     role,
     webId: opt.webId,
+    userId: opt.userId,
     name: opt.name,
     audienceTags: opt.audienceTags,
     tenantPodUrl,
+    bearerToken,
+    bearerExpiresAt: new Date(Date.now() + ttlMs).toISOString(),
   };
 }

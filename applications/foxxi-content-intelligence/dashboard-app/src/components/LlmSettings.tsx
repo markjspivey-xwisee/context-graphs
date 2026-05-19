@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, Button, Pill } from './common.js';
 import { type LlmMode, type LlmSettings } from '../auth/llm-settings.js';
 
-const MODE_INFO: Record<LlmMode, { label: string; subtitle: string; pillTone: 'accent' | 'good' | 'warn' }> = {
+const MODE_INFO: Record<LlmMode, { label: string; subtitle: string; pillTone: 'accent' | 'good' }> = {
   'bridge-env': {
     label: 'Bridge-owned key',
     subtitle: 'The bridge has its own FOXXI_LLM_API_KEY env var. Tenant-owned bridge pays for inference. Dashboard sends NO key per request.',
@@ -12,11 +12,6 @@ const MODE_INFO: Record<LlmMode, { label: string; subtitle: string; pillTone: 'a
     label: 'BYOK — your Anthropic key',
     subtitle: 'Paste your Anthropic key once; stored in localStorage and sent per-request as llm_api_key. Bridge uses it transiently for the one LLM call (no persist, no log). Your subscription pays.',
     pillTone: 'good',
-  },
-  'mcp-client': {
-    label: 'MCP-client-as-LLM',
-    subtitle: "Dashboard calls foxxi.retrieve_course_context (no LLM at the bridge). You copy the cited transcripts into YOUR agent (Claude.ai / Claude Desktop / Claude Code / Cursor) and have it synthesise — your existing subscription pays. No API key anywhere.",
-    pillTone: 'warn',
   },
 };
 
@@ -108,21 +103,6 @@ export function LlmSettingsDialog(props: {
                 bridge uses it transiently for the one outbound Anthropic call and doesn't persist or log it.
                 Clear by switching to a different mode and saving.
               </div>
-            </div>
-          )}
-
-          {mode === 'mcp-client' && (
-            <div style={{
-              marginBottom: 16, padding: 10,
-              background: 'rgba(255,177,85,0.08)',
-              border: '1px solid rgba(255,177,85,0.3)',
-              borderRadius: 6, fontSize: 12, lineHeight: 1.55,
-            }}>
-              In this mode the dashboard calls <code>foxxi.retrieve_course_context</code> instead of the LLM-augmented
-              tool. You'll get the retrieval scaffold + verbatim cited transcripts. To synthesise an answer,
-              paste the question + cited transcripts into your existing agent session (Claude.ai / Claude Desktop /
-              Claude Code / Cursor). Your existing subscription pays. The Interego trace records
-              <code> keySource: 'mcp-client'</code> for honest provenance.
             </div>
           )}
 

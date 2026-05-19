@@ -1,0 +1,10 @@
+{
+  "name": "@interego/foxxi-content-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Foxxi content-intelligence vertical — shared deps for src/ modules consumed by both the bridge and the dashboard.",
+  "dependencies": {
+    "ethers": "^6.16.0"
+  }
+}

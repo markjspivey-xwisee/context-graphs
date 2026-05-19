@@ -1,0 +1,43 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+@prefix wallet: <https://vocab.foxximediums.com/wallet#> .
+@prefix cg:     <https://markjspivey-xwisee.github.io/interego/ns/cg#> .
+
+#################################################################
+#  Foxxi learner-wallet pattern (1EdTech CLR 2.0 compatible)    #
+#                                                                #
+#  Vertical-scoped: composes the substrate's L1 cg: primitives  #
+#  + the foxxi vertical's per-credential descriptors into a     #
+#  1EdTech Comprehensive Learner Record envelope. Aggregator   #
+#  pattern; no new credential or crypto primitives.              #
+#################################################################
+
+<https://vocab.foxximediums.com/wallet> a owl:Ontology ;
+    dcterms:title "Foxxi learner-wallet patterns" ;
+    dcterms:issued "2026-05-17"^^xsd:date ;
+    owl:versionInfo "0.1.0" .
+
+wallet:WalletEnvelope a owl:Class ;
+    rdfs:subClassOf cg:ContextDescriptor ;
+    rdfs:label "Learner Wallet Envelope" ;
+    rdfs:comment "Aggregates the learner's W3C VCs / OB3 badges / fxa:CompetencyAssertions into a 1EdTech CLR 2.0-shaped document. Serialized as JSON-LD with @context referencing the CLR-2.0 + OB3 specs. The envelope itself is a descriptor; the wrapped credentials remain independently verifiable." .
+
+wallet:holdsCredential a owl:ObjectProperty ;
+    rdfs:domain wallet:WalletEnvelope ;
+    rdfs:label "holds credential" ;
+    rdfs:comment "An IRI in the envelope's holder pod that resolves to a signed W3C VC (vc-jwt encoding or DataIntegrity-signed JSON). The verifier walks each holdsCredential edge, fetches + verifies the wrapped VC." .
+
+wallet:holderDid a owl:DatatypeProperty ;
+    rdfs:domain wallet:WalletEnvelope ;
+    rdfs:range xsd:anyURI ;
+    rdfs:label "holder DID" ;
+    rdfs:comment "The learner's W3C DID — same identity used as credentialSubject.id on every held credential." .
+
+wallet:exportedAt a owl:DatatypeProperty ;
+    rdfs:domain wallet:WalletEnvelope ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "exported at" .

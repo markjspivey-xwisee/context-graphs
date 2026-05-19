@@ -8,6 +8,765 @@ describes what the system IS, this file describes what changed and when.
 
 ---
 
+## 2026-05-18 — Foxxi: thirteen-item product expansion (verifier portal, DPIA, SCORM Cloud, multi-tenant, manager view, marketplace, observability, …)
+
+Single pass shipping every item from the "what else would be valuable
+for this vertical" brainstorm — composed entirely from existing
+substrate primitives. **13 new bridge affordances** + **observability
+endpoints** (`/metrics` Prometheus, `/metrics.json` operator dashboard)
++ **2 new microsite pages** (Verify, DPIA) on the existing microsite
+container. No L1/L2/L3 ontology touches; no substrate code touched.
+
+### New bridge affordances (13)
+
+| Affordance | Purpose |
+|---|---|
+| `foxxi.bootstrap_tenant` | Wizard backend — bootstrap a fresh tenant on a Solid pod, return env-var config for the operator |
+| `foxxi.scorm_cloud_pull` | Pull a SCORM Cloud course catalog into the tenant via Application API v2 |
+| `foxxi.scorm_cloud_register` | Create a SCORM Cloud registration whose ID becomes the cmi5 sessionId |
+| `foxxi.upload_scorm_package` | Queue a SCORM zip — publishes `fxs:PackageUpload` (Hypothetical), separate parser-runner promotes via supersedes |
+| `foxxi.derive_adaptive_policy` | Cohort intelligence → `fxa:AdaptiveSequencingPolicy` (moveOn gates for downstream learners) |
+| `foxxi.schedule_spaced_repetition` | Ebbinghaus 1/7/30-day reminders + foundation-concept early reminders from the prereq graph |
+| `foxxi.discover_framework_registry` | Federated multi-pod competency-framework discovery — no central registry |
+| `foxxi.register_tutor_agent` | Tutor agent (human or AI) registers profile with specialties + contact endpoint |
+| `foxxi.find_tutor_for_competency` | Rank-search tutors by competency match + independent countersigned-assertion count |
+| `foxxi.generate_dpia` | GDPR Art. 35 + EU AI Act §13 Data Protection Impact Assessment from the audit chain |
+| `foxxi.manager_team_view` | Manager-role-only — direct reports' competency state aggregated into a team skill map |
+| `foxxi.build_did_web_document` | Generate publishable `did:web` document for a tenant domain |
+| `foxxi.backup_tenant_pod` | One-shot dump of every descriptor + reachable graph on the pod |
+
+**Bridge total now: 45 affordances** (was 32 before this commit).
+
+### New microsite surfaces (existing container app)
+
+- **Verify** (`/verify`) — recruiter / compliance officer / partner-org consumer of credentials. Pastes a learner WebID, picks competency + level, chooses **Review full wallet** (composes `foxxi.export_clr`) or **Request ZK proof only** (composes `foxxi.issue_bbs_credential` + `foxxi.derive_bbs_presentation` + `foxxi.verify_bbs_presentation`). Shows exactly what the verifier learned + what stayed cryptographically hidden.
+- **DPIA** (`/dpia`) — compliance-officer dashboard. Generates a Data Protection Impact Assessment per learner: summary stats grid, framework-controls roll-up, GDPR data-category breakdown (encrypted vs plaintext), risk-rated findings with suggested mitigations.
+
+### Observability
+
+- **`GET /metrics`** — Prometheus text-format exposition: per-handler `calls_total` / `errors_total` counters, per-handler `latency_ms_p95` gauge, plus global counters for `llm_cost_cents_total` (approximate, via public Anthropic pricing), `rate_limit_hits_total`, `auth_failures_total`, `bbs_proofs_derived_total`, `vcs_issued_total`.
+- **`GET /metrics.json`** — same data as JSON for operator dashboards; handlers sorted by call volume, p50 + p95 latencies.
+- Every handler call is instrumented via a transparent wrapper around the `handlers` map — no per-handler edits.
+
+### NEW files
+
+| File | What |
+|---|---|
+| [`applications/foxxi-content-intelligence/src/observability.ts`](applications/foxxi-content-intelligence/src/observability.ts) | Per-handler counters + Prometheus + JSON renderers; bounded-cardinality (no PII in labels) |
+| [`applications/foxxi-content-intelligence/src/scorm-cloud.ts`](applications/foxxi-content-intelligence/src/scorm-cloud.ts) | SCORM Cloud Application API v2 connector (list courses, create registrations, get launch links) |
+| [`applications/foxxi-content-intelligence/src/composed-extensions.ts`](applications/foxxi-content-intelligence/src/composed-extensions.ts) | All 13 composition functions — tenant bootstrap, adaptive policy, spaced repetition, framework registry, tutor marketplace, DPIA, manager view, SCORM upload, did:web document, pod backup |
+| [`applications/foxxi-content-intelligence/microsite-app/src/pages/Verify.tsx`](applications/foxxi-content-intelligence/microsite-app/src/pages/Verify.tsx) | Verifier portal page |
+| [`applications/foxxi-content-intelligence/microsite-app/src/pages/Dpia.tsx`](applications/foxxi-content-intelligence/microsite-app/src/pages/Dpia.tsx) | Compliance-officer DPIA page |
+
+### New env vars on the bridge
+
+- `FOXXI_SCORM_CLOUD_APP_ID` — optional; enables `foxxi.scorm_cloud_*`. SCORM Cloud Application ID from cloud.scorm.com.
+- `FOXXI_SCORM_CLOUD_SECRET_KEY` — paired with the above.
+- `FOXXI_AGENTIC_RATE_LIMIT_PER_IP` — optional override; defaults to 10 calls per 5min per IP for the agentic ask handler.
+
+### Layering audit (unchanged principles)
+
+- Zero L1 (`cg:` / `cgh:` / `pgsl:` / `ie:` / `align:`) additions
+- Zero L2/L3 ontology changes in `docs/ns/`
+- Every new vocab term in `vocab.foxximediums.com/*` (vertical-scoped: `fxa:AdaptiveSequencingPolicy`, `fxs:PackageUpload`, `fxs:TenantMetadata`, `fxa:TutorAgentProfile` — referenced by the conformsTo strings in the new handlers; declarations follow in the next commit)
+- All compositions use existing `publish` / `discover` / `fetchGraphContent` / `verifyDataIntegrityProof` / BBS+ / cmi5 primitives. No new substrate code.
+
+## 2026-05-18 — Foxxi: try-it-now microsite live on Azure
+
+Front-door microsite that gets a brand-new visitor with zero Interego /
+Foxxi context from "what is this?" to "I just exercised every layer of
+the substrate" in three minutes. Lives at its own URL, separate Container
+App, separate Vite + React build, calls the same production bridge as
+the dashboard.
+
+**Live:** https://interego-foxxi-microsite.livelysky-8b81abb0.eastus.azurecontainerapps.io
+
+### What it is
+
+A 3-page Vite + React SPA: landing page (hero + 4 value props + standards
+strip + try-now CTAs), a try-it-now flow with role tabs (learner /
+admin), and an architectural about page. The try-now flow runs **10
+real bridge calls** across the two role tracks — 5 learner steps
+(discover assignments → ask Golf Explained a question → export your CLR
+wallet → receive a BBS+ credential → derive selective-disclosure proof
++ verify) and 5 admin steps (privacy-preserving coverage query → issue
+OB3 credential → compose audit trail → declare cross-tenant alignment
+→ export CASE 1.0 framework).
+
+Each demo card has the same shape: short body explaining what's about
+to happen, the action button, the JSON-RPC call trace (collapsible —
+shows the request + raw bridge response), a result-summary chip, and a
+"what just happened" explainer that decodes the response in plain
+English. No prior Interego knowledge required.
+
+### Auth without signup
+
+Visitor never registers. The microsite auto-mints bearer tokens for the
+two demo identities (Joshua / Jordan) using the same `ethers`-based
+ECDSA `mintSessionToken` that the dashboard uses — shared via the
+foxxi-vertical's `src/auth.ts`. The tokens carry 30-minute TTLs and
+live only in browser memory; closing the tab evaporates them. The
+bridge verifies them against the published tenant directory's
+`wallet_address` map (E2EE-decrypted on the bridge side), so the same
+real AuthN + AuthZ pipeline that protects the dashboard protects every
+demo card.
+
+### NEW files (all under [applications/foxxi-content-intelligence/microsite-app/](applications/foxxi-content-intelligence/microsite-app/))
+
+| File | Purpose |
+|---|---|
+| `package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/main.tsx` | Vite + React scaffold. Same theme tokens (cream/navy/Garamond) as the dashboard, declared inline in `index.html`. |
+| `src/bridge-client.ts` | Thin client over `fetch` + JSON-RPC. Mints session tokens via shared `auth.ts`; per-call returns a structured `BridgeCall` with the args / response / authed status / caller WebID / duration. |
+| `src/App.tsx` | History-API routing (no React Router); top nav + footer. |
+| `src/pages/Landing.tsx` | Hero (large italic Garamond display), 4-card value prop grid, standards monospace strip, dual CTA. |
+| `src/pages/TryNow.tsx` | Role-tab switcher (learner / admin); identity card; renders 5 demo cards from `demos/learner.tsx` or `demos/admin.tsx`. |
+| `src/pages/About.tsx` | Architectural explanation: three-layer separation, standards stack, what the demo actually does, where to go next. |
+| `src/components/DemoCard.tsx` | The card primitive — numbered step header, body explainer, action button with `running…` blinking dots, collapsible call-trace renderer (raw JSON-RPC), result-summary chip, "what just happened" explainer pane. |
+| `src/demos/learner.tsx` | 5 learner demo steps. Step 4 cross-tracks: bridge call is made as Jordan (only admins can issue) but the result lands in Joshua's wallet + threads through to step 5. Step 5 reuses the issued BBS+ credential to derive + verify a selective-disclosure presentation revealing 3 of 14 claims. |
+| `src/demos/admin.tsx` | 5 admin demo steps. Each exercises a different layer: aggregate privacy (coverage_query), credential issuance (issue_completion_credential), compliance audit (audit_compliance_trail), cross-tenant interop (declare_framework_alignment), framework export (export_case_framework). |
+
+### NEW deployment artifact
+
+- [`deploy/Dockerfile.foxxi-microsite`](deploy/Dockerfile.foxxi-microsite) — same two-stage pattern as the dashboard. Vite build with `VITE_FOXXI_BRIDGE_URL` baked in; nginx:1.27-alpine serves the static bundle on port 8080 with SPA-style `/index.html` fallback for the `/try` + `/about` routes. Copies the foxxi-vertical's `src/` + `package.json` first so the microsite can `import` the shared `auth.ts` (resolves `ethers` from the vertical's node_modules).
+
+### Bridge change: multi-origin CORS
+
+[`applications/foxxi-content-intelligence/bridge/server.ts`](applications/foxxi-content-intelligence/bridge/server.ts):
+the CORS middleware now treats `FOXXI_DASHBOARD_ORIGIN` as a
+comma-separated allow-list. The middleware echoes the request's
+`Origin` header back as `Access-Control-Allow-Origin` only when the
+origin is in the allow-list (per CORS spec, the header can hold only
+one value). Bridge env updated to
+`FOXXI_DASHBOARD_ORIGIN=https://interego-foxxi-dashboard...,https://interego-foxxi-microsite...`.
+
+### Live verification (just ran)
+
+```
+=== CORS preflight from dashboard origin → echoes dashboard ✓
+=== CORS preflight from microsite origin → echoes microsite ✓
+=== CORS preflight from attacker.example.com → no allow-origin header ✓
+=== microsite-origin browser call (POST /mcp, bearer Joshua):
+    HTTP 200 · CORS echo: microsite · result: Joshua Liu · 10 enrollments · allow/learner
+```
+
+### Container app summary
+
+- Microsite: `interego-foxxi-microsite` rev `--0000001` (sha256:db6be493…), 0.25 CPU / 0.5 GiB / external ingress / port 8080
+- Bridge: `interego-foxxi-bridge` rolled to rev `--0000010` (sha256:931076ca…), env updated with the 2-origin allow-list
+- Existing apps (`interego-foxxi-dashboard`, `interego-css`, `interego-relay`, etc.) unchanged
+
+### Why a separate surface from the dashboard
+
+The dashboard is the production-grade tool for visitors who already know
+what the substrate is and want to use it. The microsite is the
+education / try-it surface — narrative, scripted, explains everything.
+Splitting them lets each be honest about its job: the dashboard is
+dense (12 admin tabs, full slide navigator, full chat) and the
+microsite is sparse (3 pages, 10 buttons, lots of prose).
+
+## 2026-05-18 — Foxxi: 10 "crazier" TLA demos composed from the standards stack
+
+After closing every conformance gap, this pass wires the composed
+demos that exercise the full ADL TLA / IEEE LERS / 1EdTech surface
+in ways that are difficult-to-impossible in conventional ed-tech.
+11 new bridge affordances, all composed from existing substrate
+primitives + the eight standards modules from the previous commit.
+No new substrate code; no new L1/L2/L3 ontology terms; new vertical-
+side vocab IRIs only.
+
+**Bridge: 32 affordances total** at `interego-foxxi-bridge--0000007`
+(sha256:e5aba8de…).
+
+### The 10 demos (all live + smoke-tested)
+
+| # | Demo | Composition | Live verdict |
+|---|---|---|---|
+| 1 | **BBS+ selective-disclosure interview** | `issue_bbs_credential` + `derive_bbs_presentation` + `verify_bbs_presentation` | Issued 80-byte BBS+ sig over 14 claims, derived 624-byte ZK proof revealing 3 of 14; verifier accepted + learned ONLY the 3 disclosed claims |
+| 2 | **Cross-tenant CASE alignment** | `declare_framework_alignment` + `resolve_aligned_competency` | Foxxi `handicap` ↔ PartnerCo `ac-distribution-l2` resolved as `satisfied via 1 alignment hop` |
+| 3 | **AI agent as learner** | `register_self_sovereign_learner` (with `is_agent=true`) | Same affordance surface as humans — agent identity registered with own DID + pod |
+| 4 | **Competency-gated AU launch** | `launch_au_with_prereq_check` (composes ABAC + VC verify + cmi5 launch) | Walks learner pod, verifies Data Integrity Proof on credentials, applies achievement + proficiency + issuer + expiry filters before emitting cmi5 `launched` |
+| 5 | **Federated TLA Experience Index** | `query_experience_index` (from prior commit) | Parallel queries across N LRSs, dedup by Statement ID, per-LRS error isolation; demo'd with 2 fake LRS endpoints both failing cleanly |
+| 6 | **Multi-issuer mosaic wallet** | `export_clr` (from prior commit) over a pod with credentials from multiple issuers | CLR envelope aggregates every fxa:CourseCompletionCredential + fxa:CompetencyAssertion regardless of issuer DID; preserves each entry's independent proof |
+| 7a | **AI mentor competency assessor** | `ai_assess_competency` | Mentor's `did:key` signs a CompetencyAssertion VC with modalStatus: Hypothetical |
+| 7b | **Human countersign → OB3** | `countersign_assessment` | Admin's `did:key` countersigns, type elevates to `[VerifiableCredential, OpenBadgeCredential, CompetencyAssertion]`, original mentor signature preserved |
+| 8 | **Cohort intelligence via concept overlap** | `cohort_concept_intelligence` (gathers fxa:LearnerQuestionEvent across pods, computes overlap) | Walks N pods in parallel, summarises concept frequency, flags reinforcement candidates (>= 50% cohort coverage) |
+| 9 | **Self-sovereign learner subscription** | `register_self_sovereign_learner` | Mints fxa:SelfSovereignLearner descriptor — learner takes credentials with them, no employer mediation |
+| 10 | **EU AI Act audit-trail composer** | `audit_compliance_trail` (single-query descriptor chain walker) | Walks learner pod in time window, returns 13 descriptors classified by step kind (cmi5/OB3/CompetencyAssertion/CASE/AccessDecision), 10 unique framework citations |
+
+### NEW vertical files (composition modules — no new substrate code)
+
+- [`applications/foxxi-content-intelligence/src/bbs-credentials.ts`](applications/foxxi-content-intelligence/src/bbs-credentials.ts) — Demo #1. `issueBbsCompletionCredential()` builds an OB3-shaped VC + signs it with the tenant's deterministic BBS+ key over a flattened message list. `deriveCompletionPresentation()` (holder-side) takes the issued credential + a list of claim paths to reveal, derives a ZK BBS+ proof. `verifyCompletionPresentation()` (verifier-side) returns whether the issuer signed a credential containing the disclosed claims at the disclosed positions. The full credential never leaves the holder; only the proof + revealed claims reach the verifier.
+- [`applications/foxxi-content-intelligence/src/composed-flows.ts`](applications/foxxi-content-intelligence/src/composed-flows.ts) — Demos #4, #7a, #7b, #10. `launchAuWithPrereqCheck()` composes `discover` + `verifyDataIntegrityProof` + `buildPassedSessionTrace`. `aiAssessCompetency()` mints a Hypothetical CompetencyAssertion VC with a mentor's `did:key`. `countersignAssessment()` elevates to a dual-issuer OB3 credential. `composeAuditTrail()` walks the pod for descriptors with Provenance facets or `dct:conformsTo` tags + returns them as an ordered chain.
+- [`applications/foxxi-content-intelligence/src/framework-alignment.ts`](applications/foxxi-content-intelligence/src/framework-alignment.ts) — Demo #2. `serializeAlignment()` produces a CASE 1.0 CFAssociation-shaped descriptor binding one tenant's competency IRI to another's. `resolveAlignment()` BFSes over a list of alignments (`isAlignedTo` / `isEquivalentTo` are bidirectional; others are directed) to answer "does this held competency satisfy that required competency?"
+- [`applications/foxxi-content-intelligence/src/cohort-intel.ts`](applications/foxxi-content-intelligence/src/cohort-intel.ts) — Demo #8. `gatherCohortQA()` walks N learner pods + pulls every fxa:LearnerQuestionEvent in the time window. `summarizeCohort()` computes per-concept stats (learner count, question count, cohort coverage %) + flags reinforcement candidates. Same intuition as the substrate's PGSL `meet` operator at the atom level; simpler set-intersection at the descriptor level for this affordance.
+
+### NEW bridge affordances (11)
+
+- `foxxi.issue_bbs_credential` (admin) — issue a BBS+-signed OB3 credential
+- `foxxi.derive_bbs_presentation` — holder derives a ZK selective-disclosure proof
+- `foxxi.verify_bbs_presentation` — verifier checks a ZK proof against revealed claims
+- `foxxi.launch_au_with_prereq_check` — gated cmi5 launch
+- `foxxi.ai_assess_competency` — AI mentor signs Hypothetical CompetencyAssertion
+- `foxxi.countersign_assessment` (admin) — human countersigns → OB3
+- `foxxi.audit_compliance_trail` (admin) — single-query descriptor chain
+- `foxxi.declare_framework_alignment` (admin) — CASE-shaped cross-framework binding
+- `foxxi.resolve_aligned_competency` — BFS over alignment graph
+- `foxxi.cohort_concept_intelligence` (admin) — multi-pod concept-overlap analytics
+- `foxxi.register_self_sovereign_learner` — learner-controlled DID + pod registration (humans + AI agents share the same path)
+
+### Layering audit
+
+Every demo composes existing primitives:
+- BBS+ flow → `@digitalbazaar/bbs-signatures` (already added for the cryptosuite work)
+- Gated launch → existing `discover` + `verifyDataIntegrityProof` + `buildPassedSessionTrace`
+- AI mentor / countersign → existing `importDidKeyEd25519` + `issueDataIntegrityProof`
+- Audit trail → existing `discover` filtered on `dct:conformsTo` + `facetTypes.includes('Provenance')`
+- Alignment → pure functions over the alignment payload + BFS
+- Cohort intelligence → existing `discover` + `fetchGraphContent` + plain set math
+
+No L1 (`cg:` / `cgh:` / `pgsl:` / `ie:` / `align:`) terms invented. No L2/L3 ontologies in `docs/ns/` touched. No mcp-server / deploy/mcp-relay touched. All new vocab terms in foxxi-side namespaces (`fxa:` / `fxs:` / `fxk:` / `rcd:` / `wallet:` — all under `vocab.foxximediums.com/*`).
+
+### Live URL unchanged
+
+`https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io` — revision `--0000007`, sha256:e5aba8de…, 32 affordances total.
+
+---
+
+## 2026-05-17 — Foxxi standards-completion: closes every partial + not-implemented row
+
+Finishes the conformance work the prior commit laid out. Every "Partial"
+or "Not implemented" row in [CONFORMANCE.md](applications/foxxi-content-intelligence/CONFORMANCE.md)
+that was achievable as a vertical-side or substrate-side composition is
+now wired with real code, real cryptography, and local round-trip
+verification. The only remaining "Out of scope" status is SCORM CMI
+runtime — re-documented as an explicit architectural boundary (LMS
+runtime layer, not the content-ingestion vertical).
+
+### Local end-to-end smoke (all new modules, real crypto)
+
+```
+=== 1. eddsa-rdfc-2022 ===
+  cryptosuite: eddsa-rdfc-2022 · verified: true
+
+=== 2. BBS+ ===
+  signature: 80 b · full verify: true
+  selective proof: 336 b · verifies revealing [0,1]: true
+
+=== 3. DIDs ===
+  did:key: Ed25519VerificationKey2020
+  did:web URL (example.com:user:bob): https://example.com/user/bob/did.json
+  did:web URL (example.com): https://example.com/.well-known/did.json
+  did:ethr: eip155:1:0x7358d650b0864e1dF42ee86955e26F5102878b06
+
+=== 4. cmi5 ===
+  trace: launched → initialized → completed → passed → terminated → satisfied
+  moveOn: completed=true AND passed=true
+```
+
+### Standards status (after this pass)
+
+| Standard | Before | After |
+|---|---|---|
+| SCORM 1.2 / 2004 sequencing | partial (vocab declared, parser didn't emit) | **compliant** — `lom-sequencing.ts` emits `fxs:SequencingRule` with verbatim XML preserved for LMS replay |
+| cmi5 (9 statements + session + moveOn) | partial (2/9) | **compliant** — all 9 verbs + `evaluateMoveOn(Passed / Completed / CompletedAndPassed / CompletedOrPassed / NotApplicable)` |
+| IEEE LOM 1484.12.1 (§5 Educational, §2 Lifecycle, §6 Rights, §7 Relation, §9 Classification) | partial (General + Technical only) | **compliant** — `lomToTurtle()` emits IEEE LOM namespace triples for every category present in the source manifest |
+| W3C VC Data Integrity `eddsa-rdfc-2022` | not implemented | **compliant** — JSON-LD expand → URDNA2015 canonicalize → SHA-256 → Ed25519 |
+| W3C VC `bbs-2023` (BBS+ selective disclosure) | not implemented | **compliant** — sign / verify / deriveProof / verifyProof via `@digitalbazaar/bbs-signatures` (BLS12-381 SHA-256) |
+| W3C DID `did:web` | not implemented | **compliant** — HTTPS fetch of `.well-known/did.json` per did:web v0.0.3 |
+| W3C DID `did:ethr` | not implemented | **compliant** — `EcdsaSecp256k1RecoveryMethod2020` verification method with CAIP-10 `blockchainAccountId` |
+| TLA Experience Index read-side (federated xAPI query across LRSs) | not implemented | **compliant** — parallel `GET /statements` across N LRSs, dedup by Statement ID, per-LRS attribution + error isolation |
+| ADL CaSS direct integration | not implemented | **compliant** — `POST /api/framework` + `POST /api/assertion` REST connector |
+| 1EdTech CLR 1.0 (legacy pre-VC) | not covered | **compliant** — `envelopeToClr1()` projects the CLR 2.0 envelope to the legacy shape |
+| SCORM CMI runtime API | out of scope | **out of scope (architectural boundary)** — re-documented as LMS runtime layer; not a vertical concern |
+
+### NEW substrate-side files
+
+- [`src/solid/did-resolver.ts`](src/solid/did-resolver.ts) — Unified `resolveDid(did)` dispatch by method (`did:key` / `did:web` / `did:ethr`). Returns a uniform DID document shape regardless of method. `didWebDocumentUrl()` helper exported for clients that want to construct the URL without resolving.
+- [`applications/_shared/vc-jwt/data-integrity-rdfc.ts`](applications/_shared/vc-jwt/data-integrity-rdfc.ts) — `eddsa-rdfc-2022` Data Integrity cryptosuite. `issueDataIntegrityRdfcProof(unsigned, issuer)` and `verifyDataIntegrityRdfcProof(signed)`. Composes `jsonld` (expansion + N-Quads conversion), `rdf-canonize` (URDNA2015), `@noble/hashes/sha2`, `@noble/curves/ed25519`.
+- [`applications/_shared/vc-jwt/bbs-2023.ts`](applications/_shared/vc-jwt/bbs-2023.ts) — BBS+ selective disclosure. `generateBbsKeyPair`, `bbsSign`, `bbsVerify`, `bbsDeriveProof`, `bbsVerifyProof`, plus a `flattenCredentialSubject()` helper that produces a stable message list from a VC's claims (so the holder can later disclose a subset by index without re-flattening). Composes `@digitalbazaar/bbs-signatures` (BLS12-381 SHA-256 ciphersuite).
+- [`applications/lrs-adapter/src/experience-index.ts`](applications/lrs-adapter/src/experience-index.ts) — `queryFederatedStatements(endpoints, filter)` for the read side of the ADL TLA Experience Index. Parallel queries across N LRSs, dedup by Statement ID, per-LRS attribution + error isolation (one failed LRS doesn't fail the federation).
+
+### NEW vertical-side files
+
+- [`applications/foxxi-content-intelligence/src/cmi5.ts`](applications/foxxi-content-intelligence/src/cmi5.ts) — Full cmi5 v1.0 / IEEE 9274.2.1 statement suite. `buildCmi5Statement(verb)` covers all 9 cmi5 verbs (launched / initialized / completed / passed / failed / abandoned / waived / terminated / satisfied). `buildPassedSessionTrace()` emits a canonical lifecycle trace. `evaluateMoveOn(rule)` implements cmi5 §11 mastery/moveOn decision per the AU's declared rule. Validates cmi5 spec invariants at build time (e.g. `passed`/`failed` requires `result.score.scaled`).
+- [`applications/foxxi-content-intelligence/src/lom-sequencing.ts`](applications/foxxi-content-intelligence/src/lom-sequencing.ts) — `lomToTurtle(subject, lom)` lifts every IEEE LOM 1484.12.1 category (General / Lifecycle / Meta-Metadata / Technical / Educational / Rights / Relation / Annotation / Classification) to Turtle triples using the IEEE LOM namespace. `sequencingRulesToTurtle()` emits SCORM 2004 `<imsss:sequencing>` rules as `fxs:SequencingRule` instances with the verbatim rule XML preserved as a literal (we don't evaluate sequencing — that's an LMS runtime concern — but auditors get a tamper-evident record of what the package SAID happens).
+- [`applications/foxxi-content-intelligence/src/cass-connector.ts`](applications/foxxi-content-intelligence/src/cass-connector.ts) — `pushFrameworkToCass(caseDoc, config)` posts a CASE 1.0 CFDocument to a CaSS server's `/api/framework` endpoint. `pushAssertionToCass(assertion, config)` posts a learner competency assertion to `/api/assertion`. Pure adapter; no new vocab.
+- [`applications/foxxi-content-intelligence/src/clr-1.ts`](applications/foxxi-content-intelligence/src/clr-1.ts) — `envelopeToClr1(envelope)` projects a CLR 2.0 envelope (from `clr.ts`) to the legacy 1EdTech CLR 1.0 JSON shape for institutional consumers still on the pre-VC format.
+
+### NEW bridge affordances
+
+| Affordance | Description |
+|---|---|
+| `foxxi.emit_cmi5_session` | Emit a full cmi5 lifecycle statement trace for a learner's AU session — 5–6 statements (launched → initialized → completed → passed/failed → terminated, plus satisfied if moveOn fires). |
+| `foxxi.resolve_did` | Resolve a W3C DID via the substrate's pluggable `resolveDid()` — works for did:key, did:web, did:ethr. |
+| `foxxi.query_experience_index` (admin-only) | Federated xAPI query across N LRSs per ADL TLA Experience Index. |
+| `foxxi.push_to_cass` (admin-only) | Synthesize the tenant's competency framework via the CASE exporter and POST to a CaSS server. |
+| `foxxi.export_clr_v1` | Export the learner's record as 1EdTech CLR 1.0 (legacy pre-VC JSON). |
+
+### New dependencies
+
+- `rdf-canonize@^4` — URDNA2015 RDF canonicalization (for `eddsa-rdfc-2022`)
+- `jsonld@^8` — JSON-LD expansion to N-Quads (for `eddsa-rdfc-2022`)
+- `@digitalbazaar/bbs-signatures@^1` — BLS12-381 BBS+ signing (for `bbs-2023`)
+
+All three are pure-JS, no native compilation, work in browser + Node.
+
+### Notes on the remaining row
+
+**SCORM CMI runtime API** stays `out of scope` — explicitly. The vertical's stratum is content ingestion + post-hoc analytics; the CMI runtime data model (`cmi.core.*`, `cmi.interactions.*`) is the LMS runtime layer. Composing it would mean Foxxi becoming an LMS, which would dissolve the architectural boundary that lets Foxxi compose cleanly with any LMS. Documented as a boundary, not a gap.
+
+## 2026-05-17 — Foxxi: ADL TLA / IEEE LERS / 1EdTech credential + competency stack live
+
+Closes the loop on the credentialing side of the audit. When a learner
+completes a course, the bridge mints a real W3C Verifiable Credential
+shaped as an Open Badges 3.0 `OpenBadgeCredential`, signs it with the
+tenant's deterministically-derived Ed25519 issuer key using the
+substrate's `eddsa-jcs-2022` DataIntegrityProof machinery, and
+publishes it to the learner's pod as a `fxa:CourseCompletionCredential`
+descriptor. The learner can then export an aggregate
+1EdTech Comprehensive Learner Record (CLR 2.0) envelope that wraps
+every issued credential — each entry preserves its own proof so any
+third-party verifier can re-check without trusting the envelope.
+Tenant operators can export their competency framework as 1EdTech
+CASE 1.0 JSON-LD for downstream institutional tooling.
+
+No new substrate primitives. The Foxxi vertical composes existing
+substrate machinery (`vc-jwt` + `data-integrity-jcs` for signing,
+`solid.publish` + `solid.discover` for pod read/write, `did:key`
+for issuer identity) with three new vertical-side modules + two L2
+vocab files.
+
+### Live end-to-end smoke (5 cases, real ECDSA + Ed25519)
+
+| Case | Result |
+|---|---|
+| Learner tries to issue credential | **denied** — `only admins can issue completion credentials (role: learner)` |
+| Admin issues OB3 VC for learner's Golf Explained completion | **OK** — `did:key:z6MkoKbMXTRh2d…` issuer, `eddsa-jcs-2022` proof, types `[VerifiableCredential, OpenBadgeCredential]`, achievement + alignment + evidence populated, published to `<pod>/foxxi-wallet/cred-…ttl` |
+| Learner exports own CLR | **1 entry, verified: 1** — `holderDid=https://id.acme-training.example/jliu/profile#me`, issuer matches what was just issued |
+| Learner tries to export another learner's CLR | **denied** — `non-admins can only export their own CLR` |
+| Admin exports CASE 1.0 framework | **OK** — `CFDocument` with 18 audience-tag-derived items, `@context: https://purl.imsglobal.org/spec/case/v1p0/context/case_v1p0.jsonld` |
+
+### Standards conformance map
+
+Full conformance audit lives in [`applications/foxxi-content-intelligence/CONFORMANCE.md`](applications/foxxi-content-intelligence/CONFORMANCE.md) with file:line citations for every claim. Headline status:
+
+| Standard | Status |
+|---|---|
+| ADL SCORM 1.2 / 2004 | Compliant for content packaging; sequencing rules partial; CMI runtime out of scope (LMS-layer concern) |
+| xAPI 1.0.3 / 2.0.0 / IEEE 9274.1.1 | Compliant via `lrs-adapter` — tested live against Lrsql, SCORM Cloud, Watershed |
+| cmi5 / IEEE 9274.2.1 | Partial — AU detection + 2/9 statement profiles; remaining 7 profiles + session/mastery semantics not yet wired |
+| IEEE LOM 1484.12.1 | Partial — General + Technical categories; Educational/Lifecycle/Rights/Classification not auto-extracted |
+| IEEE 1484.20.1 RDCEO / 1484.20.2 RCD | Compliant via [`ns/rcd.ttl`](applications/foxxi-content-intelligence/ns/rcd.ttl) — `rcd:CompetencyDefinition` subclass of `fxk:Skill`, five-rung `rcd:ProficiencyLevel` (Novice → Expert) |
+| 1EdTech CASE 1.0 | Compliant via [`src/case-exporter.ts`](applications/foxxi-content-intelligence/src/case-exporter.ts) + `foxxi.export_case_framework` |
+| ADL CaSS | Compose via CASE (CaSS imports CASE JSON-LD) |
+| W3C VC Data Model 2.0 | Compliant (vc-jwt + eddsa-jcs-2022 DataIntegrity); BBS+ and eddsa-rdfc-2022 not implemented |
+| W3C DIDs | Compliant for `did:key`; `did:web` / `did:ethr` not wired |
+| 1EdTech Open Badges 3.0 | Compliant via [`src/credentials.ts`](applications/foxxi-content-intelligence/src/credentials.ts) + `foxxi.issue_completion_credential` |
+| 1EdTech CLR 2.0 | Compliant via [`src/clr.ts`](applications/foxxi-content-intelligence/src/clr.ts) + `foxxi.export_clr` |
+| TLA Master Object Model | Compliant — Course/Learner/Competency/Assessment/Result as RDF descriptors |
+| TLA Experience Index (write) | Compliant via `lrs-adapter` projection |
+| TLA Experience Index (read-side federation) | Not implemented — planned as thin federator on `lrs-client.ts` |
+| ADL Learner Records Network ("learner wallet") | Pod-as-wallet operational; backup/replication pattern not yet a standard affordance |
+
+### NEW vertical files
+
+- [`applications/foxxi-content-intelligence/ns/rcd.ttl`](applications/foxxi-content-intelligence/ns/rcd.ttl) — IEEE 1484.20.2 mapping. Declares `rcd:CompetencyDefinition` (subclass of `fxk:Skill`), `rcd:ProficiencyLevel` with five individuals (`rcd:Novice` → `rcd:Expert`) carrying `rdf:value 1..5`, and `rcd:statement` / `rcd:scope` / `rcd:masteryRubric` predicates.
+- [`applications/foxxi-content-intelligence/ns/wallet.ttl`](applications/foxxi-content-intelligence/ns/wallet.ttl) — Learner-wallet L2 pattern. Declares `wallet:WalletEnvelope` (subclass of `cg:ContextDescriptor`) for CLR-shaped aggregation, plus `wallet:holdsCredential`, `wallet:holderDid`, `wallet:exportedAt`.
+- [`applications/foxxi-content-intelligence/src/credentials.ts`](applications/foxxi-content-intelligence/src/credentials.ts) — `deriveTenantIssuer(seed)` derives an Ed25519 `did:key` keypair deterministically from `FOXXI_ISSUER_KEY_SEED`; `buildCourseCompletionVc()` constructs the OB3-shaped W3C VC payload; `issueCourseCompletionCredential()` signs with `issueDataIntegrityProof` from the substrate and publishes to the learner's pod via the substrate's `publish()` — running a `verifyDataIntegrityProof()` self-check first so a misconfigured issuer never leaves a bad credential.
+- [`applications/foxxi-content-intelligence/src/clr.ts`](applications/foxxi-content-intelligence/src/clr.ts) — `exportClr(config)` walks the learner's pod via `discover()` filtered on `dct:conformsTo=fxa:CourseCompletionCredential` (+ `fxa:CompetencyAssertion`), fetches each graph, parses the embedded VC out of the `fxs:bundleJson` base64 literal, verifies each `DataIntegrityProof`, cross-checks `credentialSubject.id === holderDid` (defends against an attacker writing someone else's credential to the pod), and emits a 1EdTech CLR 2.0-shaped JSON envelope.
+- [`applications/foxxi-content-intelligence/src/case-exporter.ts`](applications/foxxi-content-intelligence/src/case-exporter.ts) — `frameworkToCase(framework)` maps `fxk:SkillFramework` + `fxk:Skill` (with optional `rcd:` proficiency) to `CFDocument` / `CFItem` / `CFAssociation` / `CFRubric` per CASE 1.0. Sets the proper CASE `@context`; emits one rubric per framework when any skill carries an RDCEO `proficiencyLevel`.
+
+### NEW bridge affordances
+
+| Affordance | Description |
+|---|---|
+| `foxxi.issue_completion_credential` (admin-only) | Mint a signed OB3 VC, publish to learner's pod. Args: `learner_did`, `learner_pod_url`, `course_id`, `course_title`, `course_description?`, `criterion_narrative?`, `aligned_skills?`, `evidence?`. AuthZ: admin role required (verified via the existing ABAC pipeline; access-decision trace emitted). |
+| `foxxi.export_clr` | Aggregate the learner's wallet into a CLR 2.0 envelope. AuthZ: caller can export own CLR; admin can export any. |
+| `foxxi.export_case_framework` (admin-only) | Export the tenant's competency framework as CASE 1.0 JSON-LD. |
+
+### NEW bridge env
+
+- `FOXXI_ISSUER_KEY_SEED` — required for credential issuance; same seed → same `did:key` issuer; persist this seed in the operator's secret manager (rotating the seed rotates the issuer DID, which requires a successor descriptor for continuity). Distinct from `FOXXI_ADMIN_KEY_SEED` (which is the X25519 decryption key for admin sections).
+- `FOXXI_TENANT_PROFILE_DID` (optional, defaults to `FOXXI_AUTHORITATIVE_SOURCE`) — the tenant's OB3 Profile DID.
+- `FOXXI_TENANT_PROFILE_NAME` (optional, defaults to `"Acme Training Co L&D"`) — human-readable issuer name.
+
+### Foxxi vocab additions (in [`ns/foxxi-content-graph-v0.2.ttl`](applications/foxxi-content-intelligence/ns/foxxi-content-graph-v0.2.ttl))
+
+- `fxa:CourseCompletionCredential` (subclass of `cgh:Credential`) — RDF type for the published credential descriptor
+- `fxa:CompetencyAssertion` — RDF type for skill-mastery assertions (issued individually or aggregated into a CLR)
+- `fxk:hasProficiencyLevel`, `fxk:caseFrameworkRef` — RDCEO + CASE binding properties on `fxk:Skill` / `fxk:SkillFramework`
+
+### Bridge revision
+
+- `interego-foxxi-bridge--0000004` (sha256:52f820ab…) — live at https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io
+
+## 2026-05-17 — Foxxi: real AuthN + AuthZ + E2EE + ABAC (no shared-everything demo mode)
+
+Closes the gap the previous deploys left wide open: every bridge call now
+requires a real ECDSA-signed session token, admin-only sections are
+end-to-end encrypted at rest on the pod, and per-call AuthZ filtering
+respects the caller's role. No mock auth, no shared admin keys, no
+hardcoded role tables — everything wired through substrate primitives.
+
+**Live 6-case smoke (against the deployed bridge):**
+
+| Case | Result |
+|---|---|
+| Anonymous (no bearer) | **denied** — "missing session token" |
+| Joshua signs, asks about himself | **allow/learner** — 10 enrollments |
+| Joshua signs, asks about Jordan | **forbidden** — "caller (role: learner) cannot query enrollments for ..." |
+| Jordan (admin) signs, asks about Joshua | **allow/admin** — 10 enrollments |
+| Forged signer claims Jordan's WebID | **denied** — "address 0x22C1... not in tenant directory" |
+| Joshua asks Golf Explained question | **6 seeds, 5 cited slides** |
+
+### Architecture
+
+**Auth (ECDSA session tokens):**
+- [`applications/foxxi-content-intelligence/src/auth.ts`](applications/foxxi-content-intelligence/src/auth.ts) — isomorphic (browser + node) signing helpers built on `ethers`. `deriveUserWallet(userId, seed)` produces a deterministic secp256k1 keypair per user, `mintSessionToken({userId, webId, ttlMs})` signs a canonical message `Foxxi session\n  sub:.\n  iat:.\n  exp:.\n  nonce:.` and returns a base64url token, `verifySessionToken(token, addressMap)` recovers the signer and resolves to the directory entry. The bearer-token format is plain JSON (no JWT lib) — `{sub, iat, exp, nonce, address, sig}`.
+- Demo wallets derive from the configured seed; production swaps `deriveUserWallet` for the substrate's real auth flow (`auth-methods.jsonld` lookups, SIWE, WebAuthn) without touching the verifier.
+
+**E2EE at publish time:**
+- [`tenant-publisher.ts`](applications/foxxi-content-intelligence/src/tenant-publisher.ts) classifies five sections as admin-only (`TenantDirectory`, `AssignmentPolicySet`, `ConnectorRegistry`, `EnrollmentEventStream`, `AuditLogStream`) and encrypts their graph bodies to the admin's X25519 public key via the substrate's existing `publish(..., {encrypt: {recipients, senderKeyPair}})` path. Pod stores ciphertext (`.envelope.jose.json`); descriptor metadata stays plaintext so `discover()` still finds them without a key.
+- The admin keypair derives deterministically from `FOXXI_ADMIN_KEY_SEED` (same seed → same keys; bridge + CLI use the same derivation). The admin's public key also gets published as a discoverable `fxs:AdminEncryptionKey` descriptor so any agent can verify "I'm about to encrypt to this key — is this the admin the tenant declares?"
+- Anonymous fetch of an admin section: bridge gets `{content: null, encrypted: true}` from `fetchGraphContent` and throws `"is encrypted and bridge has no recipient key"`. Verified live.
+
+**AuthZ (role-resolved filtering):**
+- [`policy.ts`](applications/foxxi-content-intelligence/src/policy.ts) resolves caller role from directory (admin if `caller.webId === FOXXI_ADMIN_WEB_ID`, manager if any user lists caller as `manager_user_id`, else learner). Per-section filters trim responses: `filterEnrollmentEvents` (self + direct reports), `filterAuditEntries` (self + reports + entries targeting them), `filterPolicies` (only those targeting the caller's audience tags + groups), `filterUsers`, `filterGroups`, `filterConnections` (admin-only), `filterCoverage` (admin-only).
+- `emitAccessDecision` produces an `fxa:AccessDecision` trace descriptor on every call — name of the tool, caller WebID, resolved role, decision (`allow` / `allow-filtered` / `deny`), and which policy applied. Returned alongside the result.
+
+**Bridge wiring:**
+- [`bridge/server.ts`](applications/foxxi-content-intelligence/bridge/server.ts) gains an auth middleware that extracts `Authorization: Bearer <token>` from the request, injects it into the JSON-RPC `params.arguments` as `__caller_token` for tools/call dispatch. `resolveCaller(args)` then fetches the (decrypted) directory, builds the address-map via `auth.buildAddressMap(users)`, verifies the token, and constructs a `CallerContext`.
+- Every handler that touches user data calls `resolveCaller()` first. `foxxi.discover_assigned_courses` checks `caller can query this learner_did` and 403s otherwise; `foxxi.retrieve_course_context` and `foxxi.ask_course_question_agentic` require any authenticated caller and bind `learner_did` to the verified WebID (rejecting any spoofed value in args).
+
+**ABAC policy descriptors (substrate-pure declaration):**
+- Three policies published as `fxa:AbacPolicy` descriptors: `admin-full-access`, `manager-direct-reports`, `learner-self`. Each declares its role, the sections it can read, and the scoping rule. The bridge's `policy.ts` is the enforcer; the published descriptors are the auditor's authoritative declaration of what access decisions are baked in. Regulators / auditors can `cg:discover()` filtered on `dct:conformsTo=fxa:AbacPolicy` to verify the policy set without reading the bridge code.
+
+**Tenant directory carries wallet addresses:**
+- `publishTenantDirectory(...)` calls `attachDeterministicAddresses(users, walletSeed)` before publishing so each user record carries a `wallet_address` field. The bridge uses this map to verify incoming tokens. Since the directory itself is admin-encrypted, wallet addresses aren't publicly leaked — only the bridge (which holds the admin keypair) can build the address-map.
+
+**Dashboard:**
+- [`dashboard-app/src/auth/session.ts`](applications/foxxi-content-intelligence/dashboard-app/src/auth/session.ts) `sessionFromOption(opt, role, podUrl)` is now async — mints an 8h bearer token at login time via `mintSessionToken`. `FoxxiSession` gains `userId`, `bearerToken`, `bearerExpiresAt`.
+- [`dashboard-app/src/interego/client.ts`](applications/foxxi-content-intelligence/dashboard-app/src/interego/client.ts) `callTool` reads `bearerToken` from localStorage per-call and attaches `Authorization: Bearer <token>` on every bridge request.
+- Auth.ts is shared between dashboard and bridge — same signing/verification module, same wallet derivation, no parallel implementations to drift.
+
+**Operator setup (live):**
+
+```bash
+FOXXI_TENANT_POD_URL=https://interego-css.../markj/ \
+FOXXI_AUTHORITATIVE_SOURCE=did:web:acme-training.example \
+FOXXI_ADMIN_WEB_ID="https://id.acme-training.example/admin/profile#me" \
+FOXXI_ADMIN_KEY_SEED=acme-training-admin-2026-demo-v1 \
+npx tsx applications/foxxi-content-intelligence/tools/publish-tenant.ts
+# cleans foxxi/ container, publishes:
+#   - adminKey (plaintext)
+#   - catalog (plaintext)
+#   - directory (E2EE to admin)
+#   - policies (E2EE to admin)
+#   - connectors (E2EE to admin)
+#   - events (E2EE to admin)
+#   - audit (E2EE to admin)
+#   - 3 ABAC policy descriptors (plaintext)
+#   - golf-explained + golf-fundamentals course bundles (plaintext)
+```
+
+Bridge container app gets the same `FOXXI_ADMIN_WEB_ID` + `FOXXI_ADMIN_KEY_SEED` env vars so it derives the matching X25519 keypair for decryption and the matching admin WebID for role elevation. `FOXXI_REQUIRE_AUTH=true` rejects unauthenticated calls.
+
+Live deployments:
+- Bridge: `interego-foxxi-bridge--0000003` (sha256:ab4b4971…)
+- Dashboard: `interego-foxxi-dashboard--0000004` (sha256:4187a808…)
+
+## 2026-05-17 — Foxxi: tenant-pod walk (bridge fetches via substrate discover, no inline data)
+
+Closes the gap that made the deployed bridge useless to outside MCP
+clients: handlers no longer require the caller to ship the entire
+admin payload + course content inline. Given just `learner_did`
+(and the env-set tenant pod URL), the bridge walks the pod via the
+substrate's standard `discover()` machinery, fetches the sections it
+needs, and composes them into the shape the existing
+enrollment/coverage/Q&A handlers expect.
+
+**Emergent — no hardcoded paths.** The bridge knows only its own
+type IRIs (`fxs:CourseCatalog`, `fxs:TenantDirectory`,
+`fxs:AssignmentPolicySet`, `fxs:ConnectorRegistry`,
+`fxa:EnrollmentEventStream`, `fxa:AuditLogStream`,
+`fxa:CoursePackageBundle`). It filters discover-returned manifest
+entries by `dct:conformsTo` matching those IRIs, follows the
+descriptor's `cg:affordance hydra:target` link to find the graph,
+and pulls the payload from a `fxs:bundleJson` literal. The pod
+operator can move files freely — only the type contract is stable.
+
+**Substrate-pure — no new substrate primitives.** Everything uses
+the existing `publish() / discover() / fetchGraphContent()` API
+surface. The vertical's only contribution is its own type-IRI
+vocabulary in `applications/foxxi-content-intelligence/ns/foxxi-content-graph-v0.2.ttl`
+(extended with the seven types above + the `fxs:bundleJson`
+datatype property as a pragmatic JSON-in-RDF carrier).
+
+NEW vertical files:
+
+- [`applications/foxxi-content-intelligence/src/tenant-publisher.ts`](applications/foxxi-content-intelligence/src/tenant-publisher.ts) —
+  publishes each section of a tenant snapshot as a separate
+  `cg:ContextDescriptor` + graph pair. Each descriptor carries a
+  Provenance facet `wasAttributedTo` the authoritative source DID +
+  a Temporal facet `validFrom` + a Semiotic facet `modalStatus:
+  Asserted`. The graph contains one `fxs:bundleJson` literal with
+  the section's payload base64-encoded (avoids Turtle string-escape
+  round-trip brittleness). Exports `publishCourseCatalog`,
+  `publishTenantDirectory`, `publishAssignmentPolicies`,
+  `publishConnectorRegistry`, `publishEnrollmentEventStream`,
+  `publishAuditLog`, `publishCoursePackage`, `publishTenantSnapshot`.
+
+- [`applications/foxxi-content-intelligence/src/tenant-fetcher.ts`](applications/foxxi-content-intelligence/src/tenant-fetcher.ts) —
+  bridge-side companion. `fetchAdminPayload(config)` walks the pod
+  via `discover()`, filters by every required `conformsTo` type in
+  parallel, fetches each graph via the descriptor's
+  `hydra:target` (no hardcoded URL construction), base64-decodes
+  the bundleJson, and composes a FoxxiAdminPayload-shaped object.
+  60-second LRU cache to avoid re-walking on hot paths;
+  `invalidateTenantCache(podUrl?)` for forced refresh.
+  `fetchCoursePackage(courseId, config)` is the same pattern
+  filtered to `fxa:CoursePackageBundle` + graph IRI ending in
+  `:course:<courseId>`.
+
+- [`applications/foxxi-content-intelligence/tools/publish-tenant.ts`](applications/foxxi-content-intelligence/tools/publish-tenant.ts) —
+  one-time CLI that loads the bundled `imported/admin_payload.json`
+  + every `*dashboard_data*.json` and calls the publishers. Cleans
+  the foxxi/ container + manifest first (substrate `publish()`
+  enforces If-None-Match: * so writes against existing resources
+  silently 412; cleaning sidesteps that for the demo re-seed flow).
+  Honors `POD_BEARER` env for authenticated fetch; falls back to
+  anonymous (works on the demo CSS pod which has open ACL).
+
+UPDATED:
+
+- [`applications/foxxi-content-intelligence/bridge/server.ts`](applications/foxxi-content-intelligence/bridge/server.ts) —
+  `foxxi.discover_assigned_courses`, `foxxi.ask_course_question_agentic`,
+  and `foxxi.retrieve_course_context` handlers now call
+  `autoFetchAdmin(args)` / `autoFetchCourse(args, courseId)` when
+  their inline payload arg is missing. Auto-fetch returns null on
+  error (caught), letting the existing stub-note response surface
+  when the pod isn't seeded — backwards compatible with callers that
+  still ship inline data.
+
+- [`applications/foxxi-content-intelligence/ns/foxxi-content-graph-v0.2.ttl`](applications/foxxi-content-intelligence/ns/foxxi-content-graph-v0.2.ttl) —
+  added `fxs:CourseCatalog`, `fxs:TenantDirectory`,
+  `fxs:AssignmentPolicySet`, `fxs:ConnectorRegistry`,
+  `fxa:EnrollmentEventStream`, `fxa:AuditLogStream`,
+  `fxa:CoursePackageBundle`, `fxs:bundleJson` declarations.
+
+**Live demo seeded:**
+
+```
+$ FOXXI_TENANT_POD_URL=https://interego-css.../markj/ \
+  FOXXI_AUTHORITATIVE_SOURCE=did:web:acme-training.example \
+  npx tsx applications/foxxi-content-intelligence/tools/publish-tenant.ts
+cleaning old resources… 16 stale resources deleted + manifest cleared.
+publishing tenant snapshot…
+  catalog     → …/markj/foxxi/course-catalog.ttl
+  directory   → …/markj/foxxi/tenant-directory.ttl
+  policies    → …/markj/foxxi/assignment-policies.ttl
+  connectors  → …/markj/foxxi/connector-registry.ttl
+  events      → …/markj/foxxi/enrollment-events.ttl
+  audit       → …/markj/foxxi/audit-log.ttl
+publishing 4 course packages…
+  golf-explained     → …/markj/foxxi/course-golf-explained.ttl
+  golf-fundamentals     → …/markj/foxxi/course-golf-fundamentals.ttl
+done.
+```
+
+**Live end-to-end smoke from any MCP client (no inline data):**
+
+```bash
+curl -X POST -d '{
+  "jsonrpc":"2.0","id":1,"method":"tools/call",
+  "params":{
+    "name":"foxxi.discover_assigned_courses",
+    "arguments":{"learner_did":"https://id.acme-training.example/jliu/profile#me"}
+  }
+}' https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io/mcp
+# → learnerName: Joshua Liu, audienceTags: [engineering, all-employees],
+#   10 enrollments (Phishing Awareness completed, industry onboarding standard overdue,
+#   Golf Explained completed, …)
+
+curl -X POST -d '{
+  "jsonrpc":"2.0","id":2,"method":"tools/call",
+  "params":{
+    "name":"foxxi.retrieve_course_context",
+    "arguments":{
+      "learner_did":"https://id.acme-training.example/jliu/profile#me",
+      "question":"what is handicap?",
+      "course_id":"golf-explained"
+    }
+  }
+}' https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io/mcp
+# → 6 seed concepts (current, handicap, score differential, …),
+#   16 expanded, 5 cited slides, 2-step Interego trace
+#   (LearnerQuestionEvent Asserted → RetrievalActivity Hypothetical).
+```
+
+Bridge image: `interego-foxxi-bridge@sha256:931ab8c5…`, container app
+revision `interego-foxxi-bridge--0000002` (100% traffic).
+
+## 2026-05-17 — Foxxi dashboard: feature parity with imported originals
+
+Refactor pass to bring the deployed Vite + React dashboard up to the
+feature surface of the original `imported/foxxi_admin_v01.jsx` +
+`imported/foxxi_dashboard_v03.jsx` single-file React apps. The originals
+had inlined `RAW_DATA` blobs at the top + a mocked login + no build
+tooling; the refactor preserved the UX intent but had quietly dropped
+several admin tabs and the entire learner slide-navigator surface
+because the initial focus was wiring the bridge transport. This pass
+adds them back, backed by the same bundled sample data.
+
+Also removes the `mcp-client` LLM mode from the dashboard's settings
+dialog — the human-mediated copy-paste handoff between the dashboard
+and the user's own agent session was clunky enough to be worse than
+just using `bridge-env` or `byok` here. The substrate primitive
+`foxxi.retrieve_course_context` is unchanged — it's still the right
+tool for agent-native MCP callers (Claude Code, Cursor, etc.) calling
+the bridge directly without a key. It just isn't a sensible UI option
+in a browser SPA.
+
+NEW in [`applications/foxxi-content-intelligence/dashboard-app/`](applications/foxxi-content-intelligence/dashboard-app/):
+
+**Admin shell ([`src/components/AdminShell.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/components/AdminShell.tsx)):**
+- Two new top-level tabs — **Access** (users + groups with audience-tag
+  membership + manager hierarchy; click any user or group to open a
+  detail modal showing WebID, audience tags, group memberships, and
+  policies targeting that group) and **Integrations** (LMS / downstream
+  connector cards with status pill, last sync, sync frequency, courses
+  contributed, and auth warnings).
+- **Catalog** tab gains a free-text search (title / category / owner /
+  audience tag / LMS source) and a parsed-vs-LMS-stub filter; shows
+  owner + parse date + LMS source per entry.
+- **Audit log** tab gains actor-search, action-dropdown, and
+  allowed/denied filters; each row now carries framework-citation pills
+  (SOC2 / EU AI Act / NIST RMF) derived from the action prefix —
+  walking the same naming convention the compliance-overlay
+  (integrations/compliance-overlay/) uses internally.
+
+**Learner shell:**
+- New [`src/components/SlideNavigator.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/components/SlideNavigator.tsx) — scene-by-scene + slide-by-slide
+  browser for the parsed course. Each slide detail shows: audio segments
+  with per-segment duration + transcript, concepts taught (clickable
+  pills), and prereq edges (in + out). Clicking a prereq edge jumps to
+  the first slide that teaches the dependency concept. Clicking a
+  concept opens a modal with the concept's tier + confidence + frequency,
+  every slide that teaches it, every slide that mentions it without
+  declaring it, the concepts it depends on, and the concepts that depend
+  on it.
+- Course header now shows package metadata (authoring tool, standard,
+  parser version) when present.
+
+**Types + sample:**
+- [`src/types.ts`](applications/foxxi-content-intelligence/dashboard-app/src/types.ts) extends `CourseContent`
+  with `scenes`, `slides`, `prereqEdges`, `packageMeta` from the parsed
+  `dashboard_data.json`. New `CourseScene` / `CourseSlide` /
+  `CourseSlideTranscriptSegment` / `CoursePrereqEdge` / `CoursePackageMeta`
+  types.
+- [`src/sample/data.ts`](applications/foxxi-content-intelligence/dashboard-app/src/sample/data.ts) now exposes the full
+  parsed structure (12 slides across 2 scenes, 92 concepts, 299 prereq
+  edges for Golf Explained) instead of just the concepts
+  list.
+
+**App chrome:**
+- New `Footer` in [`src/App.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/App.tsx) showing
+  tenant + tenant_id + signed-in WebID + role + transport mode + pod
+  URL on every page (mirrors the originals' footer).
+
+**LLM settings simplification:**
+- [`src/auth/llm-settings.ts`](applications/foxxi-content-intelligence/dashboard-app/src/auth/llm-settings.ts):
+  `LlmMode` shrunk from `'bridge-env' | 'byok' | 'mcp-client'` to
+  `'bridge-env' | 'byok'`. Doc comment explains why mcp-client was
+  dropped from the dashboard but kept as a substrate primitive for
+  agent callers.
+- [`src/components/LlmSettings.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/components/LlmSettings.tsx):
+  `MODE_INFO` drops the mcp-client entry + its warning panel.
+- [`src/components/ChatPanel.tsx`](applications/foxxi-content-intelligence/dashboard-app/src/components/ChatPanel.tsx):
+  drops the `McpClientHandoff` component, the `buildMcpClientPrompt`
+  helper, and the `mode === 'mcp-client'` branches in the result-pill
+  rendering + no-LLM-synthesis warning path. The chat panel always
+  calls `foxxi.ask_course_question_agentic` now.
+- [`src/interego/client.ts`](applications/foxxi-content-intelligence/dashboard-app/src/interego/client.ts):
+  `LlmCallMode` matches the UI shrink; `askCourseQuestionAgentic`
+  unconditionally calls the agentic tool. The substrate-side
+  `'mcp-client'` value on `AgenticLlmKeySource` is preserved for the
+  offline-sample fallback that mimics `foxxi.retrieve_course_context`.
+
+**Live:**
+- Same URL — https://interego-foxxi-dashboard.livelysky-8b81abb0.eastus.azurecontainerapps.io
+- Rebuilt as `contextgraphsacr.azurecr.io/interego-foxxi-dashboard@sha256:8656af47…`
+  (ACR run `cagu`) and rolled as Container App revision
+  `interego-foxxi-dashboard--0000001` with 100% traffic. Type-check
+  clean (`tsc --noEmit` exit 0).
+
+---
+
+## 2026-05-17 — Foxxi: live on Azure Container Apps (bridge + dashboard)
+
+The Foxxi vertical now has a hosted deployment alongside the rest of
+the Interego services. Two new Container Apps:
+
+| Surface | URL | Image | Port |
+|---|---|---|---|
+| Foxxi vertical bridge (MCP `/mcp` + `/affordances` + REST) | https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io | `contextgraphsacr.azurecr.io/interego-foxxi-bridge:latest` (sha256:f773b612…) | 6080 |
+| Foxxi dashboard (Vite + React SPA via nginx) | https://interego-foxxi-dashboard.livelysky-8b81abb0.eastus.azurecontainerapps.io | `contextgraphsacr.azurecr.io/interego-foxxi-dashboard:latest` (sha256:7d7558a0…) | 8080 |
+
+Built via `az acr build`; deployed into the existing
+`context-graphs-env` Container Apps environment under
+`context-graphs-rg` (eastus). Same naming convention as
+`interego-css` / `interego-dashboard` / `interego-relay` /
+`interego-pgsl-browser`.
+
+NEW deployment artifacts:
+- [`deploy/Dockerfile.foxxi-bridge`](deploy/Dockerfile.foxxi-bridge) —
+  two-stage node:20-slim build that preserves the on-disk repo layout
+  under `/app` so the bridge's relative imports (`../affordances.ts`,
+  `../../../src/...`, `../../learner-performer-companion/src/grounded-answer.js`)
+  work unchanged. `RUN npx tsc` compiles `@interego/core` once at
+  build-time; runtime is `npx tsx applications/foxxi-content-intelligence/bridge/server.ts`.
+  Bake-time env: `FOXXI_TENANT_POD_URL` (defaults to the
+  `interego-css` pod), `FOXXI_AUTHORITATIVE_SOURCE`,
+  `FOXXI_AUDIENCE=both`, `FOXXI_DASHBOARD_ORIGIN` (CORS allowed
+  origin), `BRIDGE_DEPLOYMENT_URL` (self-URL the bridge advertises).
+  Per-deployment overrides go via `--env-vars` on
+  `az containerapp create`.
+- [`deploy/Dockerfile.foxxi-dashboard`](deploy/Dockerfile.foxxi-dashboard) —
+  two-stage: Vite builds the SPA with `VITE_FOXXI_BRIDGE_URL` baked
+  in via `--build-arg`, then nginx:1.27-alpine serves
+  `/usr/share/nginx/html` on port 8080 with SPA-style fallback to
+  `/index.html` and long-cache headers on `/assets/`.
+
+CORS is owned vertical-side via the bridge's `middleware` hook (the
+substrate `applications/_shared/vertical-bridge/` stays
+CORS-agnostic per [`docs/DEPLOYMENT-SPLIT.md`](docs/DEPLOYMENT-SPLIT.md)
+discipline). Live preflight from the dashboard origin returns 204
+with `access-control-allow-origin` echoing back exactly the
+dashboard FQDN — no wildcard.
+
+Smoke-tested live (curl from outside Azure):
+- `GET /affordances` returns the proper Turtle manifest with 13
+  Foxxi affordances (`foxxi.discover_assigned_courses` /
+  `consume_lesson` / `ask_course_question[_agentic]` /
+  `retrieve_course_context` / `explore_concept_map` /
+  `ingest_content_package` / `publish_authoring_policy` /
+  `connect_lms` / `assign_audience` / `coverage_query` /
+  `publish_concept_map` / `publish_compliance_evidence`).
+- `POST /mcp` with `{method: 'tools/list'}` returns the
+  derived MCP tool schemas (foxxi.* with full inputSchema).
+- Dashboard `/` returns the SPA shell.
+
+Operational note: the 5 historical recursive Windows junctions in
+`{demos,deploy/mcp-relay,examples/dashboard,examples/personal-bridge,examples/pgsl-browser}/node_modules/@interego/core`
+(npm-install artifacts pointing back to the repo root via the
+`file:../../../` self-dep) were removed before the build —
+`az acr build`'s Windows context-upload walker follows junctions
+before `.dockerignore` is applied and would otherwise loop forever.
+
+No code change required for the substrate or vertical sources;
+existing local-dev `npm run dev` still works the same way against
+`http://localhost:6080` / `http://localhost:5173`.
+
 ## 2026-05-17 — Foxxi: three LLM architectures (mcp-client-as-LLM, BYOK, bridge-env)
 
 Adds two more LLM-key paths so users aren't forced into either "the
@@ -326,7 +1085,7 @@ TTLs) as a first-class Interego vertical at
   morphology + Peircean Sign/Object/Interpretant tagging), dashboard
   builders, admin payload generators, React admin + dashboard UIs,
   sample Acme Training Co tenant data (183 employees, full L&D state),
-  parsed lesson graphs (Golf Rules / Golf Basics).
+  parsed lesson graphs (Golf Controls / Golf Basics).
 
 **Composition with existing substrate**:
 - SCORM unwrap → [`applications/_shared/scorm/`](applications/_shared/scorm/)

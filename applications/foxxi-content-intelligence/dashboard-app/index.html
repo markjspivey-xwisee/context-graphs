@@ -4,33 +4,87 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Foxxi · Interego-grounded L&D dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap" />
     <style>
       :root {
-        --bg: #0c0e14;
-        --panel: #161922;
-        --panel-2: #1d2130;
-        --border: #2a3046;
-        --text: #e6e8ef;
-        --text-dim: #9aa1b4;
-        --accent: #7cc1ff;
-        --accent-2: #b48aff;
-        --good: #5ed27a;
-        --warn: #ffb155;
-        --bad: #ff7777;
+        /* Cream / navy / burnt-orange — ported from the imported originals. */
+        --bg: #ddd4be;          /* page background (warm sand) */
+        --panel: #f5efe2;       /* card / panel surface (cream) */
+        --panel-2: #ece5d4;     /* alternate panel surface */
+        --border: #c5bca5;      /* hairlines + dividers */
+        --border-strong: #1a2332;
+        --text: #1a2332;        /* primary type (navy) */
+        --text-dim: #5c6573;    /* secondary type */
+        --accent: #c1501c;      /* burnt orange — primary action / highlight */
+        --accent-2: #8b3a14;    /* darker orange — pressed / strong */
+        --good: #2f6a3a;        /* deep green */
+        --warn: #b87211;        /* dark amber */
+        --bad: #a8331f;         /* deep red */
+        --shadow: 0 1px 0 rgba(26,35,50,0.08), 0 6px 18px rgba(26,35,50,0.08);
       }
       * { box-sizing: border-box; }
       html, body, #root { height: 100%; margin: 0; }
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+        font-family: 'EB Garamond', Garamond, Georgia, serif;
         background: var(--bg);
         color: var(--text);
-        font-size: 14px;
-        line-height: 1.5;
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
       }
       a { color: var(--accent); text-decoration: none; }
       a:hover { text-decoration: underline; }
-      button { font-family: inherit; }
-      pre, code { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+      button { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+      input, select { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+      pre, code, .mono { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+      strong { font-weight: 600; }
+
+      /* Reusable typographic helpers */
+      .label {
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+      }
+      .serif-display {
+        font-family: 'EB Garamond', Garamond, Georgia, serif;
+        font-style: italic;
+        letter-spacing: -0.01em;
+      }
+
+      /* Focus + scrollbars */
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: var(--panel-2); }
+      ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--panel-2); border-radius: 5px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+      /* Animated dots used by the chat loading state */
+      @keyframes foxxi-blink {
+        0%, 80%, 100% { opacity: 0.25; }
+        40% { opacity: 1; }
+      }
+      .foxxi-dots span {
+        display: inline-block;
+        animation: foxxi-blink 1.4s infinite both;
+      }
+      .foxxi-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .foxxi-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+      /* Mark element used in highlighted transcripts — clickable concept references */
+      mark.concept {
+        background: rgba(193,80,28,0.16);
+        color: inherit;
+        padding: 0 2px;
+        border-radius: 2px;
+        cursor: pointer;
+        border-bottom: 1px dashed var(--accent);
+      }
+      mark.concept:hover { background: rgba(193,80,28,0.28); }
+      mark.concept.selected { background: var(--accent); color: var(--panel); }
     </style>
   </head>
   <body>

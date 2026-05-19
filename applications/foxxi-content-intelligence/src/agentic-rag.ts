@@ -391,7 +391,7 @@ Cited slide content:
 ${slideBlocks}
 ─────────────────────────────────────────
 
-When citing a slide that comes from a federation peer, prefix with the course label, e.g. [Golf Fundamentals (stub): Golf Basics]. When citing a primary-course slide just use the slide title in brackets, e.g. [Voltage Control]. Answer in plain prose, 2-4 short paragraphs unless depth is requested. If the retrieved material doesn't address the question, say so honestly rather than inventing.`;
+When citing a slide that comes from a federation peer, prefix with the course label, e.g. [Golf Fundamentals (stub)]. When citing a primary-course slide just use the slide title in brackets, e.g. [Voltage Control]. Answer in plain prose, 2-4 short paragraphs unless depth is requested. If the retrieved material doesn't address the question, say so honestly rather than inventing.`;
 }
 
 interface AnthropicMessage { role: 'user' | 'assistant'; content: string }
@@ -527,7 +527,7 @@ export interface AskAgenticRagArgs {
   readonly primary: FoxxiAgenticCourse;
   readonly federation?: readonly FoxxiAgenticCourse[];
   readonly history?: readonly { role: 'user' | 'assistant'; content: string }[];
-  /** Override LLM model (default: claude-sonnet-4-5). */
+  /** Override LLM model (default: claude-opus-4-7). */
   readonly llmModel?: string;
   /** If supplied, used to call the Anthropic API. Without it, retrieval-only result. */
   readonly llmApiKey?: string;
@@ -538,7 +538,7 @@ export interface AskAgenticRagArgs {
 export async function askAgenticRag(args: AskAgenticRagArgs): Promise<AgenticRagResult> {
   const federation = args.federation ?? [];
   const ctx = buildGraphContext({ question: args.question, primary: args.primary, federation });
-  const llmModel = args.llmModel ?? 'claude-sonnet-4-5';
+  const llmModel = args.llmModel ?? 'claude-opus-4-7';
   let synthesizedAnswer: string | null = null;
   const llmKeySource: LlmKeySource = args.llmApiKey ? (args.llmKeySource ?? 'bridge-env') : 'none';
   if (args.llmApiKey) {

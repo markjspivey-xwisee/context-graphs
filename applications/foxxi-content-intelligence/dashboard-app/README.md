@@ -89,7 +89,7 @@ The dashboard's login screen lets you pick:
 - **Admin** — Jordan Doe (L&D Administrator at Acme Training Co)
 - **Learner** — pick from the sample roster. Joshua Liu (`u-joshua`,
   engineering audience) is the recommended starting point:
-  he has Golf Explained: Golf Rules assigned, the full parsed course
+  he has Golf Explained assigned, the full parsed course
   is bundled, and the Q&A flow has real transcripts to ground in.
 
 The selected identity's `webId` is sent as `learner_did` on every

@@ -1,0 +1,67 @@
+# ────────────────────────────────────────────────────────────
+#  Foxxi vertical bridge — Azure Container Apps deployment.
+#
+#  Preserves the on-disk repo layout under /app so the bridge's
+#  relative imports (`../affordances.ts`, `../src/...`, `../../_shared/...`,
+#  `../../../src/...`, `../../learner-performer-companion/src/grounded-answer.js`)
+#  work unchanged. Runs via tsx for the vertical's TS sources (no
+#  separate compile step needed for the vertical).
+# ────────────────────────────────────────────────────────────
+
+ARG NODE_BASE=node:20-slim
+FROM ${NODE_BASE} AS build
+
+ENV ONNXRUNTIME_NODE_INSTALL_CUDA=skip
+
+WORKDIR /app
+
+# Install @interego/core deps + tsx for runtime. We use the repo root's
+# package.json to get the same dep tree the bridge sees in dev.
+COPY package.json package-lock.json tsconfig.json ./
+RUN npm ci
+
+# Add tsx for the runtime.
+RUN npm install --no-save tsx@4.22.0
+
+# Copy the bits the bridge transitively needs, preserving relative-path layout:
+#   - src/                                            (@interego/core sources)
+#   - docs/ns/                                        (ontology TTLs that tools load)
+#   - applications/_shared/                           (vertical-bridge + affordance-mcp + aggregate-privacy + scorm + vc-jwt)
+#   - applications/foxxi-content-intelligence/        (the vertical itself)
+#   - applications/learner-performer-companion/src/   (grounded-answer.ts imported by course-qa.ts)
+COPY src/ ./src/
+COPY docs/ns/ ./docs/ns/
+COPY applications/_shared/ ./applications/_shared/
+COPY applications/foxxi-content-intelligence/ ./applications/foxxi-content-intelligence/
+COPY applications/learner-performer-companion/src/ ./applications/learner-performer-companion/src/
+# lrs-adapter provides the TLA Experience Index read-side federator that the
+# foxxi bridge composes for foxxi.query_experience_index.
+COPY applications/lrs-adapter/src/ ./applications/lrs-adapter/src/
+
+# Compile @interego/core (the bridge resolves `@interego/core` via package
+# resolution — but the bridge actually uses RELATIVE imports to ../../../src,
+# so the compiled dist is just for any package-resolved imports inside src/).
+RUN npx tsc
+
+# ────────────────────────────────────────────────────────────
+#  Runtime stage
+# ────────────────────────────────────────────────────────────
+FROM ${NODE_BASE}
+
+WORKDIR /app
+
+COPY --from=build /app /app
+
+EXPOSE 6080
+
+ENV PORT=6080
+ENV NODE_NO_WARNINGS=1
+
+# Defaults — override via Azure Container App env vars at deploy time.
+ENV FOXXI_TENANT_POD_URL=https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/
+ENV FOXXI_AUTHORITATIVE_SOURCE=did:web:acme-training.example
+ENV FOXXI_AUDIENCE=both
+ENV BRIDGE_DEPLOYMENT_URL=https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io
+ENV FOXXI_DASHBOARD_ORIGIN=https://interego-foxxi-dashboard.livelysky-8b81abb0.eastus.azurecontainerapps.io
+
+CMD ["npx", "tsx", "applications/foxxi-content-intelligence/bridge/server.ts"]

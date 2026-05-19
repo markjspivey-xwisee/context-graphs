@@ -1,0 +1,57 @@
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+@prefix rcd:  <https://vocab.foxximediums.com/rcd#> .
+@prefix fxk:  <https://vocab.foxximediums.com/knowledge#> .
+
+#################################################################
+#  IEEE 1484.20.2 RCD (Reusable Competency Data) mapping —      #
+#  vertical-scoped vocab that defines the proficiency-level     #
+#  individuals + the binding from foxxi's informal fxk:Skill   #
+#  to RDCEO-shaped competency definitions.                      #
+#                                                                #
+#  Vertical-scoped per layering discipline: lives outside the   #
+#  L1/L2/L3 protocol namespaces (cg:/cgh:/pgsl:/ie:/align:).   #
+#################################################################
+
+<https://vocab.foxximediums.com/rcd> a owl:Ontology ;
+    dcterms:title "Foxxi RDCEO mapping (IEEE 1484.20.2)" ;
+    dcterms:issued "2026-05-17"^^xsd:date ;
+    owl:versionInfo "0.1.0" .
+
+rcd:ProficiencyLevel a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "Proficiency Level" ;
+    rdfs:comment "One of the five RDCEO mastery rungs used to qualify a competency assertion. The labels mirror common L&D rubrics; the underlying numeric scale (1..5) is the substrate field." .
+
+rcd:Novice       a rcd:ProficiencyLevel ; skos:prefLabel "Novice"       ; rdf:value 1 .
+rcd:Beginner     a rcd:ProficiencyLevel ; skos:prefLabel "Beginner"     ; rdf:value 2 .
+rcd:Intermediate a rcd:ProficiencyLevel ; skos:prefLabel "Intermediate" ; rdf:value 3 .
+rcd:Advanced     a rcd:ProficiencyLevel ; skos:prefLabel "Advanced"     ; rdf:value 4 .
+rcd:Expert       a rcd:ProficiencyLevel ; skos:prefLabel "Expert"       ; rdf:value 5 .
+
+rcd:CompetencyDefinition a owl:Class ;
+    rdfs:subClassOf fxk:Skill ;
+    rdfs:label "Reusable Competency Definition" ;
+    rdfs:comment "An RDCEO/RCD-shaped competency: a skill with explicit statement + scope + mastery rubric. Subclass of fxk:Skill so existing foxxi machinery (concept extraction, prereq edges, framework membership) still applies." .
+
+rcd:statement a owl:DatatypeProperty ;
+    rdfs:domain rcd:CompetencyDefinition ;
+    rdfs:range xsd:string ;
+    rdfs:label "competency statement" ;
+    rdfs:comment "Natural-language statement of what the learner can do. RDCEO field." .
+
+rcd:scope a owl:DatatypeProperty ;
+    rdfs:domain rcd:CompetencyDefinition ;
+    rdfs:range xsd:string ;
+    rdfs:label "competency scope" .
+
+rcd:masteryRubric a owl:DatatypeProperty ;
+    rdfs:domain rcd:CompetencyDefinition ;
+    rdfs:range xsd:string ;
+    rdfs:label "mastery rubric" ;
+    rdfs:comment "Free-text rubric describing how mastery is judged at each proficiency level." .

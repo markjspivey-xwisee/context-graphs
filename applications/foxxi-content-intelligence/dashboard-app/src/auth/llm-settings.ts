@@ -1,7 +1,7 @@
 /**
  * LLM mode + BYOK settings for the dashboard.
  *
- * Three modes, mirroring the substrate's three architectures:
+ * Two modes for the dashboard surface:
  *
  *   - `bridge-env` — The bridge has its own FOXXI_LLM_API_KEY /
  *     ANTHROPIC_API_KEY env var. Dashboard sends NO key per request.
@@ -12,14 +12,14 @@
  *     llm_api_key in each agentic call. Bridge uses it transiently for
  *     the one LLM call; doesn't persist/log. User's subscription pays.
  *
- *   - `mcp-client` — Dashboard calls the retrieval-only tool
- *     (foxxi.retrieve_course_context). No LLM call at the bridge.
- *     Useful when the user wants to copy the retrieval scaffold + cited
- *     transcripts into their own agent context (Claude.ai / Claude
- *     Desktop / Claude Code / Cursor / etc.) and have THEIR agent
- *     synthesize the answer using THEIR existing subscription.
- *     Substrate-purest: no key anywhere, audit trail records mcp-client
- *     as the key source.
+ * The substrate still exposes a third architecture as a primitive —
+ * `foxxi.retrieve_course_context` returns the retrieval scaffold + cited
+ * transcripts WITHOUT an LLM call, so an MCP-native agent (Claude Code,
+ * Cursor, etc.) can call it directly and synthesise in its own context.
+ * That path is for agent-to-agent use; it isn't exposed as a dashboard
+ * UI option because a browser SPA can't usefully forward the result to a
+ * separate agent session (the human-mediated copy-paste flow was clunky
+ * enough to be worse than just using BYOK or bridge-env here).
  *
  * Settings persist in localStorage. The Anthropic key is NEVER sent to
  * the substrate's static bundle or any third party — it only goes from
@@ -27,7 +27,7 @@
  * it transiently for the one outbound call.
  */
 
-export type LlmMode = 'bridge-env' | 'byok' | 'mcp-client';
+export type LlmMode = 'bridge-env' | 'byok';
 
 export interface LlmSettings {
   mode: LlmMode;

@@ -152,6 +152,7 @@ export interface CourseConcept {
   confidence: number;
   tier: number;
   taught_in_slides?: string[];
+  total_freq?: number;
 }
 
 export interface CourseTranscript {
@@ -160,10 +161,56 @@ export interface CourseTranscript {
   text: string;
 }
 
+export interface CourseScene {
+  id: string;
+  title: string;
+  scene_number: number;
+  slide_ids: string[];
+}
+
+export interface CourseSlideTranscriptSegment {
+  path?: string;
+  duration?: number;
+  text?: string;
+  language?: string;
+}
+
+export interface CourseSlide {
+  id: string;
+  title: string;
+  scene_id: string;
+  sequence_index: number;
+  lms_id?: string;
+  audio_count?: number;
+  transcript_segments?: CourseSlideTranscriptSegment[];
+  transcript_combined?: string;
+  concept_ids?: string[];
+  alt_text_corpus?: string;
+}
+
+export interface CoursePrereqEdge {
+  from: string;
+  to: string;
+  confidence?: number;
+}
+
+export interface CoursePackageMeta {
+  id?: string;
+  title?: string;
+  standard?: string;
+  authoring_tool?: string;
+  authoring_version?: string;
+  parser_version?: string;
+}
+
 export interface CourseContent {
   courseIri: string;
   title: string;
   authoritativeSource: string;
   transcripts: Record<string, CourseTranscript>;
   concepts: CourseConcept[];
+  scenes?: CourseScene[];
+  slides?: CourseSlide[];
+  prereqEdges?: CoursePrereqEdge[];
+  packageMeta?: CoursePackageMeta;
 }

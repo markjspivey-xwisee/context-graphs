@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Pill, Button } from './common.js';
+import { Card, Pill, Button, Stat } from './common.js';
 import { ChatPanel } from './ChatPanel.js';
+import { SlideNavigator } from './SlideNavigator.js';
+import { ConceptNetwork } from './ConceptNetwork.js';
 import { discoverAssignedCourses, getCourseContent, type DiscoverAssignedCoursesResult } from '../interego/client.js';
 import type { CourseContent, EnrolledCourse } from '../types.js';
 import type { FoxxiSession } from '../auth/session.js';
@@ -28,6 +30,8 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
 
   const courseContent: CourseContent | undefined =
     openCourseId ? getCourseContent(openCourseId) : undefined;
+  const [navConceptId, setNavConceptId] = useState<string | null>(null);
+  const [navSlideId, setNavSlideId] = useState<string | null>(null);
 
   return (
     <div style={{ maxWidth: 980, margin: '24px auto', padding: 20 }}>
@@ -79,18 +83,51 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
             </Card>
           ) : (
             <>
-              <Card title={courseContent.title}>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+              <Card title={courseContent.title}
+                right={<Button small onClick={() => setOpenCourseId(null)}>← Course list</Button>}>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                   Authoritative source: <code>{courseContent.authoritativeSource}</code>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>
                   Course IRI: <code>{courseContent.courseIri}</code>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-                  Transcripts: {Object.keys(courseContent.transcripts).length} · Extracted concepts: {courseContent.concepts.length}
+                {courseContent.packageMeta && (
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {courseContent.packageMeta.authoring_tool}
+                    {courseContent.packageMeta.standard && <> · {courseContent.packageMeta.standard}</>}
+                    {courseContent.packageMeta.authoring_version && <> · v{courseContent.packageMeta.authoring_version}</>}
+                    {courseContent.packageMeta.parser_version && <> · parser {courseContent.packageMeta.parser_version}</>}
+                  </div>
+                )}
+                {/* Stat strip — mirrors the originals' SCENES / SLIDES / CONCEPTS / EDGES / MOD-OF strip */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                  gap: 12, marginTop: 16,
+                }}>
+                  <Stat label="Scenes" value={courseContent.scenes?.length ?? '—'} />
+                  <Stat label="Slides" value={courseContent.slides?.length ?? '—'} />
+                  <Stat label="Concepts" value={courseContent.concepts.length} tone="accent" />
+                  <Stat label="Prereq edges" value={courseContent.prereqEdges?.length ?? '—'} />
+                  <Stat label="Transcripts" value={Object.keys(courseContent.transcripts).length} />
                 </div>
-                <Button onClick={() => setOpenCourseId(null)} style={{ marginTop: 12 }}>Back to course list</Button>
               </Card>
+              <ConceptNetwork
+                concepts={courseContent.concepts}
+                prereqEdges={courseContent.prereqEdges ?? []}
+                slides={courseContent.slides ?? []}
+                selectedSlideId={navSlideId}
+                selectedConceptId={navConceptId}
+                onSelectConcept={setNavConceptId}
+                onJumpToSlide={sid => setNavSlideId(sid)}
+              />
+              <SlideNavigator
+                course={courseContent}
+                externalSelectedSlideId={navSlideId}
+                externalSelectedConceptId={navConceptId}
+                onSlideChange={setNavSlideId}
+                onConceptChange={setNavConceptId}
+              />
               <ChatPanel learnerDid={session.webId} course={courseContent} />
             </>
           )}

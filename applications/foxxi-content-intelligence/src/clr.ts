@@ -1,0 +1,183 @@
+/**
+ * Foxxi learner-wallet → 1EdTech Comprehensive Learner Record (CLR 2.0)
+ * composer.
+ *
+ * Walks the learner's Solid pod via the substrate's standard discover()
+ * machinery (filtering on dct:conformsTo=fxa:CourseCompletionCredential
+ * + fxa:CompetencyAssertion), fetches each credential's graph, parses
+ * the embedded W3C VC, verifies its Data Integrity Proof, and
+ * aggregates the verified credentials into a CLR 2.0-shaped JSON-LD
+ * envelope.
+ *
+ * The CLR envelope itself is NOT signed — it's an aggregator. Each
+ * embedded credentialEntry preserves its own DataIntegrityProof so a
+ * verifier can re-check any individual badge without re-trusting the
+ * envelope itself.
+ *
+ * Standards reference:
+ *   - 1EdTech CLR 2.0 (https://www.imsglobal.org/spec/clr/v2p0/)
+ *   - W3C VC Data Model 2.0
+ *   - Open Badges 3.0 (each entry IS an OB3 credential)
+ */
+
+import { discover, fetchGraphContent } from '../../../src/index.js';
+import type { ManifestEntry } from '../../../src/solid/types.js';
+import type { IRI } from '../../../src/index.js';
+import {
+  verifyDataIntegrityProof,
+  type VerifiableCredentialJson,
+} from '../../_shared/vc-jwt/data-integrity-jcs.js';
+import { CREDENTIAL_TYPES } from './credentials.js';
+
+const CLR_CONTEXT = [
+  'https://www.w3.org/ns/credentials/v2',
+  'https://purl.imsglobal.org/spec/clr/v2p0/context-2.0.1.json',
+] as const;
+
+const WALLET_TYPE = 'https://vocab.foxximediums.com/wallet#WalletEnvelope';
+
+export interface ClrEntry {
+  credential: VerifiableCredentialJson;
+  verified: boolean;
+  verifierReason?: string;
+  sourceDescriptor: string;
+}
+
+export interface ClrEnvelope {
+  '@context': readonly string[];
+  type: readonly string[];
+  id: string;
+  holderDid: string;
+  exportedAt: string;
+  credentialEntries: ClrEntry[];
+  summary: {
+    totalEntries: number;
+    verifiedEntries: number;
+    achievements: string[];
+    issuers: string[];
+  };
+}
+
+export interface FetchClrConfig {
+  /** Learner's pod root URL. */
+  learnerPodUrl: string;
+  /** Learner's DID — appears in the envelope's holderDid + cross-checked against each credential's credentialSubject.id. */
+  learnerDid: string;
+  fetch?: typeof globalThis.fetch;
+}
+
+/**
+ * Fetch + compose the learner's CLR. Pure read; no writes back to the
+ * pod. Caller decides whether to publish the envelope as its own
+ * descriptor (the substrate's standard publish() works for that).
+ */
+export async function exportClr(config: FetchClrConfig): Promise<ClrEnvelope> {
+  const entries = await discover(
+    config.learnerPodUrl,
+    undefined,
+    config.fetch ? { fetch: config.fetch as never } : undefined,
+  );
+
+  const credentialEntries = entries.filter(e =>
+    (e.conformsTo ?? []).includes(CREDENTIAL_TYPES.CourseCompletionCredential)
+    || (e.conformsTo ?? []).includes(CREDENTIAL_TYPES.CompetencyAssertion),
+  );
+
+  const composedEntries: ClrEntry[] = [];
+  for (const entry of credentialEntries) {
+    try {
+      const credential = await fetchCredential(entry, config);
+      // Subject-binding check: the credential's subject must match the
+      // learner DID we're composing for. Defends against an attacker who
+      // could write someone else's credential into this pod.
+      const subjectId = (credential.credentialSubject as { id?: string }).id;
+      if (subjectId !== config.learnerDid) {
+        composedEntries.push({
+          credential,
+          verified: false,
+          verifierReason: `subject DID mismatch: credential subject is ${subjectId}, expected ${config.learnerDid}`,
+          sourceDescriptor: entry.descriptorUrl,
+        });
+        continue;
+      }
+      const verify = verifyDataIntegrityProof(credential);
+      composedEntries.push({
+        credential,
+        verified: verify.verified,
+        verifierReason: verify.reason,
+        sourceDescriptor: entry.descriptorUrl,
+      });
+    } catch (err) {
+      composedEntries.push({
+        credential: { '@context': [], type: [], issuer: '', validFrom: '', credentialSubject: {} },
+        verified: false,
+        verifierReason: `fetch failed: ${(err as Error).message}`,
+        sourceDescriptor: entry.descriptorUrl,
+      });
+    }
+  }
+
+  const exportedAt = new Date().toISOString();
+  const summary = {
+    totalEntries: composedEntries.length,
+    verifiedEntries: composedEntries.filter(e => e.verified).length,
+    achievements: Array.from(new Set(composedEntries
+      .map(e => {
+        const subj = e.credential.credentialSubject as { achievement?: { name?: string } };
+        return subj.achievement?.name;
+      })
+      .filter((n): n is string => !!n))),
+    issuers: Array.from(new Set(composedEntries.map(e => e.credential.issuer).filter(Boolean))),
+  };
+
+  return {
+    '@context': CLR_CONTEXT,
+    type: ['VerifiableCredential', 'ClrCredential', WALLET_TYPE],
+    id: `urn:foxxi:clr:${slugDid(config.learnerDid)}:${Date.now()}`,
+    holderDid: config.learnerDid,
+    exportedAt,
+    credentialEntries: composedEntries,
+    summary,
+  };
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+async function fetchCredential(entry: ManifestEntry, config: FetchClrConfig): Promise<VerifiableCredentialJson> {
+  const fetchFn = (config.fetch ?? globalThis.fetch) as typeof globalThis.fetch;
+  const descRes = await fetchFn(entry.descriptorUrl, { headers: { Accept: 'text/turtle' } });
+  if (!descRes.ok) {
+    throw new Error(`fetch descriptor ${entry.descriptorUrl}: ${descRes.status} ${descRes.statusText}`);
+  }
+  const descTurtle = await descRes.text();
+  const graphUrl = extractDistributionTarget(descTurtle);
+  if (!graphUrl) {
+    throw new Error(`no hydra:target on ${entry.descriptorUrl}`);
+  }
+  const { content } = await fetchGraphContent(graphUrl, config.fetch ? { fetch: config.fetch as never } : undefined);
+  if (!content) {
+    throw new Error(`graph at ${graphUrl} returned empty or encrypted content`);
+  }
+  return extractCredentialJson(content);
+}
+
+function extractDistributionTarget(descTurtle: string): string | null {
+  const m = descTurtle.match(/hydra:target\s+<([^>]+)>/);
+  if (m) return m[1];
+  const m2 = descTurtle.match(/dcat:accessURL\s+<([^>]+)>/);
+  return m2 ? m2[1] : null;
+}
+
+function extractCredentialJson(trig: string): VerifiableCredentialJson {
+  const m = trig.match(/<https:\/\/vocab\.foxximediums\.com\/scorm#bundleJson>\s+"([A-Za-z0-9+/=\s]+)"/);
+  if (!m) {
+    throw new Error('graph has no fxs:bundleJson literal');
+  }
+  const b64 = m[1].replace(/\s+/g, '');
+  const json = Buffer.from(b64, 'base64').toString('utf8');
+  return JSON.parse(json) as VerifiableCredentialJson;
+}
+
+function slugDid(did: string): string {
+  return did.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 80);
+}

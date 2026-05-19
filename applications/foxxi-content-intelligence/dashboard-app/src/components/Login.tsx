@@ -31,7 +31,7 @@ export function Login({ onSignIn }: { onSignIn: (s: FoxxiSession) => void }) {
             <div style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 10 }}>
               The admin view manages the tenant catalog + policies + coverage queries + audit log.
             </div>
-            <Button primary onClick={() => onSignIn(sessionFromOption(admin, 'admin', SAMPLE_TENANT_POD_URL))}>
+            <Button primary onClick={() => { void (async () => onSignIn(await sessionFromOption(admin, 'admin', SAMPLE_TENANT_POD_URL)))(); }}>
               Sign in as {admin.name} ({admin.jobTitle})
             </Button>
           </div>
@@ -39,7 +39,7 @@ export function Login({ onSignIn }: { onSignIn: (s: FoxxiSession) => void }) {
           <div>
             <div style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 10 }}>
               Pick a learner from the Acme Training Co roster — different audience tags get different course assignments.
-              Joshua Liu (engineering) is a good starting point for the Golf Explained: Golf Rules demo.
+              Joshua Liu (engineering) is a good starting point for the Golf Explained demo.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {learners.map(l => (
@@ -57,7 +57,7 @@ export function Login({ onSignIn }: { onSignIn: (s: FoxxiSession) => void }) {
                       {l.audienceTags.map(t => <Pill key={t}>{t}</Pill>)}
                     </div>
                   </div>
-                  <Button onClick={() => onSignIn(sessionFromOption(l, 'learner', SAMPLE_TENANT_POD_URL))}>
+                  <Button onClick={() => { void (async () => onSignIn(await sessionFromOption(l, 'learner', SAMPLE_TENANT_POD_URL)))(); }}>
                     Sign in
                   </Button>
                 </div>

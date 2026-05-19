@@ -49,12 +49,32 @@ async function transport(): Promise<'bridge' | 'sample'> {
   return probedTransport;
 }
 
+/**
+ * Read the active session's bearer token from localStorage at call time.
+ * Pulled per-call so token rotation (re-login, expiry) takes effect
+ * immediately without needing to thread the session through every
+ * client-side API.
+ */
+function readBearerToken(): string | undefined {
+  try {
+    const raw = localStorage.getItem('foxxi:session');
+    if (!raw) return undefined;
+    const s = JSON.parse(raw) as { bearerToken?: string };
+    return s.bearerToken;
+  } catch {
+    return undefined;
+  }
+}
+
 async function callTool<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const t = await transport();
   if (t === 'bridge') {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const bearer = readBearerToken();
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
     const resp = await fetch(`${BRIDGE_URL}/mcp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: Date.now(),
@@ -356,7 +376,7 @@ export interface AskAgenticResult {
   trace: AgenticTraceStep[];
 }
 
-export type LlmCallMode = 'bridge-env' | 'byok' | 'mcp-client';
+export type LlmCallMode = 'bridge-env' | 'byok';
 
 export async function askCourseQuestionAgentic(args: {
   learnerDid: string;
@@ -369,15 +389,6 @@ export async function askCourseQuestionAgentic(args: {
   llmModel?: string;
 }): Promise<AskAgenticResult> {
   const mode = args.mode ?? 'bridge-env';
-  if (mode === 'mcp-client') {
-    // Route to the retrieval-only tool — no LLM call anywhere.
-    return callTool('foxxi.retrieve_course_context', {
-      learner_did: args.learnerDid,
-      question: args.question,
-      primary: args.primary,
-      federation: args.federation ?? [],
-    });
-  }
   const extra: Record<string, unknown> = {};
   if (mode === 'byok' && args.byokKey) extra.llm_api_key = args.byokKey;
   if (args.llmModel) extra.llm_model = args.llmModel;

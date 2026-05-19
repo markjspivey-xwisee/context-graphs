@@ -234,12 +234,12 @@ describe('Tier 6b — SCORM/cmi5 zip-package unwrapping', () => {
     z2.addFile('imsmanifest.xml', manifestBuf);
     z2.addFile('lesson4.html', Buffer.from(tamperedHtml));
     const pkg2 = unwrapScormPackage(z2.toBuffer());
-    const golf-fundamentals = launchableLessons(pkg2)[0]!.content as string;
+    const tamperedContent = launchableLessons(pkg2)[0]!.content as string;
 
-    expect(lesson1).not.toBe(golf-fundamentals);
+    expect(lesson1).not.toBe(tamperedContent);
 
     const e1 = await extract(lesson1);
-    const e2 = await extract(golf-fundamentals);
+    const e2 = await extract(tamperedContent);
     expect(e1.contentHash).not.toBe(e2.contentHash);
 
     const pgsl = createPGSL();

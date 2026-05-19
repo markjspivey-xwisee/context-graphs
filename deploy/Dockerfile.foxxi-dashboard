@@ -1,0 +1,68 @@
+# ────────────────────────────────────────────────────────────
+#  Foxxi dashboard — Azure Container Apps deployment.
+#
+#  Two stages: (1) Node + Vite build the React SPA into dist/,
+#  (2) nginx:alpine serves the static bundle.
+#
+#  VITE_FOXXI_BRIDGE_URL is baked into the build — set via
+#  --build-arg at `az acr build` time so the SPA knows where
+#  the bridge lives.
+# ────────────────────────────────────────────────────────────
+
+ARG NODE_BASE=node:20-slim
+FROM ${NODE_BASE} AS build
+
+WORKDIR /app
+
+ARG VITE_FOXXI_BRIDGE_URL=https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io
+ENV VITE_FOXXI_BRIDGE_URL=${VITE_FOXXI_BRIDGE_URL}
+
+# Copy the imported sample data (the dashboard bundles it via Vite's
+# JSON imports for offline fallback). These live one level up from
+# dashboard-app/, so we preserve the on-disk layout.
+COPY applications/foxxi-content-intelligence/imported/ /app-root/applications/foxxi-content-intelligence/imported/
+
+# Copy the foxxi vertical's src/ + package.json — the dashboard shares
+# auth.ts (wallet derivation + session-token mint) with the bridge so
+# the dashboard's signed tokens are verifiable by the bridge without
+# diverging copies of the code. The vertical-level package.json provides
+# `ethers` so node-resolution from the shared src/ files works during
+# the dashboard's tsc step.
+COPY applications/foxxi-content-intelligence/src/ /app-root/applications/foxxi-content-intelligence/src/
+COPY applications/foxxi-content-intelligence/package.json /app-root/applications/foxxi-content-intelligence/package.json
+RUN cd /app-root/applications/foxxi-content-intelligence && npm install --no-audit --no-fund
+
+# Copy the dashboard-app itself.
+COPY applications/foxxi-content-intelligence/dashboard-app/ /app-root/applications/foxxi-content-intelligence/dashboard-app/
+
+WORKDIR /app-root/applications/foxxi-content-intelligence/dashboard-app
+RUN npm ci && npm run build
+
+# ────────────────────────────────────────────────────────────
+#  Runtime stage: nginx static server.
+# ────────────────────────────────────────────────────────────
+FROM nginx:1.27-alpine
+
+# SPA-style: any unknown route falls back to index.html.
+RUN printf 'server {\n\
+  listen 8080;\n\
+  root /usr/share/nginx/html;\n\
+  index index.html;\n\
+  location / {\n\
+    try_files $uri $uri/ /index.html;\n\
+  }\n\
+  # Long cache on hashed assets, no cache on the HTML shell.\n\
+  location /assets/ {\n\
+    expires 1y;\n\
+    add_header Cache-Control "public, immutable";\n\
+  }\n\
+  location = /index.html {\n\
+    add_header Cache-Control "no-cache, no-store, must-revalidate";\n\
+  }\n\
+}\n' > /etc/nginx/conf.d/default.conf
+
+COPY --from=build /app-root/applications/foxxi-content-intelligence/dashboard-app/dist /usr/share/nginx/html
+
+EXPOSE 8080
+
+CMD ["nginx", "-g", "daemon off;"]

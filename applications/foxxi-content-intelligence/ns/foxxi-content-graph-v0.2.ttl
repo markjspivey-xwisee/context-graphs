@@ -1199,3 +1199,75 @@ fxsh:NamedGraphShape a sh:NodeShape ;
 #################################################################
 #  End of foxxi-content-graph.ttl v0.1                          #
 #################################################################
+
+#################################################################
+#  Tenant publication types — added 2026-05-17                  #
+#  Type IRIs for descriptor-shaped records the tenant publishes #
+#  so the bridge discovers them via cg:discover() + dct:conformsTo
+#  filter, then fetches via the standard Distribution link.     #
+#  NO hardcoded paths — discovery is the only entry point.      #
+#################################################################
+
+fxs:CourseCatalog a owl:Class ;
+    rdfs:label "Course Catalog" ;
+    rdfs:comment "A tenant's published catalog of courses." .
+
+fxs:TenantDirectory a owl:Class ;
+    rdfs:label "Tenant Directory" ;
+    rdfs:comment "Users + groups + audience-tag memberships. Source of truth for policy resolution." .
+
+fxs:AssignmentPolicySet a owl:Class ;
+    rdfs:label "Assignment Policy Set" ;
+    rdfs:comment "Bindings of courses to audience groups + requirement type + trigger." .
+
+fxs:ConnectorRegistry a owl:Class ;
+    rdfs:label "Connector Registry" ;
+    rdfs:comment "Registered LMS / IDP / HRIS / LRS / Pod Federation / Manual connectors." .
+
+fxa:EnrollmentEventStream a owl:Class ;
+    rdfs:label "Enrollment Event Stream" ;
+    rdfs:comment "Time-ordered stream of enrollment events (assignment + completion + overdue)." .
+
+fxa:AuditLogStream a owl:Class ;
+    rdfs:label "Audit Log Stream" ;
+    rdfs:comment "Time-ordered stream of actor + action + target + result + reason chains." .
+
+fxa:CoursePackageBundle a owl:Class ;
+    rdfs:label "Course Package Bundle" ;
+    rdfs:comment "A parsed Foxxi course's full agentic payload (meta + scenes + slides + concepts + prereqs)." .
+
+fxs:bundleJson a owl:DatatypeProperty ;
+    rdfs:label "Bundle JSON" ;
+    rdfs:comment "Pragmatic carrier: the section's JSON payload as an xsd:string literal. Replaceable with proper triple decomposition without breaking discover()." ;
+    rdfs:range xsd:string .
+
+#################################################################
+#  Credentialing + competency-exchange types — added 2026-05-17 #
+#                                                                #
+#  These bridge Foxxi to the ADL TLA / IEEE LERS credentialing  #
+#  stack: when a learner completes a course, the bridge issues  #
+#  an Open Badge 3.0-shaped W3C Verifiable Credential and       #
+#  publishes it to the learner's pod. Competency assertions     #
+#  reuse IEEE 1484.20.1 RDCEO semantics; framework exchange     #
+#  uses 1EdTech CASE 1.0 JSON-LD.                               #
+#################################################################
+
+fxa:CourseCompletionCredential a owl:Class ;
+    rdfs:label "Course Completion Credential" ;
+    rdfs:comment "Vertical-scoped RDF type for a foxxi-issued Open Badges 3.0 / W3C VC course-completion credential. The descriptor wrapping the VC on a learner's pod carries this dct:conformsTo handle so discover() finds it; the verifiable JSON-LD payload itself carries the W3C VC + OB3 type IRIs and verifies independently of any foxxi machinery via standard W3C VC + did:key + eddsa-jcs-2022 / eddsa-rdfc-2022 verifiers." ;
+    rdfs:subClassOf <http://www.w3.org/ns/credentials#VerifiableCredential> .
+
+fxa:CompetencyAssertion a owl:Class ;
+    rdfs:label "Competency Assertion" ;
+    rdfs:comment "A claim that a learner has demonstrated a specific fxk:Skill at a specific rcd:ProficiencyLevel. Issued as a W3C VC; can be aggregated into a CLR 2.0 envelope." .
+
+fxk:hasProficiencyLevel a owl:ObjectProperty ;
+    rdfs:domain fxk:Skill ;
+    rdfs:label "has proficiency level" ;
+    rdfs:comment "Maps a foxxi skill to one of the IEEE 1484.20.2 RDCEO proficiency rungs (rcd:Novice through rcd:Expert)." .
+
+fxk:caseFrameworkRef a owl:DatatypeProperty ;
+    rdfs:domain fxk:SkillFramework ;
+    rdfs:label "1EdTech CASE framework reference" ;
+    rdfs:comment "External 1EdTech CASE 1.0 framework IRI this fxk:SkillFramework conforms to (e.g. an O*NET / ESCO / institutional taxonomy)." ;
+    rdfs:range xsd:anyURI .

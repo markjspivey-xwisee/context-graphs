@@ -11,6 +11,14 @@ interface ChatTurn {
   at: string;
 }
 
+const EXEMPLAR_QUESTIONS = [
+  'What is handicap?',
+  'How does the golf develop the handicap reference?',
+  'Explain difficult lie recovery in simple terms.',
+  'How do voltage and current relate in this lesson?',
+  'What are the prerequisites for understanding golf etiquette overview?',
+];
+
 /**
  * Adapt the sample-mode FoxxiCourseContent (transcripts + concepts) to
  * the agentic payload (packageMeta + slides + edges). For the sample
@@ -92,7 +100,7 @@ export function ChatPanel(props: {
   }
 
   const llmPill = llmModeChip(llm.mode);
-  const toolName = llm.mode === 'mcp-client' ? 'foxxi.retrieve_course_context' : 'foxxi.ask_course_question_agentic';
+  const toolName = 'foxxi.ask_course_question_agentic';
 
   return (
     <Card
@@ -114,12 +122,11 @@ export function ChatPanel(props: {
       )}
       <div style={{ marginBottom: 16, color: 'var(--text-dim)', fontSize: 12, lineHeight: 1.55 }}>
         Multi-step agentic retrieval: federated concept-graph search → prereq + modifier-of edge expansion
-        → round-robin slide allocation → optional LLM synthesis. Three LLM modes (configure via the
-        ⚙ button): <strong>bridge-env</strong> (bridge has its own key), <strong>byok</strong> (paste
-        your Anthropic key here, used per-request), <strong>mcp-client</strong> (no LLM at the bridge —
-        copy cited transcripts into YOUR agent and have it synthesise). Each step emits an Interego
-        descriptor (modal-statused, supersedes-chained) so the auditor walks the trace from the final
-        answer back to the original question.
+        → round-robin slide allocation → optional LLM synthesis. Two LLM modes (configure via the
+        ⚙ button): <strong>bridge-env</strong> (bridge has its own key) or <strong>byok</strong> (paste
+        your Anthropic key here, used per-request). Each step emits an Interego descriptor
+        (modal-statused, supersedes-chained) so the auditor walks the trace from the final answer
+        back to the original question.
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -136,11 +143,47 @@ export function ChatPanel(props: {
 
       {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 16 }}>✗ {error}</div>}
 
+      {loading && (
+        <div style={{
+          padding: 14, marginBottom: 14,
+          background: 'var(--panel-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 6, fontSize: 14,
+          fontFamily: "'EB Garamond', serif", fontStyle: 'italic',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          Traversing the graph
+          <span className="foxxi-dots" aria-hidden="true">
+            <span>·</span><span>·</span><span>·</span>
+          </span>
+        </div>
+      )}
+
       {history.length === 0 && !loading && (
-        <div style={{ color: 'var(--text-dim)', fontSize: 12, fontStyle: 'italic' }}>
-          Try: "what is handicap?" · "how does the golf develop the handicap reference?"
-          · "tell me about course par" · or an off-topic question like "tomatoes salads grocery" to see the
-          honest fallback path.
+        <div style={{ marginTop: 4 }}>
+          <div style={{
+            fontFamily: "'EB Garamond', serif", fontSize: 15,
+            color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 10,
+          }}>
+            Ask anything about the course content. The agent traverses the parsed concept
+            graph, expands prereq + modifier-of edges, allocates slides round-robin across
+            primary + federated peer courses, and synthesises with verbatim transcript citations.
+          </div>
+          <div className="label" style={{ marginBottom: 6 }}>Exemplar questions</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {EXEMPLAR_QUESTIONS.map((q, i) => (
+              <button key={i} onClick={() => setQuestion(q)} style={{
+                textAlign: 'left', cursor: 'pointer',
+                padding: '8px 12px',
+                background: 'var(--panel-2)',
+                border: '1px solid var(--border)',
+                borderLeft: '3px solid var(--accent)',
+                borderRadius: 4,
+                fontFamily: "'EB Garamond', serif",
+                fontSize: 15, color: 'var(--text)',
+              }}>"{q}"</button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -151,10 +194,9 @@ export function ChatPanel(props: {
   );
 }
 
-function llmModeChip(mode: LlmMode): { label: string; tone: 'accent' | 'good' | 'warn' | 'neutral' } {
+function llmModeChip(mode: LlmMode): { label: string; tone: 'accent' | 'good' } {
   if (mode === 'bridge-env') return { label: 'mode: bridge-env', tone: 'accent' };
-  if (mode === 'byok') return { label: 'mode: byok', tone: 'good' };
-  return { label: 'mode: mcp-client', tone: 'warn' };
+  return { label: 'mode: byok', tone: 'good' };
 }
 
 function TurnView({ turn }: { turn: ChatTurn }) {
@@ -177,11 +219,11 @@ function TurnView({ turn }: { turn: ChatTurn }) {
         <Pill tone="accent">{r.retrieval.seedConcepts.length} seed concept{r.retrieval.seedConcepts.length === 1 ? '' : 's'}</Pill>
         <Pill tone="accent">{r.retrieval.expandedConcepts.length} expanded</Pill>
         <Pill tone="accent">{r.retrieval.citedSlides.length} cited slide{r.retrieval.citedSlides.length === 1 ? '' : 's'}</Pill>
-        <Pill tone={r.synthesizedAnswer ? 'good' : r.llmKeySource === 'mcp-client' ? 'accent' : 'neutral'}>
+        <Pill tone={r.synthesizedAnswer ? 'good' : 'neutral'}>
           llm: {r.llmModel}
         </Pill>
         {r.llmKeySource && r.llmKeySource !== 'none' && (
-          <Pill tone={r.llmKeySource === 'mcp-client' ? 'warn' : 'good'}>
+          <Pill tone="good">
             key: {r.llmKeySource}
           </Pill>
         )}
@@ -198,10 +240,7 @@ function TurnView({ turn }: { turn: ChatTurn }) {
           {r.synthesizedAnswer}
         </div>
       )}
-      {!r.synthesizedAnswer && r.llmKeySource === 'mcp-client' && (
-        <McpClientHandoff turn={turn} />
-      )}
-      {!r.synthesizedAnswer && r.llmKeySource !== 'mcp-client' && (
+      {!r.synthesizedAnswer && (
         <div style={{
           padding: 10, marginBottom: 12,
           background: 'rgba(255,177,85,0.08)',
@@ -298,84 +337,3 @@ function TurnView({ turn }: { turn: ChatTurn }) {
   );
 }
 
-function McpClientHandoff({ turn }: { turn: ChatTurn }) {
-  const [copied, setCopied] = useState<'none' | 'prompt' | 'transcripts'>('none');
-  const r = turn.result;
-  const promptText = buildMcpClientPrompt(turn.question, r);
-  const transcriptsOnly = r.retrieval.citedSlides
-    .map(cs => `[${cs.course.courseLabel}] §${cs.sequenceIndex + 1}: ${cs.slideTitle}\n${cs.transcriptCombined}`)
-    .join('\n\n---\n\n');
-
-  function copy(text: string, kind: 'prompt' | 'transcripts') {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(kind);
-      setTimeout(() => setCopied('none'), 2000);
-    });
-  }
-
-  return (
-    <div style={{
-      padding: 12, marginBottom: 12,
-      background: 'rgba(255,177,85,0.08)',
-      border: '1px solid rgba(255,177,85,0.3)',
-      borderRadius: 6, fontSize: 13, lineHeight: 1.55,
-    }}>
-      <div style={{ marginBottom: 8 }}>
-        <Pill tone="warn">mcp-client mode</Pill>{' '}
-        Substrate retrieved {r.retrieval.citedSlides.length} cited slides + {r.retrieval.seedConcepts.length} seed concepts.
-        Copy the structured prompt below into your agent session (Claude.ai connector / Claude Desktop / Claude Code /
-        Cursor / etc.). Your existing subscription pays. The Interego trace recorded <code>keySource:
-        'mcp-client'</code> for honest provenance — when your agent synthesises, it can publish its own
-        <code> fxa:CitedAnswer</code> descriptor back to your pod to close the trace.
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <Button onClick={() => copy(promptText, 'prompt')}>
-          {copied === 'prompt' ? '✓ copied' : 'Copy structured prompt'}
-        </Button>
-        <Button onClick={() => copy(transcriptsOnly, 'transcripts')}>
-          {copied === 'transcripts' ? '✓ copied' : 'Copy cited transcripts only'}
-        </Button>
-      </div>
-      <details>
-        <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontSize: 12 }}>
-          Preview structured prompt ({promptText.length} chars)
-        </summary>
-        <pre style={{
-          marginTop: 6, padding: 10,
-          background: 'var(--panel)', borderRadius: 4,
-          fontSize: 11, overflow: 'auto', maxHeight: 320,
-          whiteSpace: 'pre-wrap',
-        }}>{promptText}</pre>
-      </details>
-    </div>
-  );
-}
-
-function buildMcpClientPrompt(question: string, r: AskAgenticResult): string {
-  const seedLines = r.retrieval.seedConcepts
-    .map(s => `  - ${s.conceptLabel} [${s.course.courseLabel}] (score ${s.score.toFixed(1)})`)
-    .join('\n');
-  const slideBlocks = r.retrieval.citedSlides
-    .map(cs => {
-      const prefix = `[${cs.course.courseLabel}] §${cs.sequenceIndex + 1}: ${cs.slideTitle}`;
-      return `${prefix}\n${cs.transcriptCombined}`;
-    })
-    .join('\n\n---\n\n');
-  return `# Foxxi course Q&A — retrieved by Interego, synthesise in your context
-
-Question: ${question}
-
-## Seed concepts (federated graph retrieval)
-${seedLines || '(none — fallback path)'}
-
-## Cited slide transcripts (verbatim from Foxxi-parsed lessons)
-
-${slideBlocks}
-
-## Your task
-Answer the user's question using ONLY the cited transcripts above. Cite slides by their bracketed
-label (e.g. [Golf Explained] §3). Honest no-match: if the transcripts don't address the question, say
-so plainly. Do not invent material that isn't there. When done, optionally publish your
-fxa:CitedAnswer descriptor to the user's pod with cg:supersedes the Interego trace's
-RetrievalActivity Hypothetical so the auditor walks the full chain.`;
-}

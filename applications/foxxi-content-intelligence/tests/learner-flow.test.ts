@@ -3,8 +3,8 @@
  * the vertical against the imported sample Acme Training Co tenant data.
  *
  * The user-level scenario:
- *   1. Acme Training Co's L&D admin (Jordan Doe) ingested Golf Explained (Golf
- *      Controls) into the catalog + published a policy assigning the
+ *   1. Acme Training Co's L&D admin (Jordan Doe) ingested Golf Explained
+ *      into the catalog + published a policy assigning the
  *      course to the "engineering" audience group.
  *   2. A learner enrolled in that audience (we use Joshua Liu, u-joshua)
  *      logs in and asks: "what are my assigned courses?"
@@ -42,7 +42,7 @@ const LEARNER_WEB_ID = 'https://id.acme-training.example/jliu/profile#me';
 const LEARNER_USER_ID = 'u-joshua';
 
 const COURSE_IRI = 'https://acme-training.example/courses/golf-explained#package' as IRI;
-const COURSE_TITLE = 'Golf Explained: Golf Rules';
+const COURSE_TITLE = 'Golf Explained';
 const ACME_TENANT_DID = 'did:web:acme-training.example' as IRI;
 
 describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)', () => {
@@ -69,11 +69,11 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
     expect(r.learnerName).toBeDefined();
     expect(r.audienceTags).toContain('engineering');
     expect(r.enrollments.length).toBeGreaterThan(0);
-    const golf-explained = r.enrollments.find(e => e.courseId === 'golf-explained');
-    expect(golf-explained).toBeDefined();
-    expect(golf-explained!.courseTitle).toBe(COURSE_TITLE);
-    expect(golf-explained!.requirementType).toBe('required');
-    expect(golf-explained!.category).toMatch(/Power Systems/);
+    const golf = r.enrollments.find(e => e.courseId === 'golf-explained');
+    expect(golf).toBeDefined();
+    expect(golf!.courseTitle).toBe(COURSE_TITLE);
+    expect(golf!.requirementType).toBe('required');
+    expect(golf!.category).toMatch(/Onboarding/);
   });
 
   it('discoverAssignedCourses: an unknown web_id returns no enrollments', () => {
@@ -90,8 +90,8 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
       learnerWebId: 'https://example.com/no-such-user',
       audienceTagsOverride: ['engineering'],
     });
-    const golf-explained = r.enrollments.find(e => e.courseId === 'golf-explained');
-    expect(golf-explained).toBeDefined();
+    const golf = r.enrollments.find(e => e.courseId === 'golf-explained');
+    expect(golf).toBeDefined();
   });
 
   // ── Content Q&A: the actual user-facing claim ──────────────────────
@@ -106,7 +106,7 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
 
   it('askCourseQuestion: "what is handicap?" returns a grounded answer with verbatim transcript citations', () => {
     const r = askCourseQuestion({
-      learnerDid: 'did:web:jliu.acme-training.example' as IRI,
+      learnerDid: 'did:web:acme-training.example:jliu' as IRI,
       course: courseContent,
       question: 'what is handicap?',
     });
@@ -128,7 +128,7 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
 
   it('askCourseQuestion: "what is photosynthesis?" returns HONEST null (no grounding for off-topic question)', () => {
     const r = askCourseQuestion({
-      learnerDid: 'did:web:jliu.acme-training.example' as IRI,
+      learnerDid: 'did:web:acme-training.example:jliu' as IRI,
       course: courseContent,
       question: 'what is photosynthesis?',
     });
@@ -143,7 +143,7 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
     // returns concept atoms (label + slide-count) when overlap is high
     // enough.
     const r = askCourseQuestion({
-      learnerDid: 'did:web:jliu.acme-training.example' as IRI,
+      learnerDid: 'did:web:acme-training.example:jliu' as IRI,
       course: courseContent,
       question: 'tell me about course par',
     });
@@ -157,9 +157,9 @@ describe('Foxxi learner flow: Acme Training Co tenant, Joshua Liu (engineering)'
 
     // Now the learner asks a question about the course they're enrolled in.
     const r = askCourseQuestion({
-      learnerDid: 'did:web:jliu.acme-training.example' as IRI,
+      learnerDid: 'did:web:acme-training.example:jliu' as IRI,
       course: courseContent,
-      question: 'how does the golf develop the handicap reference?',
+      question: 'how is a handicap calculated?',
     });
     expect(r.grounded).toBe(true);
     expect(r.answer!.citations.length).toBeGreaterThan(0);
