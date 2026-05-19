@@ -121,8 +121,15 @@ async function emit(stmt) {
   //   - version SHOULD declare the spec level the statement was authored against
   //   - actor.objectType is already 'Agent' in actor()
   const enriched = { id: crypto.randomUUID(), version: '2.0.0', ...stmt };
+  // No bearer = no point round-tripping to the LRS just to collect a 401.
+  // The bridge requires auth on every /xapi/* resource (xAPI 2.0 §6.4), so
+  // an anonymous player can only log statements locally.
+  if (!params.bearer) {
+    logTrace(`<span class="verb">${enriched.verb.display.en}</span> · <em>not emitted (no session)</em>`);
+    return enriched.id;
+  }
   const headers = { 'Content-Type': 'application/json', 'X-Experience-API-Version': '2.0.0' };
-  if (params.bearer) headers['Authorization'] = `Bearer ${params.bearer}`;
+  headers['Authorization'] = `Bearer ${params.bearer}`;
   try {
     const r = await fetch(`${params.bridge}/xapi/statements`, {
       method: 'POST', headers, body: JSON.stringify(enriched),
@@ -333,7 +340,7 @@ async function init() {
   if (params.bearer) {
     chip.innerHTML = `${params.learnerName} <span class="dim">·</span> <code>${params.learnerDid.slice(0, 60)}…</code>`;
   } else {
-    chip.innerHTML = `<span class="dim">anonymous — open from dashboard for signed xAPI emission</span>`;
+    chip.innerHTML = `<span class="dim" style="color:var(--warn);">⚠ no session — open from dashboard ▶ Launch button. Statements will NOT post to LRS.</span>`;
   }
   renderToc();
   renderStage();
