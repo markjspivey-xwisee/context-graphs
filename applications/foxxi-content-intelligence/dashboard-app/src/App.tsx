@@ -48,12 +48,22 @@ import { Header, Card } from './components/common.js';
 import { loadSession, saveSession, clearSession, type FoxxiSession } from './auth/session.js';
 import { getTransport, resetTransportProbe } from './interego/client.js';
 import { SAMPLE_ADMIN_PAYLOAD } from './sample/data.js';
-import { userIdToUuid, uuidToUserId } from './identifiers.js';
+import {
+  userIdToUuid, uuidToUserId,
+  courseSlugToOpaque, courseOpaqueToSlug,
+  policyOpaqueToSlug, groupOpaqueToSlug, auditOpaqueToSlug, integrationOpaqueToSlug,
+} from './identifiers.js';
+import { HypermediaProvider, useHypermedia } from './hypermedia.js';
 
 export function App() {
+  // HypermediaProvider initially has no bearer; once the session
+  // exists it's threaded down via a nested provider in AppRoutes so
+  // every resource fetch carries the auth header.
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <HypermediaProvider bearer={null}>
+        <AppRoutes />
+      </HypermediaProvider>
     </BrowserRouter>
   );
 }
@@ -228,12 +238,17 @@ function CoursesPage({ session }: { session: FoxxiSession }) {
 }
 
 function CourseDetailPage({ session }: { session: FoxxiSession }) {
+  // The :courseId param is now an opaque UUID. LearnerShell resolves it
+  // back to the underlying slug for getCourseContent lookups.
   return <LearnerShell session={session} />;
 }
 
 function RedirectCourse() {
+  // Legacy /learner/courses/<slug> → /courses/<opaque>
   const { courseId } = useParams();
-  return <Navigate to={courseId ? `/courses/${courseId}` : '/courses'} replace />;
+  if (!courseId) return <Navigate to="/courses" replace />;
+  // courseId here is the legacy slug; map to opaque
+  return <Navigate to={`/courses/${courseSlugToOpaque(courseId)}`} replace />;
 }
 
 function RedirectAudit() {

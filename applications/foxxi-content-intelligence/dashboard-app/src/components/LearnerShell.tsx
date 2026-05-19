@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { courseSlugToOpaque, courseOpaqueToSlug, userIdToUuid } from '../identifiers.js';
 import { Card, Pill, Button, Stat } from './common.js';
 import { ChatPanel } from './ChatPanel.js';
 import { SlideNavigator } from './SlideNavigator.js';
@@ -12,8 +13,12 @@ import type { FoxxiSession } from '../auth/session.js';
 export function LearnerShell({ session }: { session: FoxxiSession }) {
   const params = useParams();
   const navigate = useNavigate();
-  const openCourseId = (params.courseId as string | undefined) ?? null;
-  const setOpenCourseId = (id: string | null) => navigate(id ? `/courses/${id}` : `/users/${session.userId}`);
+  // URL carries the opaque course id (UUID). Resolve to the underlying
+  // slug for data lookups (getCourseContent etc.).
+  const opaqueFromUrl = (params.courseId as string | undefined) ?? null;
+  const openCourseId = opaqueFromUrl ? (courseOpaqueToSlug(opaqueFromUrl) ?? opaqueFromUrl) : null;
+  const setOpenCourseId = (slug: string | null) =>
+    navigate(slug ? `/courses/${courseSlugToOpaque(slug)}` : `/profiles/${userIdToUuid(session.userId)}`);
   const [enrollments, setEnrollments] = useState<DiscoverAssignedCoursesResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 

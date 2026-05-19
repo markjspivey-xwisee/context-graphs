@@ -132,6 +132,7 @@ import { attachOpenApiRoutes } from '../src/openapi-spec.js';
 import { emitAffordanceStatement } from '../src/xapi-instrumentation.js';
 import { attachXapiAdminRoutes } from '../src/xapi-admin.js';
 import { attachOauthTokenRoute } from '../src/xapi-oauth.js';
+import { attachHypermediaRoutes } from '../src/hypermedia-resources.js';
 import type { IRI } from '../../../src/index.js';
 
 const tenantPodUrl = process.env.FOXXI_TENANT_POD_URL ?? '';
@@ -1305,6 +1306,17 @@ const app = createVerticalBridge({
       privateKeyPem: process.env.FOXXI_LTI_PRIVATE_KEY_PEM,
       clientsConfig: process.env.FOXXI_LRS_OAUTH_CLIENTS ?? '',
       tokenTtlSec: 3600,
+    });
+
+    // Foxxi hypermedia resource endpoints — REST + HATEOAS surface.
+    // Each /api/foxxi/v1/<collection>[/<opaque-id>] returns a resource
+    // envelope with _links + _affordances + _embedded (where applicable)
+    // so clients navigate by following links rather than knowing URL
+    // patterns. Opaque ids are UUID v5 derived from substrate slugs;
+    // no business identifiers leak into URLs.
+    attachHypermediaRoutes(a, {
+      selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+      affordances: activeAffordances,
     });
 
     // Auth middleware: extract Authorization: Bearer <session-token> and

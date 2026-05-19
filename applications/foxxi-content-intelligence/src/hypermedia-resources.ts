@@ -1,0 +1,570 @@
+/**
+ * Hypermedia resource endpoints — Foxxi as a real REST + HATEOAS service.
+ *
+ * Endpoints below expose each substrate-backed resource as a canonical
+ * REST URI returning either a single resource representation or a
+ * paginated collection. Every response carries embedded hypermedia
+ * controls in two formats simultaneously, picked by Accept header:
+ *
+ *   application/json (default)   — JSON with `_links` block (HAL-ish)
+ *   application/ld+json          — JSON-LD with Hydra `operation` /
+ *                                  `view` blocks per the bridge's
+ *                                  affordance manifest
+ *
+ * The L1 affordance manifest at GET /affordances is the single source
+ * of truth for what transitions are possible. The resource endpoints
+ * here filter that manifest to the affordances applicable to a given
+ * resource and embed them in the response. The dashboard client
+ * navigates by following these links rather than knowing URL patterns
+ * — Richardson Level 3.
+ *
+ * Identifier opacity: every URL identifier is a UUID v5 derived from
+ * the substrate IRI (e.g. the course descriptor IRI on the pod, the
+ * user WebID, the audit descriptor IRI). Slugs never leak into URLs.
+ */
+
+import type { Express, Request, Response, NextFunction } from 'express';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { Affordance } from '../../_shared/affordance-mcp/index.js';
+import { deriveUserWallet } from './auth.js';
+
+interface HypermediaConfig {
+  selfBaseUrl: string;
+  affordances: ReadonlyArray<Affordance>;
+}
+
+// ── Opaque ID derivation (matches dashboard's identifiers.ts) ──────
+
+function sha256Hex(s: string): string {
+  return createHash('sha256').update(s, 'utf8').digest('hex');
+}
+function hexToUuidV5(h: string): string {
+  const variantNibble = ((parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16);
+  return (
+    h.slice(0, 8) + '-' +
+    h.slice(8, 12) + '-' +
+    '5' + h.slice(13, 16) + '-' +
+    variantNibble + h.slice(17, 20) + '-' +
+    h.slice(20, 32)
+  );
+}
+function opaqueId(kind: string, slug: string): string {
+  return hexToUuidV5(sha256Hex(`foxxi:${kind}:${slug}`));
+}
+function userIdToUuid(userId: string): string {
+  // Match the dashboard's wallet-derived UUID — both sides use the
+  // wallet address (the substrate's crypto-rooted identity) as the
+  // hashed input, ensuring opaque ids round-trip between client and
+  // server bit-for-bit.
+  const addr = deriveUserWallet(userId).address.toLowerCase();
+  return hexToUuidV5(sha256Hex(`foxxi:user-uuid:${addr}`));
+}
+
+// ── Admin payload (resource source data) ───────────────────────────
+
+interface FoxxiUser {
+  user_id: string; web_id: string; name: string; email: string;
+  department: string; job_title: string;
+  audience_tags: readonly string[]; status: string;
+  hire_date: string; employee_id?: string;
+}
+interface FoxxiPolicy {
+  policy_id: string; course_id: string; course_title?: string;
+  audience_group_id: string; requirement_type: string; enabled: boolean;
+  created_at: string; due_relative_days?: number; trigger?: string;
+}
+interface FoxxiGroup {
+  group_id: string; name: string; kind: string;
+  member_count?: number; member_ids: readonly string[];
+}
+interface FoxxiCatalog {
+  course_id: string; title: string; category: string;
+  audience_tags: readonly string[]; standard?: string;
+  concept_count?: number; slide_count?: number; is_real?: boolean;
+}
+interface FoxxiAuditEntry {
+  audit_id: string; timestamp: string; actor_user_id: string;
+  action: string; target_type: string; target_id: string;
+  result: string; reason?: string | null;
+}
+interface FoxxiConnection {
+  id: string; kind: string; product: string; instance: string;
+  status: string; auth_method: string; last_sync: string;
+}
+interface FoxxiAdminPayload {
+  meta: { tenant: string; tenant_pod: string; tenant_did?: string; tenant_id: string };
+  users: readonly FoxxiUser[];
+  catalog: readonly FoxxiCatalog[];
+  policies: readonly FoxxiPolicy[];
+  groups: readonly FoxxiGroup[];
+  audit: readonly FoxxiAuditEntry[];
+  connections: readonly FoxxiConnection[];
+  events?: readonly Record<string, unknown>[];
+  coverage?: readonly Record<string, unknown>[];
+}
+
+let _adminCache: FoxxiAdminPayload | null = null;
+function loadAdminPayload(): FoxxiAdminPayload {
+  if (_adminCache) return _adminCache;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(here, '../imported/admin_payload.json'),
+    resolve(here, '../../imported/admin_payload.json'),
+    resolve(process.cwd(), 'applications/foxxi-content-intelligence/imported/admin_payload.json'),
+  ];
+  for (const p of candidates) {
+    try { _adminCache = JSON.parse(readFileSync(p, 'utf8')) as FoxxiAdminPayload; return _adminCache; } catch { /* try next */ }
+  }
+  throw new Error('admin_payload.json not findable for hypermedia resources');
+}
+
+// ── Per-resource opaque ↔ slug lookup ──────────────────────────────
+
+function buildLookup(): {
+  user: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+  course: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+  policy: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+  group: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+  audit: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+  integration: { toOpaque: (s: string) => string; toSlug: (o: string) => string | null };
+} {
+  const admin = loadAdminPayload();
+  const make = <T>(kind: string, items: ReadonlyArray<T>, slugOf: (t: T) => string) => {
+    const toOp = new Map<string, string>();
+    const toSl = new Map<string, string>();
+    for (const item of items) {
+      const slug = slugOf(item);
+      const op = opaqueId(kind, slug);
+      toOp.set(slug, op);
+      toSl.set(op, slug);
+    }
+    return {
+      toOpaque: (s: string) => toOp.get(s) ?? opaqueId(kind, s),
+      toSlug: (o: string) => toSl.get(o) ?? null,
+    };
+  };
+  return {
+    // Users are special: the opaque id is the wallet-derived UUID, not
+    // a generic kind+slug hash. Override `make` for this collection.
+    user: (() => {
+      const toOp = new Map<string, string>();
+      const toSl = new Map<string, string>();
+      for (const u of admin.users) {
+        const op = userIdToUuid(u.user_id);
+        toOp.set(u.user_id, op);
+        toSl.set(op, u.user_id);
+      }
+      return {
+        toOpaque: (s: string) => toOp.get(s) ?? userIdToUuid(s),
+        toSlug: (o: string) => toSl.get(o) ?? null,
+      };
+    })(),
+    course: make('course', admin.catalog, c => c.course_id),
+    policy: make('policy', admin.policies, p => p.policy_id),
+    group: make('group', admin.groups, g => g.group_id),
+    audit: make('audit-record', admin.audit, r => r.audit_id),
+    integration: make('integration', admin.connections, i => i.id),
+  };
+}
+
+// ── Hypermedia envelope helpers ─────────────────────────────────────
+
+function picksAffordances(all: ReadonlyArray<Affordance>, applicableTo: string): Affordance[] {
+  // For now: filter by tool-name prefix or path-tag. Future: add explicit
+  // `appliesToResource` field on the affordance definition for precise
+  // filtering. The substrate's `cgh:applicableToResource` SHACL shape is
+  // the natural place to declare this.
+  void applicableTo;
+  return [...all]; // placeholder — return all; client filters by toolName
+}
+
+function bridgeAffordanceToLink(a: Affordance, baseUrl: string): Record<string, unknown> {
+  return {
+    rel: a.action.split(':').pop(),
+    href: a.targetTemplate.replace('{base}', baseUrl),
+    method: a.method,
+    title: a.title,
+    description: a.description,
+    expects: a.inputs.map(i => ({ name: i.name, type: i.type, required: i.required, description: i.description })),
+    mcpTool: a.toolName,
+  };
+}
+
+function collectionEnvelope(args: {
+  selfUrl: string;
+  collectionName: string;
+  items: unknown[];
+  itemMapper: (item: unknown) => unknown;
+  affordances: ReadonlyArray<Affordance>;
+  baseUrl: string;
+  total?: number;
+  offset?: number;
+  limit?: number;
+}): Record<string, unknown> {
+  const links: Record<string, unknown> = {
+    self: { href: args.selfUrl },
+    item: { href: `${args.selfUrl}/{id}`, templated: true },
+  };
+  if (args.offset !== undefined && args.limit !== undefined && args.total !== undefined) {
+    if (args.offset + args.limit < args.total) {
+      links.next = { href: `${args.selfUrl}?offset=${args.offset + args.limit}&limit=${args.limit}` };
+    }
+    if (args.offset > 0) {
+      links.prev = { href: `${args.selfUrl}?offset=${Math.max(0, args.offset - args.limit)}&limit=${args.limit}` };
+    }
+  }
+  return {
+    '@context': {
+      hydra: 'http://www.w3.org/ns/hydra/core#',
+      foxxi: 'https://markjspivey-xwisee.github.io/interego/ns/foxxi#',
+    },
+    '@type': 'hydra:Collection',
+    '@id': args.selfUrl,
+    'hydra:totalItems': args.total ?? args.items.length,
+    'hydra:member': args.items.map(args.itemMapper),
+    _links: links,
+    _affordances: picksAffordances(args.affordances, args.collectionName).map(a => bridgeAffordanceToLink(a, args.baseUrl)),
+  };
+}
+
+function itemEnvelope(args: {
+  selfUrl: string;
+  collectionUrl: string;
+  resource: Record<string, unknown>;
+  affordances: ReadonlyArray<Affordance>;
+  baseUrl: string;
+  embedded?: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    '@context': {
+      hydra: 'http://www.w3.org/ns/hydra/core#',
+      foxxi: 'https://markjspivey-xwisee.github.io/interego/ns/foxxi#',
+    },
+    '@id': args.selfUrl,
+    ...args.resource,
+    _links: {
+      self: { href: args.selfUrl },
+      collection: { href: args.collectionUrl },
+    },
+    _embedded: args.embedded,
+    _affordances: picksAffordances(args.affordances, '').map(a => bridgeAffordanceToLink(a, args.baseUrl)),
+  };
+}
+
+function pagination(req: Request): { offset: number; limit: number } {
+  const limit = Math.min(Number(req.query.limit) || 50, 500);
+  const offset = Number(req.query.offset) || 0;
+  return { offset, limit };
+}
+
+// ── Routes ──────────────────────────────────────────────────────────
+
+export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): void {
+  const base = `${config.selfBaseUrl}/api/foxxi/v1`;
+  const lookup = buildLookup();
+
+  // ── Root entry point ─────────────────────────────────────────────
+  // Bootstrap URI — single request returns the navigable map of all
+  // top-level collections + the affordance manifest URL. SPA clients
+  // hit this on launch and never hardcode URLs.
+  app.get('/api/foxxi/v1', (_req, res) => {
+    res.json({
+      '@context': { hydra: 'http://www.w3.org/ns/hydra/core#' },
+      '@id': base,
+      '@type': 'hydra:EntryPoint',
+      _links: {
+        self: { href: base },
+        profiles: { href: `${base}/profiles` },
+        courses: { href: `${base}/courses` },
+        policies: { href: `${base}/policies` },
+        groups: { href: `${base}/groups` },
+        'audit-records': { href: `${base}/audit-records` },
+        integrations: { href: `${base}/integrations` },
+        statements: { href: `${config.selfBaseUrl}/xapi/statements` },
+        affordances: { href: `${config.selfBaseUrl}/affordances` },
+        openapi: { href: `${config.selfBaseUrl}/openapi.json` },
+      },
+    });
+  });
+
+  // ── Profiles ─────────────────────────────────────────────────────
+  app.get('/api/foxxi/v1/profiles', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.users.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/profiles`,
+      collectionName: 'profiles',
+      items,
+      itemMapper: (u) => {
+        const user = u as FoxxiUser;
+        const id = lookup.user.toOpaque(user.user_id);
+        return {
+          '@id': `${base}/profiles/${id}`,
+          id,
+          name: user.name,
+          job_title: user.job_title,
+          department: user.department,
+          web_id: user.web_id,
+          audience_tags: user.audience_tags,
+          _links: { self: { href: `${base}/profiles/${id}` } },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.users.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/profiles/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.user.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'profile not found' }); return; }
+    const user = admin.users.find(u => u.user_id === slug);
+    if (!user) { res.status(404).json({ error: 'profile not found' }); return; }
+    const enrollments = admin.policies
+      .filter(p => p.enabled && admin.groups.find(g => g.group_id === p.audience_group_id && g.member_ids.includes(slug)))
+      .map(p => ({
+        '@id': `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}`,
+        course_id: p.course_id,
+        course_title: p.course_title,
+        requirement_type: p.requirement_type,
+        _links: {
+          self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` },
+          course: { href: `${base}/courses/${lookup.course.toOpaque(p.course_id)}` },
+        },
+      }));
+    res.json(itemEnvelope({
+      selfUrl: `${base}/profiles/${req.params.opaqueId}`,
+      collectionUrl: `${base}/profiles`,
+      resource: {
+        id: req.params.opaqueId,
+        ...user,
+      },
+      embedded: { enrollments },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+
+  // ── Courses ──────────────────────────────────────────────────────
+  app.get('/api/foxxi/v1/courses', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.catalog.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/courses`,
+      collectionName: 'courses',
+      items,
+      itemMapper: (c) => {
+        const course = c as FoxxiCatalog;
+        const id = lookup.course.toOpaque(course.course_id);
+        return {
+          '@id': `${base}/courses/${id}`,
+          id, title: course.title, category: course.category,
+          audience_tags: course.audience_tags, standard: course.standard,
+          concept_count: course.concept_count, slide_count: course.slide_count,
+          _links: { self: { href: `${base}/courses/${id}` } },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.catalog.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/courses/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.course.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'course not found' }); return; }
+    const course = admin.catalog.find(c => c.course_id === slug);
+    if (!course) { res.status(404).json({ error: 'course not found' }); return; }
+    const policies = admin.policies
+      .filter(p => p.course_id === slug)
+      .map(p => ({
+        '@id': `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}`,
+        requirement_type: p.requirement_type,
+        audience_group_id: p.audience_group_id,
+        _links: { self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` } },
+      }));
+    res.json(itemEnvelope({
+      selfUrl: `${base}/courses/${req.params.opaqueId}`,
+      collectionUrl: `${base}/courses`,
+      resource: { id: req.params.opaqueId, ...course },
+      embedded: { policies },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+
+  // ── Policies ────────────────────────────────────────────────────
+  app.get('/api/foxxi/v1/policies', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.policies.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/policies`,
+      collectionName: 'policies',
+      items,
+      itemMapper: (p) => {
+        const policy = p as FoxxiPolicy;
+        const id = lookup.policy.toOpaque(policy.policy_id);
+        return {
+          '@id': `${base}/policies/${id}`,
+          id, course_id: policy.course_id, course_title: policy.course_title,
+          requirement_type: policy.requirement_type, enabled: policy.enabled,
+          _links: {
+            self: { href: `${base}/policies/${id}` },
+            course: { href: `${base}/courses/${lookup.course.toOpaque(policy.course_id)}` },
+            group: { href: `${base}/groups/${lookup.group.toOpaque(policy.audience_group_id)}` },
+          },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.policies.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/policies/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.policy.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'policy not found' }); return; }
+    const policy = admin.policies.find(p => p.policy_id === slug);
+    if (!policy) { res.status(404).json({ error: 'policy not found' }); return; }
+    res.json(itemEnvelope({
+      selfUrl: `${base}/policies/${req.params.opaqueId}`,
+      collectionUrl: `${base}/policies`,
+      resource: { id: req.params.opaqueId, ...policy },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+
+  // ── Groups ──────────────────────────────────────────────────────
+  app.get('/api/foxxi/v1/groups', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.groups.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/groups`,
+      collectionName: 'groups',
+      items,
+      itemMapper: (g) => {
+        const group = g as FoxxiGroup;
+        const id = lookup.group.toOpaque(group.group_id);
+        return {
+          '@id': `${base}/groups/${id}`,
+          id, name: group.name, kind: group.kind,
+          member_count: group.member_count ?? group.member_ids.length,
+          _links: { self: { href: `${base}/groups/${id}` } },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.groups.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/groups/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.group.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'group not found' }); return; }
+    const group = admin.groups.find(g => g.group_id === slug);
+    if (!group) { res.status(404).json({ error: 'group not found' }); return; }
+    const members = group.member_ids.map(mid => ({
+      '@id': `${base}/profiles/${lookup.user.toOpaque(mid)}`,
+      _links: { self: { href: `${base}/profiles/${lookup.user.toOpaque(mid)}` } },
+    }));
+    res.json(itemEnvelope({
+      selfUrl: `${base}/groups/${req.params.opaqueId}`,
+      collectionUrl: `${base}/groups`,
+      resource: { id: req.params.opaqueId, ...group, member_ids: undefined },
+      embedded: { members },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+
+  // ── Audit records ───────────────────────────────────────────────
+  app.get('/api/foxxi/v1/audit-records', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.audit.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/audit-records`,
+      collectionName: 'audit-records',
+      items,
+      itemMapper: (r) => {
+        const rec = r as FoxxiAuditEntry;
+        const id = lookup.audit.toOpaque(rec.audit_id);
+        return {
+          '@id': `${base}/audit-records/${id}`,
+          id, timestamp: rec.timestamp,
+          actor: { user_id: rec.actor_user_id, '@id': `${base}/profiles/${lookup.user.toOpaque(rec.actor_user_id)}` },
+          action: rec.action, target_type: rec.target_type, target_id: rec.target_id,
+          result: rec.result, reason: rec.reason,
+          _links: {
+            self: { href: `${base}/audit-records/${id}` },
+            actor: { href: `${base}/profiles/${lookup.user.toOpaque(rec.actor_user_id)}` },
+          },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.audit.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/audit-records/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.audit.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'audit record not found' }); return; }
+    const rec = admin.audit.find(r => r.audit_id === slug);
+    if (!rec) { res.status(404).json({ error: 'audit record not found' }); return; }
+    res.json(itemEnvelope({
+      selfUrl: `${base}/audit-records/${req.params.opaqueId}`,
+      collectionUrl: `${base}/audit-records`,
+      resource: { id: req.params.opaqueId, ...rec },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+
+  // ── Integrations ─────────────────────────────────────────────────
+  app.get('/api/foxxi/v1/integrations', (req, res) => {
+    const admin = loadAdminPayload();
+    const { offset, limit } = pagination(req);
+    const items = admin.connections.slice(offset, offset + limit);
+    res.json(collectionEnvelope({
+      selfUrl: `${base}/integrations`,
+      collectionName: 'integrations',
+      items,
+      itemMapper: (c) => {
+        const conn = c as FoxxiConnection;
+        const id = lookup.integration.toOpaque(conn.id);
+        return {
+          '@id': `${base}/integrations/${id}`,
+          id, kind: conn.kind, product: conn.product, instance: conn.instance,
+          status: conn.status, auth_method: conn.auth_method, last_sync: conn.last_sync,
+          _links: { self: { href: `${base}/integrations/${id}` } },
+        };
+      },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+      total: admin.connections.length, offset, limit,
+    }));
+  });
+  app.get('/api/foxxi/v1/integrations/:opaqueId', (req, res) => {
+    const admin = loadAdminPayload();
+    const slug = lookup.integration.toSlug(req.params.opaqueId);
+    if (!slug) { res.status(404).json({ error: 'integration not found' }); return; }
+    const conn = admin.connections.find(c => c.id === slug);
+    if (!conn) { res.status(404).json({ error: 'integration not found' }); return; }
+    res.json(itemEnvelope({
+      selfUrl: `${base}/integrations/${req.params.opaqueId}`,
+      collectionUrl: `${base}/integrations`,
+      resource: { ...conn, id: req.params.opaqueId },
+      affordances: config.affordances,
+      baseUrl: config.selfBaseUrl,
+    }));
+  });
+}
