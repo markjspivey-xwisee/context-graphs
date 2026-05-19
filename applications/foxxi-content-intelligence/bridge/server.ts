@@ -125,6 +125,10 @@ import {
   type CallerContext,
 } from '../src/policy.js';
 import { deriveAdminKeyPair } from '../src/tenant-publisher.js';
+import { attachXapiLrsRoutes } from '../src/xapi-lrs.js';
+import { attachLti13Routes } from '../src/lti13.js';
+import { attachOneRosterRoutes } from '../src/oneroster.js';
+import { attachOpenApiRoutes } from '../src/openapi-spec.js';
 import type { IRI } from '../../../src/index.js';
 
 const tenantPodUrl = process.env.FOXXI_TENANT_POD_URL ?? '';
@@ -1198,6 +1202,47 @@ const app = createVerticalBridge({
     a.get('/metrics.json', (_req, res) => {
       res.json(metricsJson());
     });
+
+    // Inbound xAPI LRS surface — Foxxi can BE an LRS that external
+    // systems (LMSes, mobile apps, simulators, tutoring agents, other
+    // LRSes via Statement Forwarding) write to. Each accepted Statement
+    // joins the substrate's trace graph via the same provenance and
+    // modal-status machinery the rest of the affordances use.
+    //
+    // Mounted BEFORE the auth middleware below so xAPI's own
+    // Basic/Bearer gate handles authentication on /xapi/* (the lower
+    // middleware is MCP-tools/call-shaped and doesn't apply to xAPI
+    // resources).
+    attachXapiLrsRoutes(a, {
+      podUrl: tenantPodUrl,
+      tenantDid: authoritativeSource,
+      basicAuthPairs: process.env.FOXXI_LRS_BASIC_AUTH_PAIRS ?? '',
+      forwardingTargets: process.env.FOXXI_LRS_FORWARDING_TARGETS ?? '',
+      selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+    });
+
+    // LTI 1.3 Advantage Tool Provider — JWKS / OIDC login / launch /
+    // deep linking / AGS / NRPS. Lets any 1EdTech-compliant LMS launch
+    // Foxxi as a Tool. Platforms registered via FOXXI_LTI_PLATFORMS env
+    // (comma-separated `issuer||client_id||deployment_id||jwks_url||
+    // auth_login_url||auth_token_url`).
+    attachLti13Routes(a, {
+      selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+      tenantDid: authoritativeSource,
+      keySeed: process.env.FOXXI_LTI_KEY_SEED ?? `${authoritativeSource}-lti-2026-05`,
+      dashboardUrl: process.env.FOXXI_DASHBOARD_URL ?? (process.env.FOXXI_DASHBOARD_ORIGIN?.split(',')[0] ?? 'http://localhost:5173'),
+      platformsConfig: process.env.FOXXI_LTI_PLATFORMS ?? '',
+    });
+
+    // OneRoster 1.2 — SIS / HR roster sync. Both a producer (Foxxi
+    // exposes its roster) and a consumer (`POST /oneroster/v1p2/import`
+    // for CSV bundle ingest).
+    attachOneRosterRoutes(a, { tenantDid: authoritativeSource });
+
+    // OpenAPI 3.1 — machine-readable contract for non-MCP integrators
+    // (bizdev / partner-eng teams who want a typed SDK). Served at
+    // /openapi.json + Swagger UI at /docs.
+    attachOpenApiRoutes(a, { selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080', affordances: activeAffordances });
 
     // Auth middleware: extract Authorization: Bearer <session-token> and
     // inject the raw token into the JSON-RPC params.arguments as

@@ -29,11 +29,14 @@ no SCORM/xAPI/LOM terms leak into it.
 
 | Standard requirement | Status | Where |
 |---|---|---|
-| xAPI 1.0.3 + 2.0.0 statement ingest (actor / verb / object / result / context / timestamp) | **Compliant** | [`applications/lrs-adapter/src/translate.ts`](../lrs-adapter/src/translate.ts) |
-| Statement projection — descriptor → xAPI Statement → LRS POST | **Compliant** | [`applications/lrs-adapter/src/pod-publisher.ts`](../lrs-adapter/src/pod-publisher.ts) |
-| LRS endpoint contract (GET/POST `/xapi/statements`, GET `/xapi/about`) | **Compliant** | [`applications/lrs-adapter/src/lrs-client.ts`](../lrs-adapter/src/lrs-client.ts) — tested live against Lrsql, SCORM Cloud, Watershed |
+| xAPI 1.0.3 + 2.0.0 statement ingest (actor / verb / object / result / context / timestamp) | **Compliant** | [`applications/lrs-adapter/src/pod-publisher.ts`](../lrs-adapter/src/pod-publisher.ts) — `publishIngestedStatement()` |
+| Statement projection — descriptor → xAPI Statement → LRS POST | **Compliant** | [`applications/lrs-adapter/src/pod-publisher.ts`](../lrs-adapter/src/pod-publisher.ts) — `projectDescriptorToLrs()` |
+| **Foxxi-as-LRS — inbound resource surface** (`/xapi/about`, `/xapi/statements` GET/POST/PUT, `/xapi/activities/state`, `/xapi/activities/profile`, `/xapi/agents/profile`, `/xapi/activities`, `/xapi/agents`) | **Compliant** | [`src/xapi-lrs.ts`](src/xapi-lrs.ts) — `attachXapiLrsRoutes()` mounted on the bridge; Basic + Bearer auth; X-Experience-API-Version negotiated; statement-id conflict (409) + voiding semantics (404 on voided) per xAPI §4.1.1 |
+| **Statement Forwarding** (xAPI §10) | **Compliant** | `FOXXI_LRS_FORWARDING_TARGETS` env var — comma-separated `endpoint\|\|user:pass\|\|version` triples; every accepted statement fans out asynchronously |
+| LRS client — write to external LRSs with version negotiation | **Compliant** | [`applications/lrs-adapter/src/lrs-client.ts`](../lrs-adapter/src/lrs-client.ts) — tested live against Lrsql, SCORM Cloud, Watershed |
 | Modal-status filter on projection (Asserted only) | **Compliant** | Modal-truth invariant from L1; non-Asserted descriptors don't leak through |
-| Signed Statements + Statement Forwarding | **Not implemented** | Deferred per xAPI-adapter README §"Out of scope" |
+| **xAPI Profile (vocabulary publication)** | **Compliant** | `GET /xapi/profile` — JSON-LD profile per xAPI Profile Specification 2017; declares cmi5 verb subset + Foxxi extensions (`foxxi:asked`, `foxxi:retrieved`, `foxxi:conceptGraphNode`) so other tools can discover the vocabulary |
+| Signed Statements (RFC 7515 JWS attachment) | **Partial** | Tool keys present via LTI 1.3 ES256 JWS plumbing ([`src/lti13.ts`](src/lti13.ts) `jwsSignEs256()`); attaching as `attachments[].usageType=signature` over statement bodies is a small additional wiring step |
 
 ## 3. cmi5 — IEEE 9274.2.1
 
@@ -133,7 +136,41 @@ no SCORM/xAPI/LOM terms leak into it.
 | Wallet envelope export (CLR 2.0) | **Compliant** | See §11 |
 | Wallet backup / cross-pod replication | **Not implemented** | Achievable via existing E2EE envelope share; not yet a standard affordance |
 
-## 13. ADL TLA backbone (Master Object Model + Experience Index)
+## 13. 1EdTech LTI 1.3 Core + Advantage
+
+| Standard requirement | Status | Where |
+|---|---|---|
+| Tool JWKS (RFC 7517) at `/.well-known/jwks.json` | **Compliant** | [`src/lti13.ts`](src/lti13.ts) — derived ES256 (P-256) keypair, stable `kid` |
+| OIDC 3rd-party-initiated login (LTI 1.3 §5.1.1) | **Compliant** | `POST/GET /lti/login` — `state` + `nonce` minted, redirect to platform's `auth_login_url` with `response_type=id_token`, `response_mode=form_post`, `prompt=none`, `scope=openid` |
+| Resource Link Launch (LTI 1.3 §5.1.2) | **Compliant** | `POST /lti/launch` — verifies `id_token` against the platform's JWKS (RS256 or ES256), validates `iss` / `aud` / `nonce` / `exp` / `deployment_id` / `version=1.3.0` / `message_type`, then mints a 5-min HMAC-signed launch ticket and redirects to the Foxxi dashboard |
+| Deep Linking 2.0 — `POST /lti/deeplink` | **Stub** | Endpoint present; content-item selection round-trip is the next iteration |
+| Assignment & Grade Service (AGS 2.0) — score post-back | **Compliant** | `POST /lti/ags/scores` — mints a `client_credentials` JWT assertion (ES256 JWS over the platform's `auth_token_url` audience), exchanges for access token, posts `application/vnd.ims.lis.v1.score+json` to the line-item's `/scores` endpoint |
+| AGS — line items list | **Stub** | `GET /lti/ags/lineitems` returns `[]`; per-tenant line-item store is the next iteration |
+| Names & Roles Provisioning Service (NRPS 2.0) | **Stub** | `GET /lti/nrps/members` returns the envelope shape; member retrieval against the platform is the next iteration |
+| Multi-platform / multi-tenant registration | **Compliant** | `FOXXI_LTI_PLATFORMS` env — comma-separated `issuer\|\|client_id\|\|deployment_id\|\|jwks_url\|\|auth_login_url\|\|auth_token_url`; each registered platform gets independent verify + token paths |
+
+## 14. 1EdTech OneRoster 1.2 — Rostering REST
+
+| Standard requirement | Status | Where |
+|---|---|---|
+| GET `/ims/oneroster/v1p2/users` (list + filter + paginate) | **Compliant** | [`src/oneroster.ts`](src/oneroster.ts) — `attachOneRosterRoutes()`; reads live tenant directory, maps Foxxi users to OneRoster `User` with `role=student\|administrator`, `agentSourcedIds`, `orgSourcedIds` |
+| GET `/ims/oneroster/v1p2/users/{sourcedId}` | **Compliant** | Single lookup by `user_id` |
+| GET `/ims/oneroster/v1p2/orgs` | **Compliant** | Returns the tenant as a single `org` |
+| GET `/ims/oneroster/v1p2/classes` | **Compliant** | Foxxi audience groups projected as OneRoster `Class` records |
+| GET `/ims/oneroster/v1p2/enrollments` | **Compliant** | Cross-product of (enabled policy × group members) emitted as OneRoster `Enrollment` records |
+| POST `/ims/oneroster/v1p2/import` — CSV bundle ingest | **Compliant** | Accepts the OneRoster CSV file set as `{ "users.csv": "...", "classes.csv": "...", ... }`; RFC 4180-conformant parsing (quoted fields + embedded commas + escaped quotes); returns row counts |
+| Pagination (`?limit=`, `?offset=`) per OneRoster §3 | **Compliant** | All list endpoints honor `limit` (≤ 1000) and `offset` |
+
+## 15. OpenAPI 3.1 contract for non-MCP integrators
+
+| Deliverable | Status | Where |
+|---|---|---|
+| Machine-readable OpenAPI 3.1 document at `GET /openapi.json` | **Compliant** | [`src/openapi-spec.ts`](src/openapi-spec.ts) — generated from the affordance manifest (single source of truth) + manually-declared LRS / LTI / OneRoster endpoints |
+| Swagger UI at `GET /docs` | **Compliant** | Swagger UI dist loaded from `cdn.jsdelivr.net/npm/swagger-ui-dist@5`; pulls from `/openapi.json` |
+| Security schemes (Bearer + Basic) declared | **Compliant** | `components.securitySchemes.bearerAuth` + `basicAuth` — partner SDKs auto-prompt for the right credential per endpoint |
+| MCP envelope endpoint documented | **Compliant** | `/mcp` (JSON-RPC tools/list + tools/call) included in the spec so SDK generators can opt for either calling style |
+
+## 16. ADL TLA backbone (Master Object Model + Experience Index)
 
 | TLA component | Status | Where |
 |---|---|---|
