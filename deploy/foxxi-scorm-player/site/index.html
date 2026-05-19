@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Foxxi Course Player — Golf Explained</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="player.css" />
+<!-- SCORM 2004 4th Ed RTE shim — installs window.API_1484_11 (IEEE 1484.11.2)
+     at the parent so any SCO loaded into the slide iframe can do the
+     standard API-discovery walk (window.parent.API_1484_11) and hook into
+     a working CMI data model. Every Commit + Terminate auto-translates
+     CMI state into a cmi5-conformant xAPI 2.0 statement to Foxxi-as-LRS. -->
+<script src="scorm-rte.js"></script>
+</head>
+<body>
+<header id="hdr">
+  <div class="brand">Foxxi <span class="dim">/ Course Player</span></div>
+  <div id="learner-chip"><span class="dim">no session</span></div>
+</header>
+<main>
+  <aside id="toc"></aside>
+  <section id="stage">
+    <h1 id="slide-title">Loading…</h1>
+    <div id="meta" class="dim"></div>
+    <iframe id="slide-frame" sandbox="allow-same-origin allow-scripts" src="about:blank"></iframe>
+    <div id="controls">
+      <button id="btn-prev">← Previous</button>
+      <span id="progress" class="dim">slide 0 of 0</span>
+      <button id="btn-next">Next →</button>
+      <button id="btn-complete" class="primary" disabled>Mark Complete</button>
+    </div>
+    <div id="trace">
+      <div class="trace-head">xAPI emission trace · <span class="dim">live</span></div>
+      <ul id="trace-list"></ul>
+    </div>
+  </section>
+</main>
+<script type="module" src="player.js"></script>
+</body>
+</html>

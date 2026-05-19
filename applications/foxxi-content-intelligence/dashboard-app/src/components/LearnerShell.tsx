@@ -3,6 +3,7 @@ import { Card, Pill, Button, Stat } from './common.js';
 import { ChatPanel } from './ChatPanel.js';
 import { SlideNavigator } from './SlideNavigator.js';
 import { ConceptNetwork } from './ConceptNetwork.js';
+import { LrsAdminPanel } from './LrsAdminPanel.js';
 import { discoverAssignedCourses, getCourseContent, type DiscoverAssignedCoursesResult } from '../interego/client.js';
 import type { CourseContent, EnrolledCourse } from '../types.js';
 import type { FoxxiSession } from '../auth/session.js';
@@ -62,12 +63,19 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {enrollments.enrollments.map(e => (
-                <EnrollmentRow key={e.policyId} enrollment={e} canOpen={!!getCourseContent(e.courseId)} onOpen={() => setOpenCourseId(e.courseId)} />
+                <EnrollmentRow key={e.policyId} enrollment={e} canOpen={!!getCourseContent(e.courseId)} onOpen={() => setOpenCourseId(e.courseId)} session={session} />
               ))}
             </div>
           </div>
         )}
       </Card>
+
+      {/* Learning engineers get the same LRS-admin view as L&D admins — cohort
+          analytics + xAPI conformance + statement browsing is the LE's core
+          surface (the ICICLE "data-informed decision making" leg). */}
+      {session.audienceTags?.includes('learning-engineering') && (
+        <LrsAdminPanel bearer={session.bearerToken} />
+      )}
 
       {openCourseId && (
         <div>
@@ -137,9 +145,23 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
   );
 }
 
-function EnrollmentRow({ enrollment, canOpen, onOpen }: { enrollment: EnrolledCourse; canOpen: boolean; onOpen: () => void }) {
+const SCORM_PLAYER_BASE = 'https://interego-foxxi-scorm-player.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+const BRIDGE_BASE_FOR_PLAYER = import.meta.env.VITE_FOXXI_BRIDGE_URL ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+
+function buildPlayerUrl(courseId: string, session: { webId: string; name: string; bearerToken: string }): string {
+  const u = new URL(SCORM_PLAYER_BASE);
+  u.searchParams.set('bridge', BRIDGE_BASE_FOR_PLAYER);
+  u.searchParams.set('bearer', session.bearerToken);
+  u.searchParams.set('learner_did', session.webId);
+  u.searchParams.set('learner_name', session.name);
+  u.searchParams.set('course_id', courseId);
+  return u.toString();
+}
+
+function EnrollmentRow({ enrollment, canOpen, onOpen, session }: { enrollment: EnrolledCourse; canOpen: boolean; onOpen: () => void; session?: FoxxiSession }) {
   const tone = enrollment.status === 'completed' ? 'good'
     : enrollment.status === 'overdue' ? 'bad' : 'warn';
+  const playable = enrollment.courseId === 'golf-explained';
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
@@ -156,7 +178,16 @@ function EnrollmentRow({ enrollment, canOpen, onOpen }: { enrollment: EnrolledCo
         {enrollment.requirementType}
       </Pill>
       <Pill tone={tone}>{enrollment.status}{enrollment.completedAt ? ` · ${enrollment.completedAt}` : ''}</Pill>
-      <Button onClick={onOpen} disabled={!canOpen} primary={canOpen}>
+      {playable && session && (
+        <Button
+          primary
+          onClick={() => window.open(buildPlayerUrl(enrollment.courseId, session), '_blank', 'noopener')}
+          title="Open the SCORM course in a new tab. The player emits live xAPI statements to Foxxi-as-LRS."
+        >
+          ▶ Launch
+        </Button>
+      )}
+      <Button onClick={onOpen} disabled={!canOpen} primary={!playable && canOpen}>
         {canOpen ? 'Open & ask' : 'Open'}
       </Button>
     </div>

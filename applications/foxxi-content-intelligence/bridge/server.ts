@@ -125,10 +125,12 @@ import {
   type CallerContext,
 } from '../src/policy.js';
 import { deriveAdminKeyPair } from '../src/tenant-publisher.js';
-import { attachXapiLrsRoutes } from '../src/xapi-lrs.js';
+import { attachXapiLrsRoutes, listStoredStatements } from '../src/xapi-lrs.js';
 import { attachLti13Routes } from '../src/lti13.js';
 import { attachOneRosterRoutes } from '../src/oneroster.js';
 import { attachOpenApiRoutes } from '../src/openapi-spec.js';
+import { emitAffordanceStatement } from '../src/xapi-instrumentation.js';
+import { attachXapiAdminRoutes } from '../src/xapi-admin.js';
 import type { IRI } from '../../../src/index.js';
 
 const tenantPodUrl = process.env.FOXXI_TENANT_POD_URL ?? '';
@@ -1163,6 +1165,42 @@ const instrumentedHandlers = Object.fromEntries(
         throw err;
       } finally {
         recordCall(name, Date.now() - t0, isError);
+        // Granular xAPI emission — every affordance call lands as a
+        // statement in Foxxi-as-LRS so the LRS-admin dashboard sees the
+        // same activity stream the substrate sees on the pod side.
+        try {
+          const callerCtx: { webId?: string; userId?: string; role?: string; audienceTags?: readonly string[] } = {};
+          // Cheap derivation — args.__caller_token already validated by
+          // resolveCaller paths inside the handler; here we just peek at
+          // the bearer's `sub` claim for the actor identity. No second
+          // sig check needed since the handler either succeeded (token
+          // was valid) or returned an error we tagged as such.
+          const bearerToken = args.__caller_token as string | undefined;
+          if (bearerToken) {
+            try {
+              // Token is base64url-encoded JSON; decode without verifying
+              // for instrumentation purposes (the handler already verified).
+              const padded = bearerToken.replace(/-/g, '+').replace(/_/g, '/');
+              const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as { sub?: string };
+              callerCtx.webId = decoded.sub;
+              callerCtx.role = decoded.sub && learningEngineerWebIds.has(decoded.sub) ? 'learning-engineer'
+                : (decoded.sub === adminWebId ? 'admin' : 'learner');
+            } catch { /* ignore */ }
+          }
+          emitAffordanceStatement({
+            toolName: name,
+            caller: callerCtx,
+            args,
+            result: undefined,
+            duration: Date.now() - t0,
+            isError,
+            selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+          });
+        } catch (xapiErr) {
+          // Instrumentation must never block the handler's response.
+          // eslint-disable-next-line no-console
+          console.warn('[xapi-instrumentation]', (xapiErr as Error).message);
+        }
       }
     },
   ]),
@@ -1243,6 +1281,17 @@ const app = createVerticalBridge({
     // (bizdev / partner-eng teams who want a typed SDK). Served at
     // /openapi.json + Swagger UI at /docs.
     attachOpenApiRoutes(a, { selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080', affordances: activeAffordances });
+
+    // LRS-admin dashboard endpoints — gated by admin or learning-engineer
+    // role. The dashboard's new "xAPI / LRS" tab calls these to render
+    // the statement browser, aggregates, conformance, and config views.
+    attachXapiAdminRoutes(a, {
+      adminWebId,
+      learningEngineerWebIds,
+      selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+      basicAuthPairs: process.env.FOXXI_LRS_BASIC_AUTH_PAIRS ?? '',
+      forwardingTargets: process.env.FOXXI_LRS_FORWARDING_TARGETS ?? '',
+    });
 
     // Auth middleware: extract Authorization: Bearer <session-token> and
     // inject the raw token into the JSON-RPC params.arguments as

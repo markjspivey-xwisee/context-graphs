@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Card, Pill, Button, Modal, Row } from './common.js';
 import { coverageQuery, type CoverageQueryResult } from '../interego/client.js';
 import { SAMPLE_ADMIN_PAYLOAD } from '../sample/data.js';
+import { LrsAdminPanel } from './LrsAdminPanel.js';
 import type { FoxxiSession } from '../auth/session.js';
 import type { CatalogEntry, AdminConnection } from '../types.js';
 
-type Tab = 'catalog' | 'policies' | 'coverage' | 'access' | 'integrations' | 'audit';
+type Tab = 'catalog' | 'policies' | 'coverage' | 'access' | 'integrations' | 'audit' | 'lrs';
 
 export function AdminShell({ session }: { session: FoxxiSession }) {
   const [tab, setTab] = useState<Tab>('catalog');
@@ -24,6 +25,7 @@ export function AdminShell({ session }: { session: FoxxiSession }) {
           <TabBtn t={tab} v="access" onClick={setTab}>Access ({a.users.length} users · {a.groups.length} groups)</TabBtn>
           <TabBtn t={tab} v="integrations" onClick={setTab}>Integrations ({a.connections.length})</TabBtn>
           <TabBtn t={tab} v="audit" onClick={setTab}>Audit log ({a.audit.length})</TabBtn>
+          <TabBtn t={tab} v="lrs" onClick={setTab}>xAPI / LRS</TabBtn>
         </div>
       </Card>
 
@@ -33,6 +35,7 @@ export function AdminShell({ session }: { session: FoxxiSession }) {
       {tab === 'access' && <AccessTab />}
       {tab === 'integrations' && <IntegrationsTab />}
       {tab === 'audit' && <AuditTab />}
+      {tab === 'lrs' && <LrsAdminPanel bearer={session.bearerToken} />}
     </div>
   );
 }

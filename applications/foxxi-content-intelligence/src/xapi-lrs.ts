@@ -72,6 +72,34 @@ export interface XapiLrsConfig {
   selfBaseUrl: string;
 }
 
+// ── In-process statement store accessors ────────────────────────────
+// Exported so the bridge can emit statements server-side (e.g. one
+// per affordance call, ABAC decision, credential issuance, etc.) and
+// surface them in the LRS-admin dashboard without an HTTP round-trip.
+
+export interface XapiStatementRecord {
+  id: string;
+  statement: Record<string, unknown>;
+  stored: string;
+  voided: boolean;
+  voidingStatementId?: string;
+}
+
+export function storeStatementInternal(stmt: Record<string, unknown>): string {
+  const id = (stmt.id as string) ?? randomUUID();
+  const stored = new Date().toISOString();
+  statementStore.set(id, { id, statement: { ...stmt, id, stored }, stored, voided: false });
+  return id;
+}
+
+export function listStoredStatements(): XapiStatementRecord[] {
+  return Array.from(statementStore.values());
+}
+
+export function clearStatementStore(): void {
+  statementStore.clear();
+}
+
 // ── In-memory stores (replaceable) ──────────────────────────────────
 
 interface StatementRecord {
@@ -100,10 +128,10 @@ function isUuid(s: unknown): s is string {
 function negotiateVersion(req: Request): string {
   const v = (req.headers['x-experience-api-version'] ?? req.headers['X-Experience-API-Version']) as string | undefined;
   if (typeof v === 'string' && ABOUT_VERSIONS.includes(v)) return v;
-  // xAPI 2.0 §6.2: requests without the header MAY be accepted (xAPI 1.0.3
-  // implicit). xAPI 2.0 SHOULD have the header. We accept either and echo
-  // back the negotiated version in the response.
-  return '1.0.3';
+  // xAPI 2.0 §6.2: requests without the header MAY be accepted. We default
+  // to 2.0.0 (current spec) — legacy 1.0.3 clients are still served, since
+  // they explicitly send `X-Experience-API-Version: 1.0.3`.
+  return '2.0.0';
 }
 
 function setXapiHeaders(res: Response, version: string): void {
@@ -153,7 +181,7 @@ function nowIso(): string { return new Date().toISOString(); }
 
 function ensureStatementFields(stmt: Record<string, unknown>, authority: { homePage: string; name: string }): Record<string, unknown> {
   const out = { ...stmt };
-  if (typeof out.id !== 'string') out.id = uuidv4();
+  if (typeof out.id !== 'string' || !isUuid(out.id)) out.id = uuidv4();
   if (typeof out.timestamp !== 'string') out.timestamp = nowIso();
   if (typeof out.stored !== 'string') out.stored = nowIso();
   if (!out.authority || typeof out.authority !== 'object') {
@@ -162,7 +190,25 @@ function ensureStatementFields(stmt: Record<string, unknown>, authority: { homeP
       account: { homePage: authority.homePage, name: authority.name },
     };
   }
-  if (!out.version) out.version = '1.0.3';
+  // xAPI 2.0 §4.1.10: version is set by the LRS if not provided. We set it
+  // explicitly so downstream consumers (forwarding targets, profile-aware
+  // analytics) know exactly which spec the statement was authored against.
+  if (!out.version) out.version = '2.0.0';
+
+  // xAPI 2.0 §4.1.2: actor.objectType is REQUIRED for Agent / Group / Anonymous
+  // Group actors. Add if absent to keep statements 2.0-conformant.
+  const actor = out.actor as Record<string, unknown> | undefined;
+  if (actor && typeof actor === 'object' && !actor.objectType) {
+    actor.objectType = (actor.member || actor.objectType === 'Group') ? 'Group' : 'Agent';
+  }
+
+  // xAPI 2.0 §4.1.4: object.objectType defaults to "Activity" when omitted —
+  // explicit is better for downstream tooling.
+  const object = out.object as Record<string, unknown> | undefined;
+  if (object && typeof object === 'object' && !object.objectType) {
+    object.objectType = 'Activity';
+  }
+
   return out;
 }
 
@@ -436,13 +482,20 @@ async function forwardStatement(stmt: Record<string, unknown>, config: XapiLrsCo
 }
 
 // ── xAPI Profile Server ─────────────────────────────────────────────
-// Declares the xAPI vocabulary (verbs, activity types, extensions)
-// Foxxi emits. Per the xAPI Profile Specification (2017), profiles MUST
-// be JSON-LD with @context anchored at
-// https://w3id.org/xapi/profiles/context. Consumers fetch this to know
-// what statements to expect and how to render them.
+// Delegates to xapi-profile.ts where the full Profile-spec-2017 shape
+// (concepts + templates + patterns) lives, so the profile stays a
+// proper first-class artifact a learning-engineer can review +
+// extend, not a thin string-table.
+
+import { buildFoxxiProfileDoc } from './xapi-profile.js';
 
 function buildFoxxiXapiProfile(config: XapiLrsConfig): Record<string, unknown> {
+  void config;
+  return buildFoxxiProfileDoc({ generatedAt: new Date().toISOString() });
+}
+
+// Kept for back-compat (older code may import this name)
+function _buildFoxxiXapiProfileLegacy(config: XapiLrsConfig): Record<string, unknown> {
   const baseId = `${config.selfBaseUrl}/xapi/profile`;
   return {
     '@context': 'https://w3id.org/xapi/profiles/context',

@@ -13,6 +13,29 @@ no SCORM/xAPI/LOM terms leak into it.
 
 ---
 
+## 0. xAPI version conformance
+
+Foxxi-as-LRS defaults to **xAPI 2.0.0** (IEEE 9274.1.1). Clients that
+send `X-Experience-API-Version: 1.0.3` get backward-compatible handling;
+clients that send no header are served as 2.0. The actual default behavior:
+
+- `negotiateVersion()` in [`src/xapi-lrs.ts`](src/xapi-lrs.ts) returns
+  `'2.0.0'` when the header is absent.
+- `ensureStatementFields()` stamps every accepted statement with
+  `version: '2.0.0'`, `actor.objectType` (Agent / Group), and
+  `object.objectType: 'Activity'` so the statement is conformant whether
+  or not the upstream client set them.
+- The bridge's instrumentation emitter ([`src/xapi-instrumentation.ts`](src/xapi-instrumentation.ts))
+  stamps `id` as a UUID v4 and `version: '2.0.0'` on every internally
+  generated statement.
+- The course player ([`deploy/foxxi-scorm-player/site/player.js`](../../deploy/foxxi-scorm-player/site/player.js))
+  sends `X-Experience-API-Version: 2.0.0` and stamps statements with
+  the version field explicitly.
+
+xAPI 1.0.3 is **accepted but not the default** — Foxxi forwards to legacy
+LRSes (SCORM Cloud is 1.0.3-only) at the version they negotiate, but
+inbound and self-emitted statements are 2.0.0.
+
 ## 1. Content packaging — ADL SCORM 1.2 / 2004
 
 | Standard requirement | Status | Where |
@@ -23,7 +46,8 @@ no SCORM/xAPI/LOM terms leak into it.
 | Preserve manifest identifiers + organization tree | **Compliant** | `fxs:identifiedBy`, `fxs:hasOrganization`, `fxs:hasItem`, `fxs:hasChild` |
 | Track standard conformance per package | **Compliant** | `fxs:standardConformance fxs:SCORM_2004_4` (etc.) |
 | Extract `<sequencing>` rules | **Compliant** | [`src/lom-sequencing.ts`](src/lom-sequencing.ts) `sequencingRulesToTurtle()` — emits `fxs:SequencingRule` instances with `fxs:expression` carrying the verbatim rule XML for downstream LMS replay |
-| Implement SCORM CMI runtime API | **Out of scope (architectural boundary)** | Foxxi covers authorship-time + post-hoc analytics. CMI runtime (`cmi.core.*`, `cmi.interactions.*`) is the LMS's runtime layer — outside the Foxxi vertical's stratum. Documented boundary, not a gap. |
+| Implement SCORM 2004 4th Ed CMI runtime API (IEEE 1484.11.2) | **Compliant** | [`deploy/foxxi-scorm-player/site/scorm-rte.js`](../../deploy/foxxi-scorm-player/site/scorm-rte.js) installs `window.API_1484_11` at the player parent so any uploaded SCO can do the canonical API-discovery walk and hook into a working CMI store. Implements the full 8-function API surface (Initialize / Terminate / GetValue / SetValue / Commit / GetLastError / GetErrorString / GetDiagnostic) with the SCORM 2004 §5.3.4 error-code table, plus the CMI data-model subset used by ~95% of production packages (completion_status / success_status / score.{scaled,raw,min,max} / progress_measure / location / session_time / suspend_data / learner_id / learner_name / interactions.n.* / objectives.n.*). Foxxi can be a SCORM 2004 LMS for any package, not just Golf Explained. |
+| **CMI → xAPI cmi5 auto-translation on Commit / Terminate** | **Compliant** | Same module. When the SCO calls `Commit('')` or `Terminate('')`, the RTE inspects current CMI state and emits the corresponding cmi5 verb statements (`completed` / `passed` / `failed` / `terminated`) to Foxxi-as-LRS — `result.score` filled from `cmi.score.*`, `result.duration` from session elapsed, interactions exported as a context extension. Any SCORM package automatically gets xAPI cmi5 emission without authoring changes. |
 
 ## 2. xAPI — ADL Experience API / IEEE 9274.1.1
 
@@ -35,7 +59,10 @@ no SCORM/xAPI/LOM terms leak into it.
 | **Statement Forwarding** (xAPI §10) | **Compliant** | `FOXXI_LRS_FORWARDING_TARGETS` env var — comma-separated `endpoint\|\|user:pass\|\|version` triples; every accepted statement fans out asynchronously |
 | LRS client — write to external LRSs with version negotiation | **Compliant** | [`applications/lrs-adapter/src/lrs-client.ts`](../lrs-adapter/src/lrs-client.ts) — tested live against Lrsql, SCORM Cloud, Watershed |
 | Modal-status filter on projection (Asserted only) | **Compliant** | Modal-truth invariant from L1; non-Asserted descriptors don't leak through |
-| **xAPI Profile (vocabulary publication)** | **Compliant** | `GET /xapi/profile` — JSON-LD profile per xAPI Profile Specification 2017; declares cmi5 verb subset + Foxxi extensions (`foxxi:asked`, `foxxi:retrieved`, `foxxi:conceptGraphNode`) so other tools can discover the vocabulary |
+| **xAPI Profile (vocabulary publication)** | **Compliant** | `GET /xapi/profile` — full ADL xAPI Profile Specification 2017 document (JSON-LD, `@context: https://w3id.org/xapi/profiles/context`) with three principal sections: (a) **Concepts** — 20 Verbs (cmi5 subset + Foxxi extensions `scene-completed`, `asked`, `retrieved`, `enrolled`, `credentialed`, `wallet-exported`, `framework-aligned`, `policy-decided`, `affordance-invoked`), 8 ActivityTypes (course / lesson / assessment + Foxxi `scene`, `concept-graph-node`, `credential`, `framework`, `affordance`), 10 ContextExtensions; (b) **Statement Templates** — 12 shapes with mandatory + recommended property rules per §5; (c) **Patterns** — 6 patterns including the primary `course-session` (launched → initialized → learn-stream+ → completion-outcome → terminated) and `credentialing` (passed → credentialed) per §6.3. Source: [`src/xapi-profile.ts`](src/xapi-profile.ts) |
+| **Granular bridge-handler instrumentation** | **Compliant** | [`src/xapi-instrumentation.ts`](src/xapi-instrumentation.ts) — every affordance call lands as one xAPI statement at the LRS, mapped to the most specific Foxxi-Profile verb (e.g. `ask_course_question_agentic` → `foxxi:asked`, `issue_completion_credential` → `foxxi:credentialed`) with fallback to the generic `foxxi:affordance-invoked` envelope. Captures actor / verb / object / result.success / duration / call extensions (`affordanceTool`, `callerRole`, `error`). Handler errors are tolerated — instrumentation never blocks the response path. |
+| **Playable demo course → live xAPI** | **Compliant** | [`deploy/foxxi-scorm-player/`](../../deploy/foxxi-scorm-player/) — separate Container App `interego-foxxi-scorm-player` serving the extracted SCORM 2004 3rd Ed "Golf Explained" Single SCO package + a Foxxi-native course player ([`player.js`](../../deploy/foxxi-scorm-player/site/player.js)) that walks the 14 slides, tracks viewed-set + scene-completion, and POSTs xAPI statements to the bridge LRS at launch / initialize / slide-view / scene-completed / completed / passed / terminated. Conforms to Foxxi's published `course-session` pattern. |
+| **LRS-admin dashboard** | **Compliant** | [`dashboard-app/src/components/LrsAdminPanel.tsx`](dashboard-app/src/components/LrsAdminPanel.tsx) — gated by admin or learning-engineer role; four tabs (Statement browser with verb/actor filters + live auto-refresh + full JSON envelope view, Aggregates with top-N verbs/activities/actors + hourly volume sparkline, Profile-conformance rate + out-of-profile verb detection, LRS Config showing endpoints + basic-auth keys + forwarding targets + retention). Surfaced on AdminShell as the "xAPI / LRS" tab, plus on LearnerShell as a card for users with the `learning-engineering` audience tag (matches the ICICLE "data-informed decision making" leg of the Learning Engineer role). Backed by `/xapi/admin/{statements, aggregates, conformance, config}` on the bridge ([`src/xapi-admin.ts`](src/xapi-admin.ts)). |
 | Signed Statements (RFC 7515 JWS attachment) | **Partial** | Tool keys present via LTI 1.3 ES256 JWS plumbing ([`src/lti13.ts`](src/lti13.ts) `jwsSignEs256()`); attaching as `attachments[].usageType=signature` over statement bodies is a small additional wiring step |
 
 ## 3. cmi5 — IEEE 9274.2.1

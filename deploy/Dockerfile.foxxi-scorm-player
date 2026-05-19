@@ -1,0 +1,44 @@
+# ────────────────────────────────────────────────────────────
+#  Foxxi course player — playable Golf Explained SCORM sample
+#  with proper xAPI emission to the Foxxi bridge (Foxxi-as-LRS).
+#
+#  Static site served by nginx. The /course/ subtree is the
+#  extracted SCORM 2004 3rd Ed Single SCO package from SCORM
+#  Cloud (Rustici Software sample). The player.html + .js wraps
+#  each HTML slide in an iframe, tracks navigation, and POSTs
+#  xAPI Statements to the configured bridge.
+# ────────────────────────────────────────────────────────────
+
+FROM nginx:1.27-alpine
+
+RUN rm -rf /usr/share/nginx/html/*
+COPY deploy/foxxi-scorm-player/site/ /usr/share/nginx/html/
+
+# CORS-open so the player can be embedded from the dashboard
+# origin; cache headers tuned for: long on /course/ static assets,
+# none on the player shell so updates roll out immediately.
+RUN printf 'server {\n\
+  listen 8080;\n\
+  root /usr/share/nginx/html;\n\
+  index index.html;\n\
+\n\
+  add_header Access-Control-Allow-Origin "*" always;\n\
+  add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;\n\
+\n\
+  # Course content — long cache (the SCORM zip is static)\n\
+  location /course/ {\n\
+    expires 7d;\n\
+    add_header Cache-Control "public, max-age=604800";\n\
+  }\n\
+\n\
+  # Player shell + JS — no cache so updates roll out\n\
+  location / {\n\
+    add_header Cache-Control "no-cache, no-store, must-revalidate";\n\
+    try_files $uri $uri/ /index.html;\n\
+  }\n\
+\n\
+  if ($request_method = OPTIONS) { return 204; }\n\
+}\n' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]
