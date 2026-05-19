@@ -114,21 +114,26 @@ const DASHBOARD_BASE = 'https://interego-foxxi-dashboard.livelysky-8b81abb0.east
 const deepLinks = [
   '/login',
   '/me',
-  '/users/u-joshua',
-  '/users/u-admin',
+  '/profile',
+  // Canonical resource URLs — pluralized collections, opaque-uuid items
+  '/profiles',
+  '/profiles/bddde464-09a2-57bd-b5f1-eb052e63f974',  // Joshua
+  '/profiles/4393084d-e1b7-5345-833c-635e2bdf6974',  // Jordan
   '/courses',
   '/courses/golf-explained',
   '/policies',
   '/groups',
-  '/audit',
+  '/audit-records',
   '/coverage',
   '/integrations',
   '/statements',
   '/statements/aggregates',
   '/statements/conformance',
   '/lrs-config',
-  // Legacy paths should redirect (not 404)
+  // Legacy paths must redirect (not 404)
   '/learner',
+  '/users/u-joshua',
+  '/audit',
   '/admin/catalog',
   '/admin/lrs/statements',
 ];
