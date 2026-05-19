@@ -221,7 +221,7 @@ users.push({
   web_id: webId('le'),
   name: 'Ngozi Kowalski',
   email: mailbox('le'),
-  department: 'Learning R&D',
+  department: 'Learning Engineering',
   job_title: 'Learning Engineer',
   manager_user_id: 'u-admin',
   location: 'Remote',

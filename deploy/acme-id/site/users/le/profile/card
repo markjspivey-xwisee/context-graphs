@@ -13,7 +13,7 @@
     foaf:maker  <#me> ;
     foaf:primaryTopic  <#me> ;
     dct:created  "2026-05-19T00:00:00Z"^^xsd:dateTime ;
-    dct:description  "Demo WebID profile for Ngozi Kowalski — Foxxi Content Intelligence learning engineer persona (Acme Training Co tenant). Technical R&D role: instructional-design + data-science + edtech-standards engineering." .
+    dct:description  "Demo WebID profile for Ngozi Kowalski — Learning Engineer (Acme Training Co tenant). Aligned to the IEEE ICICLE canonical definition of the profession: applying the learning sciences using human-centered design, engineering methodologies, and data-informed decision making to support learners." .
 
 <#me>
     a foaf:Person, schema:Person ;
@@ -23,17 +23,34 @@
     foaf:familyName "Kowalski" ;
     foaf:title  "Learning Engineer" ;
     schema:jobTitle "Learning Engineer" ;
-    schema:description "Technical learning engineer — designs A/B experiments, calibrates mastery models (BKT / IRT), runs framework-gap analyses, and instruments cohort learning curves. Works at the layer where instructional design meets the ADL Total Learning Architecture stack and the IEEE P2247 Adaptive Instructional Systems family." ;
+    schema:description "Learning engineer in the IEEE ICICLE sense — applies the learning sciences using human-centered design, engineering methodologies, and data-informed decision making. Sits across the three pillars of learning sciences + data science + computer science: cognitive task analysis on course content, KLI-framework matching of practice to objectives, BKT / IRT mastery calibration, ADL TLA instrumentation (xAPI / cmi5), and 1EdTech competency-standard emission (CASE / CaSS / CLR / OB3)." ;
     schema:worksFor [
       a schema:Organization ;
       schema:name "Acme Training Co (demo tenant)" ;
       schema:identifier "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io"
     ] ;
-    schema:department "Learning R&D" ;
+    schema:department "Learning Engineering" ;
+    # Discipline / methods (the canonical ICICLE legs of the profession)
     schema:knowsAbout
-      "IEEE P2247 Adaptive Instructional Systems" ,
-      "IEEE 1484.12.1 LOM (Learning Object Metadata)" ,
-      "IEEE 1484.20.1 RDCEO" ,
+      "Learning Sciences (parent discipline)" ,
+      "Human-Centered Design (HCD)" ,
+      "Engineering methodologies (process / iteration / instrumentation)" ,
+      "Data-informed decision making" ,
+      "Cognitive Task Analysis (CTA)" ,
+      "KLI Framework (Knowledge–Learning–Instruction; Koedinger et al., CMU)" ,
+      "Evidence-based practice" ,
+      "Bayesian Knowledge Tracing (BKT)" ,
+      "Item Response Theory (IRT)" ,
+      "Cognitive Load Theory" ,
+      "Spaced repetition / SM-2" ,
+      "Worked-example effect" ,
+      "Knowledge components / knowledge tracing" ;
+    # Edtech standards the substrate ingests / emits
+    schema:knowsAbout
+      "IEEE P2247 — Adaptive Instructional Systems" ,
+      "IEEE 1484.12.1 — Learning Object Metadata (LOM)" ,
+      "IEEE 1484.20.1 — RDCEO (competency definitions)" ,
+      "IEEE LERS (Learning Engineering Reference System) family" ,
       "ADL Total Learning Architecture (TLA)" ,
       "xAPI 1.0.3" ,
       "cmi5" ,
@@ -42,11 +59,7 @@
       "1EdTech CaSS" ,
       "1EdTech CLR 2.0" ,
       "1EdTech Open Badges 3.0" ,
-      "W3C Verifiable Credentials 2.0" ,
-      "Bayesian Knowledge Tracing" ,
-      "Item Response Theory" ,
-      "Cognitive Load Theory" ,
-      "Spaced repetition / SM-2" ;
+      "W3C Verifiable Credentials 2.0" ;
     foaf:mbox  <mailto:le@interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io> ;
     pim:storage  <https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/> ;
     solid:account  <https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/le/> ;

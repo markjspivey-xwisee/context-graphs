@@ -101,7 +101,7 @@ export function adminSessionOption(): SessionOption {
 export function learnerSessionOptions(): SessionOption[] {
   const interesting = new Set([
     'u-joshua', // Joshua Liu — engineering (golf-explained required)
-    'u-le', // Ngozi Kowalski — Learning R&D / Learning Engineer (IEEE P2247 / ADL TLA / xAPI / CASE)
+    'u-le', // Ngozi Kowalski — Learning Engineer (IEEE ICICLE canonical: learning sciences × HCD × engineering methods × data)
     'u0062', // Heather Zhang — engineer + manager
     'u0001', // Jessica Torres — CEO (mostly only required-of-all)
     'u0021', // Annie Johnson — actor in audit log entries

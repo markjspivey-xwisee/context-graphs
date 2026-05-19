@@ -44,7 +44,7 @@ export const DEMO_IDENTITIES = {
     userId: 'u-le',
     webId: webIdFor('le'),
     name: 'Ngozi Kowalski',
-    role: 'Learning Engineer · Learning R&D · IEEE P2247 / ADL TLA / xAPI',
+    role: 'Learning Engineer · Learning Engineering team · learning sciences × HCD × engineering methods × data',
     audienceTags: ['learning-engineering', 'all-employees', 'managers', 'engineering'],
   },
 } as const;
