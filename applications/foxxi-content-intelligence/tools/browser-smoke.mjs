@@ -113,11 +113,24 @@ const ctx4 = await browser4.newContext();
 const DASHBOARD_BASE = 'https://interego-foxxi-dashboard.livelysky-8b81abb0.eastus.azurecontainerapps.io';
 const deepLinks = [
   '/login',
+  '/me',
+  '/users/u-joshua',
+  '/users/u-admin',
+  '/courses',
+  '/courses/golf-explained',
+  '/policies',
+  '/groups',
+  '/audit',
+  '/coverage',
+  '/integrations',
+  '/statements',
+  '/statements/aggregates',
+  '/statements/conformance',
+  '/lrs-config',
+  // Legacy paths should redirect (not 404)
   '/learner',
   '/admin/catalog',
-  '/admin/policies',
   '/admin/lrs/statements',
-  '/admin/lrs/aggregates',
 ];
 let deepLinkPass = 0;
 for (const path of deepLinks) {

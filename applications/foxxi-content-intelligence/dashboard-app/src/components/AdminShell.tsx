@@ -54,7 +54,7 @@ function TabBtn({ t, v, onClick, children }: { t: Tab; v: Tab; onClick: (v: Tab)
   return <Button primary={t === v} onClick={() => onClick(v)}>{children}</Button>;
 }
 
-function CatalogTab() {
+export function CatalogTab() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'parsed' | 'stub'>('all');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -261,7 +261,7 @@ function CompletionBar({ completed, overdue, pending, total }: { completed: numb
   );
 }
 
-function PoliciesTab() {
+export function PoliciesTab() {
   const a = SAMPLE_ADMIN_PAYLOAD;
   return (
     <Card title="Assignment policies" right={<Pill tone="accent">foxxi.assign_audience + foxxi.publish_authoring_policy</Pill>}>
@@ -291,7 +291,7 @@ function PoliciesTab() {
   );
 }
 
-function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
+export function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
   const a = SAMPLE_ADMIN_PAYLOAD;
   const coverage = useMemo(() => a.coverage.slice(0, 30).map(c => ({
     concept: c.concept_label,
@@ -413,7 +413,7 @@ function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
   );
 }
 
-function AuditTab() {
+export function AuditTab() {
   const a = SAMPLE_ADMIN_PAYLOAD;
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [resultFilter, setResultFilter] = useState<'all' | 'allowed' | 'denied'>('all');
@@ -552,7 +552,7 @@ function AuditTab() {
 //  Access tab — users + groups (audience membership for policy resolution)
 // ──────────────────────────────────────────────────────────────────────
 
-function AccessTab() {
+export function AccessTab() {
   const a = SAMPLE_ADMIN_PAYLOAD;
   const [sub, setSub] = useState<'users' | 'groups'>('users');
   const [query, setQuery] = useState('');
@@ -750,7 +750,7 @@ function AccessTab() {
 //  Integrations tab — LMS + downstream connector status cards
 // ──────────────────────────────────────────────────────────────────────
 
-function IntegrationsTab() {
+export function IntegrationsTab() {
   const a = SAMPLE_ADMIN_PAYLOAD;
   // Group connections by kind for the section-by-kind layout the originals had.
   const byKind = useMemo(() => {

@@ -12,7 +12,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, Pill, Button } from './common.js';
 
 const BRIDGE = (import.meta.env.VITE_FOXXI_BRIDGE_URL as string | undefined) ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
@@ -47,9 +47,24 @@ const LRS_TAB_VALUES = new Set<LrsTab>(['statements', 'aggregates', 'conformance
 export function LrsAdminPanel({ bearer }: { bearer: string }) {
   const params = useParams();
   const navigate = useNavigate();
-  const urlTab = params.lrsTab as string | undefined;
-  const tab: LrsTab = (urlTab && LRS_TAB_VALUES.has(urlTab as LrsTab)) ? (urlTab as LrsTab) : 'statements';
-  const setTab = (v: LrsTab) => navigate(`/admin/lrs/${v}`);
+  const location = useLocation();
+  // /statements                    → statements (default)
+  // /statements/aggregates         → aggregates
+  // /statements/conformance        → conformance
+  // /lrs-config                    → config
+  // /statements/<uuid>             → statements (with deep-link, not implemented here yet)
+  const onLrsConfig = location.pathname === '/lrs-config';
+  const sub = params.statementSub as string | undefined;
+  let tab: LrsTab = 'statements';
+  if (onLrsConfig) tab = 'config';
+  else if (sub === 'aggregates' || sub === 'conformance') tab = sub;
+  // Note: any other :statementSub value is treated as a statement-id deep link;
+  // for now we render the statements view (deep-link selection wiring to follow).
+  const setTab = (v: LrsTab) => {
+    if (v === 'config') navigate('/lrs-config');
+    else if (v === 'statements') navigate('/statements');
+    else navigate(`/statements/${v}`);
+  };
   return (
     <Card title="xAPI / LRS administration"
       right={<Pill tone="accent">Foxxi-as-LRS</Pill>}>

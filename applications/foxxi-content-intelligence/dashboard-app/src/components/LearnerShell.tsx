@@ -13,7 +13,7 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
   const params = useParams();
   const navigate = useNavigate();
   const openCourseId = (params.courseId as string | undefined) ?? null;
-  const setOpenCourseId = (id: string | null) => navigate(id ? `/learner/courses/${id}` : '/learner');
+  const setOpenCourseId = (id: string | null) => navigate(id ? `/courses/${id}` : `/users/${session.userId}`);
   const [enrollments, setEnrollments] = useState<DiscoverAssignedCoursesResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
