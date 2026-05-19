@@ -144,6 +144,14 @@ export interface EnrolledCourse {
   dueAt: string;
   status: 'pending' | 'completed' | 'overdue';
   completedAt?: string;
+  /** Hypermedia _links emitted by the server (HAL-style). Present when
+   *  the bridge is in use; absent in offline-sample mode. */
+  _links?: {
+    self?: { href: string };
+    course?: { href: string };
+    group?: { href: string };
+    launch?: { href: string; templated?: boolean; title?: string };
+  };
 }
 
 export interface CourseConcept {

@@ -4,7 +4,7 @@ import { Card, Pill, Button, Modal, Row } from './common.js';
 import { coverageQuery, type CoverageQueryResult } from '../interego/client.js';
 import { SAMPLE_ADMIN_PAYLOAD } from '../sample/data.js';
 import { LrsAdminPanel } from './LrsAdminPanel.js';
-import { useHypermediaCollection } from '../hypermedia.js';
+import { useHypermediaCollection, useAffordance, useHypermedia, invokeAffordance } from '../hypermedia.js';
 import type { FoxxiSession } from '../auth/session.js';
 import type { CatalogEntry, AdminConnection } from '../types.js';
 
@@ -366,18 +366,34 @@ export function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const affordance = useAffordance('foxxi.coverage_query');
+  const { bearer } = useHypermedia();
+
   async function run() {
     setLoading(true); setErr(null);
     try {
       const edges = bucketEdges.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
-      const r = await coverageQuery({
-        tenantPodUrl,
-        coverage,
-        privacyMode: mode,
-        epsilon: mode === 'zk-distribution' ? epsilon : undefined,
-        distributionEdges: mode === 'zk-distribution' ? edges : undefined,
-        distributionMaxValue: mode === 'zk-distribution' ? maxValue : undefined,
-      });
+      const r = affordance
+        ? (await invokeAffordance({
+            affordance,
+            bearer,
+            args: {
+              tenant_pod_url: tenantPodUrl,
+              coverage,
+              privacy_mode: mode,
+              epsilon: mode === 'zk-distribution' ? epsilon : undefined,
+              distribution_edges: mode === 'zk-distribution' ? edges : undefined,
+              distribution_max_value: mode === 'zk-distribution' ? maxValue : undefined,
+            },
+          })) as CoverageQueryResult
+        : await coverageQuery({
+            tenantPodUrl,
+            coverage,
+            privacyMode: mode,
+            epsilon: mode === 'zk-distribution' ? epsilon : undefined,
+            distributionEdges: mode === 'zk-distribution' ? edges : undefined,
+            distributionMaxValue: mode === 'zk-distribution' ? maxValue : undefined,
+          });
       setResult(r);
     } catch (e) {
       setErr((e as Error).message);
@@ -387,7 +403,7 @@ export function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
   }
 
   return (
-    <Card title="Catalog concept coverage" right={<Pill tone="accent">foxxi.coverage_query</Pill>}>
+    <Card title="Catalog concept coverage" right={<Pill tone="accent">{affordance ? `affordance: ${affordance.rel}` : 'foxxi.coverage_query (sample)'}</Pill>}>
       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
         Privacy-respecting coverage analysis — composes the substrate's aggregate-privacy ladder.
         v2 merkle-attested-opt-in gives a tamper-evident count + per-leaf inclusion proofs.

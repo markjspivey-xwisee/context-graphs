@@ -190,16 +190,36 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
   );
 }
 
-const SCORM_PLAYER_BASE = 'https://interego-foxxi-scorm-player.livelysky-8b81abb0.eastus.azurecontainerapps.io';
-const BRIDGE_BASE_FOR_PLAYER = import.meta.env.VITE_FOXXI_BRIDGE_URL ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+// Sample-mode fallback only — production uses the server-supplied `launch`
+// link template (RFC 6570) discovered on each enrollment via the hypermedia
+// profile fetch. The dashboard never constructs player URLs from scratch
+// when the bridge is reachable.
+const SCORM_PLAYER_BASE_FALLBACK = 'https://interego-foxxi-scorm-player.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+const BRIDGE_BASE_FALLBACK = import.meta.env.VITE_FOXXI_BRIDGE_URL ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
 
-function buildPlayerUrl(courseId: string, session: { webId: string; name: string; bearerToken: string }): string {
-  const u = new URL(SCORM_PLAYER_BASE);
-  u.searchParams.set('bridge', BRIDGE_BASE_FOR_PLAYER);
+/** Expand RFC 6570-style {var} placeholders in a server-supplied launch
+ *  template with caller-known auth context. */
+function expandLaunchTemplate(template: string, session: { webId: string; name: string; bearerToken: string }): string {
+  return template
+    .replace('{bearer}', encodeURIComponent(session.bearerToken))
+    .replace('{learner_did}', encodeURIComponent(session.webId))
+    .replace('{learner_name}', encodeURIComponent(session.name));
+}
+
+function buildPlayerUrlFromGroup(group: CourseGroup, session: { webId: string; name: string; bearerToken: string }): string {
+  // Prefer the server-emitted templated `launch` link on the first matching
+  // policy (HATEOAS — the dashboard follows the affordance the server gave
+  // it, never reconstructing the player URL by string concatenation).
+  const tmpl = group.policies.find(p => p._links?.launch?.href)?._links?.launch?.href;
+  if (tmpl) return expandLaunchTemplate(tmpl, session);
+  // Offline-sample fallback: synthesize locally so the dashboard stays
+  // demonstrable without the bridge.
+  const u = new URL(SCORM_PLAYER_BASE_FALLBACK);
+  u.searchParams.set('bridge', BRIDGE_BASE_FALLBACK);
   u.searchParams.set('bearer', session.bearerToken);
   u.searchParams.set('learner_did', session.webId);
   u.searchParams.set('learner_name', session.name);
-  u.searchParams.set('course_id', courseId);
+  u.searchParams.set('course_id', group.courseId);
   return u.toString();
 }
 
@@ -256,7 +276,7 @@ function CourseRow({ group, canOpen, onOpen, session }: { group: CourseGroup; ca
         {playable && session && (
           <Button
             primary
-            onClick={() => window.open(buildPlayerUrl(group.courseId, session), '_blank', 'noopener')}
+            onClick={() => window.open(buildPlayerUrlFromGroup(group, session), '_blank', 'noopener')}
             title="Open the course in a new tab. The player emits live xAPI 2.0 statements to Foxxi-as-LRS."
           >
             ▶ Launch

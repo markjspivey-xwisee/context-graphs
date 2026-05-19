@@ -178,7 +178,20 @@ export function useHypermediaCollection<T>(rel: string): {
   return { items, total, loading, error, refresh: () => setVersion(v => v + 1) };
 }
 
-/** Render an affordance as an actionable button — POST/GET/PUT all OK. */
+/**
+ * Find a specific affordance by its underlying tool name (e.g.
+ * `foxxi.coverage_query`). Returns the affordance descriptor including
+ * its href, method, and expected inputs. The dashboard component then
+ * invokes it via `invokeAffordance` — the URL is server-supplied, not
+ * client-constructed.
+ */
+export function useAffordance(toolName: string): HypermediaAffordance | null {
+  const { entry } = useHypermedia();
+  const raw = (entry as unknown as { _affordances?: HypermediaAffordance[] } | null)?._affordances;
+  if (!raw) return null;
+  return raw.find(a => a.mcpTool === toolName) ?? null;
+}
+
 export interface AffordanceInvokeArgs {
   affordance: HypermediaAffordance;
   bearer: string | null;

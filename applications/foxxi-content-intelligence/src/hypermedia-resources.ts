@@ -34,6 +34,21 @@ import { deriveUserWallet } from './auth.js';
 interface HypermediaConfig {
   selfBaseUrl: string;
   affordances: ReadonlyArray<Affordance>;
+  /** SCORM player base URL — emitted as templated `launch` link on
+   * playable enrollments + courses so the dashboard never hardcodes it. */
+  scormPlayerBaseUrl?: string;
+}
+
+/** Courses whose payloads ship with a playable SCORM package. */
+const PLAYABLE_COURSE_IDS = new Set<string>(['golf-explained']);
+
+/** Build an RFC 6570-style templated launch URL. The dashboard expands
+ *  {bearer}, {learner_did}, {learner_name} from its local session. */
+function launchTemplate(playerBase: string, bridgeBase: string, courseId: string): string {
+  const u = new URL(playerBase);
+  u.searchParams.set('bridge', bridgeBase);
+  u.searchParams.set('course_id', courseId);
+  return `${u.toString()}&bearer={bearer}&learner_did={learner_did}&learner_name={learner_name}`;
 }
 
 // ── Opaque ID derivation (matches dashboard's identifiers.ts) ──────
@@ -268,8 +283,9 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
 
   // ── Root entry point ─────────────────────────────────────────────
   // Bootstrap URI — single request returns the navigable map of all
-  // top-level collections + the affordance manifest URL. SPA clients
-  // hit this on launch and never hardcode URLs.
+  // top-level collections + the full affordance set (every bridge tool,
+  // with its REST URL + expected inputs). SPA clients hit this on
+  // launch and never hardcode URLs again — for either reads OR writes.
   app.get('/api/foxxi/v1', (_req, res) => {
     res.json({
       '@context': { hydra: 'http://www.w3.org/ns/hydra/core#' },
@@ -284,9 +300,14 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         'audit-records': { href: `${base}/audit-records` },
         integrations: { href: `${base}/integrations` },
         statements: { href: `${config.selfBaseUrl}/xapi/statements` },
+        'statements-admin': { href: `${config.selfBaseUrl}/xapi/admin/statements`, templated: false, title: 'Admin statement browser (paginated, filterable)' },
+        'statements-aggregates': { href: `${config.selfBaseUrl}/xapi/admin/aggregates` },
+        'statements-conformance': { href: `${config.selfBaseUrl}/xapi/admin/conformance` },
+        'lrs-config': { href: `${config.selfBaseUrl}/xapi/admin/config` },
         affordances: { href: `${config.selfBaseUrl}/affordances` },
         openapi: { href: `${config.selfBaseUrl}/openapi.json` },
       },
+      _affordances: config.affordances.map(a => bridgeAffordanceToLink(a, config.selfBaseUrl)),
     });
   });
 
@@ -345,6 +366,13 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
             self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` },
             course: { href: `${base}/courses/${lookup.course.toOpaque(p.course_id)}` },
             group: { href: `${base}/groups/${lookup.group.toOpaque(p.audience_group_id)}` },
+            ...(config.scormPlayerBaseUrl && PLAYABLE_COURSE_IDS.has(p.course_id) ? {
+              launch: {
+                href: launchTemplate(config.scormPlayerBaseUrl, config.selfBaseUrl, p.course_id),
+                templated: true,
+                title: 'Launch the SCORM player for this course (xAPI 2.0 emitting)',
+              },
+            } : {}),
           },
         };
       });
@@ -405,10 +433,18 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         audience_group_id: p.audience_group_id,
         _links: { self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` } },
       }));
+    const courseLinks: Record<string, { href: string; templated?: boolean; title?: string }> = {};
+    if (config.scormPlayerBaseUrl && PLAYABLE_COURSE_IDS.has(slug)) {
+      courseLinks.launch = {
+        href: launchTemplate(config.scormPlayerBaseUrl, config.selfBaseUrl, slug),
+        templated: true,
+        title: 'Launch the SCORM player for this course (xAPI 2.0 emitting)',
+      };
+    }
     res.json(itemEnvelope({
       selfUrl: `${base}/courses/${req.params.opaqueId}`,
       collectionUrl: `${base}/courses`,
-      resource: { id: req.params.opaqueId, ...course },
+      resource: { id: req.params.opaqueId, ...course, ...(Object.keys(courseLinks).length ? { _links: courseLinks } : {}) },
       embedded: { policies },
       affordances: config.affordances,
       baseUrl: config.selfBaseUrl,

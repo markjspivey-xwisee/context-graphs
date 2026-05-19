@@ -160,6 +160,7 @@ const ctx3 = await browser3.newContext();
 const page3 = await ctx3.newPage();
 const dashConsoleErr = [];
 const hypermediaCallsCase3 = [];
+const mcpCallsCase3 = [];
 page3.on('console', m => { if (m.type() === 'error') dashConsoleErr.push(m.text()); });
 page3.on('pageerror', e => dashConsoleErr.push(`pageerror: ${e.message}`));
 // Attach response listener BEFORE the page loads so we capture every
@@ -167,6 +168,13 @@ page3.on('pageerror', e => dashConsoleErr.push(`pageerror: ${e.message}`));
 page3.on('response', resp => {
   const u = resp.url();
   if (u.includes('/api/foxxi/v1')) hypermediaCallsCase3.push({ url: u.replace(/.*\/api\/foxxi\/v1/, '/api/foxxi/v1'), status: resp.status() });
+  // Track any /mcp JSON-RPC call from the dashboard. The Richardson Level 3
+  // refactor's goal is for the dashboard to ride hypermedia + invokeAffordance
+  // exclusively, so post-migration this count should be 0 (a single probe to
+  // /affordances is allowed and tracked separately).
+  if (resp.request().method() === 'POST' && /\/mcp(\/|$|\?)/.test(u)) {
+    mcpCallsCase3.push({ url: u, status: resp.status() });
+  }
 });
 await page3.goto(DASHBOARD, { waitUntil: 'networkidle', timeout: 30_000 });
 await page3.evaluate(() => localStorage.clear());
@@ -228,7 +236,12 @@ if (visible > 0) {
 }
 console.log(`  dashboard console errors: ${dashConsoleErr.length}`);
 for (const e of dashConsoleErr.slice(0, 5)) console.log(`    · ${e}`);
+console.log(`  /mcp POSTs from dashboard: ${mcpCallsCase3.length} (expected 0 — fully migrated to hypermedia)`);
+for (const c of mcpCallsCase3.slice(0, 5)) console.log(`    · ${c.status} ${c.url}`);
 await browser3.close();
+
+const okNoMcp = mcpCallsCase3.length === 0;
+console.log(`\n=== dashboard hypermedia purity: ${okNoMcp ? 'PASS' : 'FAIL'} — 0 /mcp POSTs observed ===`);
 
 const okDeepLinks = deepLinkPass === deepLinks.length;
 console.log(`\n=== deep-link routes: ${okDeepLinks ? 'PASS' : 'FAIL'} — ${deepLinkPass}/${deepLinks.length} served ===`);
@@ -286,6 +299,6 @@ await browser5.close();
 const okTabs = tabPass === tabs.length;
 console.log(`\n=== admin-tab hypermedia: ${okTabs ? 'PASS' : 'FAIL'} — ${tabPass}/${tabs.length} ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks && okTabs;
+const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);

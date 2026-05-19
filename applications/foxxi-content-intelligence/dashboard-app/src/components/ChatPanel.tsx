@@ -3,6 +3,7 @@ import { Card, Button, TextInput, Pill } from './common.js';
 import { LlmSettingsDialog } from './LlmSettings.js';
 import { askCourseQuestionAgentic, type AskAgenticResult, type AgenticCoursePayload } from '../interego/client.js';
 import { loadLlmSettings, saveLlmSettings, type LlmMode } from '../auth/llm-settings.js';
+import { useAffordance, useHypermedia, invokeAffordance } from '../hypermedia.js';
 import type { CourseContent } from '../types.js';
 
 interface ChatTurn {
@@ -72,6 +73,9 @@ export function ChatPanel(props: {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [llm, setLlm] = useState(loadLlmSettings());
 
+  const affordance = useAffordance('foxxi.ask_course_question_agentic');
+  const { bearer } = useHypermedia();
+
   async function ask() {
     if (!question.trim() || loading) return;
     setLoading(true); setError(null);
@@ -81,15 +85,27 @@ export function ChatPanel(props: {
         { role: 'user' as const, content: t.question },
         { role: 'assistant' as const, content: t.result.synthesizedAnswer ?? '(retrieval-only — no LLM synthesis)' },
       ]);
-      const result = await askCourseQuestionAgentic({
-        learnerDid: props.learnerDid,
+      const argsBase: Record<string, unknown> = {
+        learner_did: props.learnerDid,
         question: question.trim(),
         primary,
+        federation: [],
         history: histPayload,
-        mode: llm.mode,
-        byokKey: llm.byokKey,
-        llmModel: llm.llmModel,
-      });
+      };
+      if (llm.mode === 'byok' && llm.byokKey) argsBase.llm_api_key = llm.byokKey;
+      if (llm.llmModel) argsBase.llm_model = llm.llmModel;
+
+      const result = affordance
+        ? (await invokeAffordance({ affordance, bearer, args: argsBase })) as AskAgenticResult
+        : await askCourseQuestionAgentic({
+            learnerDid: props.learnerDid,
+            question: question.trim(),
+            primary,
+            history: histPayload,
+            mode: llm.mode,
+            byokKey: llm.byokKey,
+            llmModel: llm.llmModel,
+          });
       setHistory(h => [...h, { question: question.trim(), result, at: new Date().toISOString() }]);
       setQuestion('');
     } catch (err) {
@@ -100,7 +116,7 @@ export function ChatPanel(props: {
   }
 
   const llmPill = llmModeChip(llm.mode);
-  const toolName = 'foxxi.ask_course_question_agentic';
+  const toolName = affordance ? `affordance: ${affordance.rel}` : 'foxxi.ask_course_question_agentic (sample)';
 
   return (
     <Card

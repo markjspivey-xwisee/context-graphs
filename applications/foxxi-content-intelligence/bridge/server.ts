@@ -1317,6 +1317,8 @@ const app = createVerticalBridge({
     attachHypermediaRoutes(a, {
       selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
       affordances: activeAffordances,
+      scormPlayerBaseUrl: process.env.FOXXI_SCORM_PLAYER_BASE
+        ?? 'https://interego-foxxi-scorm-player.livelysky-8b81abb0.eastus.azurecontainerapps.io',
     });
 
     // Auth middleware: extract Authorization: Bearer <session-token> and

@@ -14,8 +14,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card, Pill, Button } from './common.js';
-
-const BRIDGE = (import.meta.env.VITE_FOXXI_BRIDGE_URL as string | undefined) ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+import { useHypermedia, linkOf, fetchHypermedia } from '../hypermedia.js';
 
 interface StatementRow {
   id: string;
@@ -33,12 +32,6 @@ interface AggregateRow {
   display?: string;
   name?: string;
   count: number;
-}
-
-async function api<T>(bearer: string, path: string): Promise<T> {
-  const r = await fetch(`${BRIDGE}${path}`, { headers: { Authorization: `Bearer ${bearer}` } });
-  if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
-  return r.json() as Promise<T>;
 }
 
 type LrsTab = 'statements' | 'aggregates' | 'conformance' | 'config';
@@ -88,6 +81,8 @@ export function LrsAdminPanel({ bearer }: { bearer: string }) {
 // ── Statement browser ───────────────────────────────────────────────
 
 function StatementsView({ bearer }: { bearer: string }) {
+  const { entry } = useHypermedia();
+  const baseUrl = linkOf(entry, 'statements-admin');
   const [data, setData] = useState<{ total: number; page: StatementRow[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [verb, setVerb] = useState<string>('');
@@ -97,6 +92,7 @@ function StatementsView({ bearer }: { bearer: string }) {
   const [selected, setSelected] = useState<StatementRow | null>(null);
 
   useEffect(() => {
+    if (!baseUrl) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function load() {
@@ -106,7 +102,7 @@ function StatementsView({ bearer }: { bearer: string }) {
       if (verb) q.set('verb', verb);
       if (actor) q.set('actor', actor);
       try {
-        const r = await api<{ total: number; page: StatementRow[] }>(bearer, `/xapi/admin/statements?${q}`);
+        const r = await fetchHypermedia<{ total: number; page: StatementRow[] }>(`${baseUrl}?${q}`, bearer);
         if (!cancelled) { setData(r); setErr(null); }
       } catch (e) {
         if (!cancelled) setErr((e as Error).message);
@@ -115,7 +111,7 @@ function StatementsView({ bearer }: { bearer: string }) {
     }
     void load();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [bearer, verb, actor, offset, autoRefresh]);
+  }, [bearer, baseUrl, verb, actor, offset, autoRefresh]);
 
   return (
     <div>
@@ -186,6 +182,8 @@ function StatementsView({ bearer }: { bearer: string }) {
 // ── Aggregates ──────────────────────────────────────────────────────
 
 function AggregatesView({ bearer }: { bearer: string }) {
+  const { entry } = useHypermedia();
+  const url = linkOf(entry, 'statements-aggregates');
   const [data, setData] = useState<null | {
     total: number;
     errors: number;
@@ -197,13 +195,15 @@ function AggregatesView({ bearer }: { bearer: string }) {
   }>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
+    if (!url) return;
     let cancelled = false;
-    const t = setInterval(() => {
-      api<typeof data>(bearer, '/xapi/admin/aggregates').then(r => { if (!cancelled) { setData(r); setErr(null); } }).catch(e => !cancelled && setErr((e as Error).message));
-    }, 5000);
-    api<typeof data>(bearer, '/xapi/admin/aggregates').then(r => { if (!cancelled) { setData(r); setErr(null); } }).catch(e => !cancelled && setErr((e as Error).message));
+    const fetcher = () => fetchHypermedia<NonNullable<typeof data>>(url, bearer)
+      .then(r => { if (!cancelled) { setData(r); setErr(null); } })
+      .catch(e => !cancelled && setErr((e as Error).message));
+    void fetcher();
+    const t = setInterval(fetcher, 5000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [bearer]);
+  }, [bearer, url]);
 
   const maxHourly = useMemo(() => data?.hourlyVolume.reduce((m, [, n]) => Math.max(m, n), 0) ?? 0, [data]);
 
@@ -266,6 +266,8 @@ function TopList({ title, rows }: { title: string; rows: AggregateRow[] }) {
 // ── Conformance ─────────────────────────────────────────────────────
 
 function ConformanceView({ bearer }: { bearer: string }) {
+  const { entry } = useHypermedia();
+  const url = linkOf(entry, 'statements-conformance');
   const [data, setData] = useState<null | {
     profileId: string;
     profileUrl: string;
@@ -278,8 +280,9 @@ function ConformanceView({ bearer }: { bearer: string }) {
   }>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    api<typeof data>(bearer, '/xapi/admin/conformance').then(setData).catch(e => setErr((e as Error).message));
-  }, [bearer]);
+    if (!url) return;
+    fetchHypermedia<NonNullable<typeof data>>(url, bearer).then(setData).catch(e => setErr((e as Error).message));
+  }, [bearer, url]);
 
   if (err) return <div style={{ color: 'var(--bad)' }}>✗ {err}</div>;
   if (!data) return <div style={{ color: 'var(--text-dim)' }}>Loading…</div>;
@@ -316,6 +319,8 @@ function ConformanceView({ bearer }: { bearer: string }) {
 // ── Config ──────────────────────────────────────────────────────────
 
 function ConfigView({ bearer }: { bearer: string }) {
+  const { entry } = useHypermedia();
+  const url = linkOf(entry, 'lrs-config');
   const [data, setData] = useState<null | {
     selfBaseUrl: string;
     profileId: string;
@@ -329,8 +334,9 @@ function ConfigView({ bearer }: { bearer: string }) {
   }>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    api<typeof data>(bearer, '/xapi/admin/config').then(setData).catch(e => setErr((e as Error).message));
-  }, [bearer]);
+    if (!url) return;
+    fetchHypermedia<NonNullable<typeof data>>(url, bearer).then(setData).catch(e => setErr((e as Error).message));
+  }, [bearer, url]);
   if (err) return <div style={{ color: 'var(--bad)' }}>✗ {err}</div>;
   if (!data) return <div style={{ color: 'var(--text-dim)' }}>Loading…</div>;
   return (
