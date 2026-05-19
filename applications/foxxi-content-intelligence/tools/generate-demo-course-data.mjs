@@ -18,6 +18,17 @@ import { resolve } from 'node:path';
 const outDir = process.argv[2] || resolve(import.meta.dirname, '../imported');
 mkdirSync(outDir, { recursive: true });
 
+// ── Demo identity surface ──
+// Tenant identity is rooted at a real Azure Container App (interego-acme-id)
+// hosting the DID document at /.well-known/did.json and per-user WebID
+// profile cards at /users/<slug>/profile/card . No synthetic .example
+// domains: every URL below resolves over HTTPS against a live service.
+const ID_HOST = 'interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+const TENANT_DID = `did:web:${ID_HOST}`;
+const ID_BASE = `https://${ID_HOST}`;
+function webId(slug) { return `${ID_BASE}/users/${slug}/profile/card#me`; }
+function mailbox(slug) { return `${slug}@${ID_HOST}`; }
+
 // ── Course structure (mirrors the imsmanifest.xml of the Golf Explained SCO) ──
 
 const SCENES = [
@@ -192,9 +203,9 @@ const users = [];
 // Admin
 users.push({
   user_id: 'u-admin',
-  web_id: 'https://id.acme-training.example/admin/profile#me',
+  web_id: webId('admin'),
   name: 'Jordan Doe',
-  email: 'jdoe@acme-training.example',
+  email: mailbox('admin'),
   department: 'People Ops',
   job_title: 'L&D Administrator',
   manager_user_id: null,
@@ -207,9 +218,9 @@ users.push({
 // Learning engineer
 users.push({
   user_id: 'u-le',
-  web_id: 'https://id.acme-training.example/le/profile#me',
+  web_id: webId('le'),
   name: 'Ngozi Kowalski',
-  email: 'nkowalski@acme-training.example',
+  email: mailbox('le'),
   department: 'People Ops',
   job_title: 'Learning Engineer',
   manager_user_id: 'u-admin',
@@ -222,9 +233,9 @@ users.push({
 // Featured learner
 users.push({
   user_id: 'u-joshua',
-  web_id: 'https://id.acme-training.example/jliu/profile#me',
+  web_id: webId('jliu'),
   name: 'Joshua Liu',
-  email: 'jliu@acme-training.example',
+  email: mailbox('jliu'),
   department: 'Engineering',
   job_title: 'Engineer',
   manager_user_id: 'u-mgr1',
@@ -238,9 +249,9 @@ users.push({
 for (let i = 0; i < 5; i++) {
   users.push({
     user_id: `u-mgr${i + 1}`,
-    web_id: `https://id.acme-training.example/mgr${i + 1}/profile#me`,
+    web_id: webId(`mgr${i + 1}`),
     name: `${FIRST_NAMES[i]} ${LAST_NAMES[i]}`,
-    email: `mgr${i + 1}@acme-training.example`,
+    email: mailbox(`mgr${i + 1}`),
     department: DEPTS[i % DEPTS.length],
     job_title: 'Manager',
     manager_user_id: 'u-admin',
@@ -256,11 +267,12 @@ for (let i = 0; i < 80; i++) {
   const fn = FIRST_NAMES[i % FIRST_NAMES.length];
   const ln = LAST_NAMES[(i * 3) % LAST_NAMES.length];
   const dept = DEPTS[i % DEPTS.length];
+  const slug = `${fn.toLowerCase()}${ln.toLowerCase()}${i}`;
   users.push({
     user_id: `u-${(i + 10).toString().padStart(4, '0')}`,
-    web_id: `https://id.acme-training.example/${fn.toLowerCase()}${ln.toLowerCase()}${i}/profile#me`,
+    web_id: webId(slug),
     name: `${fn} ${ln}`,
-    email: `${fn.toLowerCase()}.${ln.toLowerCase()}@acme-training.example`,
+    email: mailbox(`${fn.toLowerCase()}.${ln.toLowerCase()}`),
     department: dept,
     job_title: JOB_TITLES[i % JOB_TITLES.length],
     manager_user_id: `u-mgr${(i % 5) + 1}`,
@@ -506,6 +518,8 @@ const adminPayload = {
   meta: {
     tenant: 'Acme Training Co (demo)',
     tenant_pod: 'https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/',
+    tenant_did: TENANT_DID,
+    tenant_did_document_url: `${ID_BASE}/.well-known/did.json`,
     admin_user_web_id: users[0].web_id,
     admin_user_name: users[0].name,
     admin_user_role: 'L&D Administrator',

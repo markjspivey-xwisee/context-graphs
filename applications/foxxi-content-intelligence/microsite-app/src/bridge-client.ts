@@ -17,24 +17,32 @@ export const BRIDGE_URL = (import.meta.env.VITE_FOXXI_BRIDGE_URL as string | und
 // Demo identities — mirror the dashboard's roster. The tenant has
 // published these wallet addresses on the directory descriptor, so
 // signatures from them verify against the bridge's address-map.
+// Demo identities are rooted at a real Azure-hosted identity server
+// (interego-acme-id) that publishes the tenant DID document at
+// /.well-known/did.json and per-user WebID profile cards at
+// /users/<slug>/profile/card . No synthetic .example domains — every
+// WebID below is a real, fetchable Turtle profile.
+const ID_BASE = 'https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io';
+const webIdFor = (slug: string) => `${ID_BASE}/users/${slug}/profile/card#me`;
+
 export const DEMO_IDENTITIES = {
   joshua: {
     userId: 'u-joshua',
-    webId: 'https://id.acme-training.example/jliu/profile#me',
+    webId: webIdFor('jliu'),
     name: 'Joshua Liu',
     role: 'Engineer · Engineering · new-hire',
     audienceTags: ['engineering', 'all-employees', 'new-hires'],
   },
   jordan: {
     userId: 'u-admin',
-    webId: 'https://id.acme-training.example/admin/profile#me',
+    webId: webIdFor('admin'),
     name: 'Jordan Doe',
     role: 'L&D Administrator · People Ops',
     audienceTags: ['all-employees', 'managers'],
   },
   ngozi: {
     userId: 'u-le',
-    webId: 'https://id.acme-training.example/le/profile#me',
+    webId: webIdFor('le'),
     name: 'Ngozi Kowalski',
     role: 'Learning Engineer · People Ops',
     audienceTags: ['learning-engineering', 'all-employees', 'managers'],

@@ -47,7 +47,21 @@ const STORAGE_KEY = 'foxxi:session';
 export function loadSession(): FoxxiSession | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as FoxxiSession) : null;
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Partial<FoxxiSession>;
+    // Treat sessions missing bearerToken (older shape) or past their
+    // bearerExpiresAt as expired — drop them so the user is sent to Login
+    // instead of rendering a shell that immediately makes unauthenticated
+    // bridge calls.
+    if (!s.bearerToken || !s.bearerExpiresAt) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    if (Date.parse(s.bearerExpiresAt) <= Date.now()) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return s as FoxxiSession;
   } catch {
     return null;
   }

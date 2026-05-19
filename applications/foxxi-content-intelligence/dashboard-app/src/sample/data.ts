@@ -26,7 +26,7 @@ import type {
 
 export const SAMPLE_ADMIN_PAYLOAD = adminPayloadJson as unknown as AdminPayload;
 
-const DEMO_TENANT_DID = 'did:web:acme-training.example';
+const DEMO_TENANT_DID = 'did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io';
 
 interface RawDashboardData {
   package?: CoursePackageMeta;
@@ -39,7 +39,7 @@ interface RawDashboardData {
 function golfExplainedCourse(): CourseContent {
   const d = courseDashboard as unknown as RawDashboardData;
   return {
-    courseIri: 'https://acme-training.example/courses/golf-explained#package',
+    courseIri: 'https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/courses/golf-explained#package',
     title: 'Golf Explained',
     authoritativeSource: DEMO_TENANT_DID,
     transcripts: courseTranscripts as unknown as Record<string, CourseTranscript>,

@@ -86,7 +86,16 @@ async function callTool<T>(name: string, args: Record<string, unknown>): Promise
     const j: { result?: { content: [{ text: string }] }; error?: { message: string } } = await resp.json();
     if (j.error) throw new Error(`bridge ${name} error: ${j.error.message}`);
     if (!j.result) throw new Error(`bridge ${name}: no result`);
-    return JSON.parse(j.result.content[0].text) as T;
+    const body = JSON.parse(j.result.content[0].text);
+    // Bridge handlers signal handler-level errors by returning { error: "..." }
+    // (e.g. caller-resolution failure, forbidden, missing args). Surface those
+    // as thrown errors so callers' catch-blocks show a real message instead
+    // of treating the error envelope as a valid result and crashing on missing
+    // fields.
+    if (body && typeof body === 'object' && typeof body.error === 'string') {
+      throw new Error(`bridge ${name}: ${body.error}`);
+    }
+    return body as T;
   }
   // sample fallback — synthesize in-process
   return sampleHandle<T>(name, args);

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Acme Training Co — demo tenant identity server</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font: 14px/1.5 -apple-system, system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #1a2332; background: #f5efe2; }
+      h1 { font-weight: 600; }
+      code { background: #ece5d4; padding: 1px 5px; border-radius: 3px; word-break: break-all; }
+      ul { padding-left: 20px; }
+      li { margin: 6px 0; }
+      a { color: #c1501c; }
+      .muted { color: #5c6573; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>Acme Training Co</h1>
+    <p class="muted">Demo tenant identity server for the Foxxi Content Intelligence vertical on Interego.
+       Hosts the tenant DID document and a small set of demo persona WebID profiles.</p>
+
+    <h2>Tenant DID document</h2>
+    <ul>
+      <li><a href="/.well-known/did.json">/.well-known/did.json</a> —
+          resolves <code>did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io</code></li>
+    </ul>
+
+    <h2>Demo persona WebIDs</h2>
+    <ul>
+      <li><a href="/users/jliu/profile/card">/users/jliu/profile/card</a> —
+          Joshua Liu (Engineer, learner persona). WebID: <code>…/users/jliu/profile/card#me</code></li>
+      <li><a href="/users/admin/profile/card">/users/admin/profile/card</a> —
+          Jordan Doe (L&amp;D Administrator). WebID: <code>…/users/admin/profile/card#me</code></li>
+      <li><a href="/users/le/profile/card">/users/le/profile/card</a> —
+          Ngozi Kowalski (Learning Engineer). WebID: <code>…/users/le/profile/card#me</code></li>
+    </ul>
+
+    <h2>Vertical surfaces this identity backs</h2>
+    <ul>
+      <li><a href="https://interego-foxxi-microsite.livelysky-8b81abb0.eastus.azurecontainerapps.io">Foxxi try-it-now microsite</a></li>
+      <li><a href="https://interego-foxxi-dashboard.livelysky-8b81abb0.eastus.azurecontainerapps.io">Foxxi L&amp;D dashboard</a></li>
+      <li><a href="https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io/affordances">Foxxi MCP bridge (affordance index)</a></li>
+    </ul>
+
+    <p class="muted">All identities, courses, and demo data are synthetic. The pod, DID, and WebIDs
+       themselves are real and resolvable.</p>
+  </body>
+</html>

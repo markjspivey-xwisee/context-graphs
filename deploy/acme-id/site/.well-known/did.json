@@ -1,0 +1,35 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io",
+  "alsoKnownAs": [
+    "https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/",
+    "urn:tenant:acme-training-co"
+  ],
+  "verificationMethod": [
+    {
+      "id": "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io#issuer",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io",
+      "publicKeyHex": "aa9fa257456716f1a3a5daa9d53aeb8db3ba5b0fca73215485761e3dc5d3b6ce"
+    }
+  ],
+  "assertionMethod": [
+    "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io#issuer"
+  ],
+  "service": [
+    {
+      "id": "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io#tenantPod",
+      "type": "TenantPod",
+      "serviceEndpoint": "https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/"
+    },
+    {
+      "id": "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io#foxxiBridge",
+      "type": "FoxxiVerticalBridge",
+      "serviceEndpoint": "https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io"
+    }
+  ]
+}

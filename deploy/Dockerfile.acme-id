@@ -1,0 +1,56 @@
+# ────────────────────────────────────────────────────────────
+#  Acme Training Co — demo tenant identity server.
+#
+#  Static nginx site serving:
+#    /.well-known/did.json     → the tenant DID document (did:web)
+#    /users/{slug}/profile/card → demo persona WebID profiles (Turtle)
+#
+#  CORS-open so dashboard / microsite origins can fetch profiles
+#  client-side. text/turtle is served for the extensionless profile
+#  files so DID-aware clients parse them as RDF.
+# ────────────────────────────────────────────────────────────
+
+FROM nginx:1.27-alpine
+
+# Drop the default site, install ours.
+RUN rm -rf /usr/share/nginx/html/*
+COPY deploy/acme-id/site/ /usr/share/nginx/html/
+
+RUN printf 'server {\n\
+  listen 8080;\n\
+  root /usr/share/nginx/html;\n\
+  index index.html;\n\
+\n\
+  # WebID profile cards have no extension on the URL but are Turtle.\n\
+  location ~* ^/users/[^/]+/profile/card$ {\n\
+    default_type "text/turtle; charset=utf-8";\n\
+    add_header Access-Control-Allow-Origin "*" always;\n\
+    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;\n\
+    add_header Access-Control-Allow-Headers "Accept, Authorization, Content-Type" always;\n\
+    add_header Cache-Control "public, max-age=300";\n\
+  }\n\
+\n\
+  # DID document is application/did+json.\n\
+  location = /.well-known/did.json {\n\
+    default_type "application/did+json; charset=utf-8";\n\
+    add_header Access-Control-Allow-Origin "*" always;\n\
+    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;\n\
+    add_header Access-Control-Allow-Headers "Accept, Authorization, Content-Type" always;\n\
+    add_header Cache-Control "public, max-age=300";\n\
+  }\n\
+\n\
+  # Everything else: standard nginx serving with CORS open for cross-origin fetches.\n\
+  location / {\n\
+    add_header Access-Control-Allow-Origin "*" always;\n\
+    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;\n\
+    try_files $uri $uri/ =404;\n\
+  }\n\
+\n\
+  # OPTIONS preflight short-circuit.\n\
+  if ($request_method = OPTIONS) {\n\
+    return 204;\n\
+  }\n\
+}\n' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

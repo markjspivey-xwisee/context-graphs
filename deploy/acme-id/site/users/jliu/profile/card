@@ -1,0 +1,43 @@
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix solid:  <http://www.w3.org/ns/solid/terms#> .
+@prefix pim:    <http://www.w3.org/ns/pim/space#> .
+@prefix vcard:  <http://www.w3.org/2006/vcard/ns#> .
+@prefix schema: <http://schema.org/> .
+@prefix sec:    <https://w3id.org/security#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:    <http://purl.org/dc/terms/> .
+@prefix fxd:    <https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/ns/foxxi-demo#> .
+
+<>
+    a foaf:PersonalProfileDocument ;
+    foaf:maker  <#me> ;
+    foaf:primaryTopic  <#me> ;
+    dct:created  "2026-05-19T00:00:00Z"^^xsd:dateTime ;
+    dct:description  "Demo WebID profile for Joshua Liu — Foxxi Content Intelligence learner persona (Acme Training Co tenant)." .
+
+<#me>
+    a foaf:Person, schema:Person ;
+    foaf:name  "Joshua Liu" ;
+    vcard:fn   "Joshua Liu" ;
+    foaf:givenName  "Joshua" ;
+    foaf:familyName "Liu" ;
+    foaf:title  "Engineer" ;
+    schema:jobTitle "Engineer" ;
+    schema:worksFor [
+      a schema:Organization ;
+      schema:name "Acme Training Co (demo tenant)" ;
+      schema:identifier "did:web:interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io"
+    ] ;
+    schema:department "Engineering" ;
+    foaf:mbox  <mailto:jliu@interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io> ;
+    pim:storage  <https://interego-css.livelysky-8b81abb0.eastus.azurecontainerapps.io/markj/> ;
+    solid:account  <https://interego-acme-id.livelysky-8b81abb0.eastus.azurecontainerapps.io/users/jliu/> ;
+    solid:oidcIssuer  <https://interego-identity.livelysky-8b81abb0.eastus.azurecontainerapps.io/> ;
+    fxd:audienceTag  "engineering", "all-employees", "new-hires" ;
+    fxd:userId  "u-joshua" ;
+    fxd:walletAddress  "0xdE107460c9Edf2675E81C7467b7f60656b528c56" ;
+    sec:verificationMethod [
+      a sec:EcdsaSecp256k1RecoveryMethod2020 ;
+      sec:controller  <#me> ;
+      sec:ethereumAddress  "0xdE107460c9Edf2675E81C7467b7f60656b528c56"
+    ] .
