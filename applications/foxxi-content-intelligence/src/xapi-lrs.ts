@@ -40,9 +40,17 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'node:crypto';
 import { ingestStatementBatchFromLrs as _unusedTypeAnchor } from '../../lrs-adapter/src/pod-publisher.js';
+import { createStatementStore, ConflictError, type StatementStore, type StoredStatement } from './statement-store.js';
 import type { IRI } from '../../../src/index.js';
 
 void _unusedTypeAnchor;
+
+// ── Pluggable backend ───────────────────────────────────────────────
+// Default is in-memory; production swaps via FOXXI_LRS_BACKEND.
+// Same store services /xapi/statements + /xapi/admin/* + the
+// instrumentation `storeStatementInternal` so the dashboard never sees
+// a stale view.
+const store: StatementStore = createStatementStore(process.env.FOXXI_LRS_BACKEND);
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -77,39 +85,42 @@ export interface XapiLrsConfig {
 // per affordance call, ABAC decision, credential issuance, etc.) and
 // surface them in the LRS-admin dashboard without an HTTP round-trip.
 
-export interface XapiStatementRecord {
-  id: string;
-  statement: Record<string, unknown>;
-  stored: string;
-  voided: boolean;
-  voidingStatementId?: string;
-}
+// Back-compat name (other modules import `XapiStatementRecord`).
+export type XapiStatementRecord = StoredStatement;
 
+/** Synchronous store API for the instrumentation path (best-effort —
+ * the file-backed store handles append-then-fsync via the same
+ * machinery; the put is sync from the caller's perspective). */
 export function storeStatementInternal(stmt: Record<string, unknown>): string {
-  const id = (stmt.id as string) ?? randomUUID();
+  const id = (typeof stmt.id === 'string' && isUuid(stmt.id)) ? stmt.id : randomUUID();
   const stored = new Date().toISOString();
-  statementStore.set(id, { id, statement: { ...stmt, id, stored }, stored, voided: false });
+  const rec: StoredStatement = { id, statement: { ...stmt, id, stored }, stored, voided: false };
+  // Fire-and-forget for async backends; errors logged but never thrown
+  // because the instrumentation path is non-blocking by design.
+  void store.put(rec).catch(err => {
+    // eslint-disable-next-line no-console
+    console.warn('[storeStatementInternal]', (err as Error).message);
+  });
   return id;
 }
 
-export function listStoredStatements(): XapiStatementRecord[] {
-  return Array.from(statementStore.values());
+export async function listStoredStatements(): Promise<StoredStatement[]> {
+  return store.listAll();
 }
 
-export function clearStatementStore(): void {
-  statementStore.clear();
+export async function clearStatementStore(): Promise<void> {
+  return store.clear();
 }
+
+export function getStatementStore(): StatementStore { return store; }
 
 // ── In-memory stores (replaceable) ──────────────────────────────────
 
-interface StatementRecord {
-  id: string;
-  statement: Record<string, unknown>;
-  stored: string;
-  voided: boolean;
-  voidingStatementId?: string;
-}
-const statementStore = new Map<string, StatementRecord>();
+// Statement persistence is delegated to `store` (StatementStore — see top).
+// State + profile resources are still in-memory; production-grade
+// deployments would swap these out the same way the statement store
+// did (separate concern; lower volume; not yet pluggable to keep the
+// blast radius small).
 const activityStateStore = new Map<string, { content: unknown; etag: string; updated: string; contentType: string }>();
 const activityProfileStore = new Map<string, { content: unknown; etag: string; updated: string; contentType: string }>();
 const agentProfileStore = new Map<string, { content: unknown; etag: string; updated: string; contentType: string }>();
@@ -199,14 +210,29 @@ function ensureStatementFields(stmt: Record<string, unknown>, authority: { homeP
   // Group actors. Add if absent to keep statements 2.0-conformant.
   const actor = out.actor as Record<string, unknown> | undefined;
   if (actor && typeof actor === 'object' && !actor.objectType) {
-    actor.objectType = (actor.member || actor.objectType === 'Group') ? 'Group' : 'Agent';
+    // Identifying a Group: it has a `member` array (Anonymous Group) OR
+    // any IFI (Identified Group). Otherwise it's a plain Agent.
+    actor.objectType = (Array.isArray(actor.member) || actor.member) ? 'Group' : 'Agent';
   }
 
-  // xAPI 2.0 §4.1.4: object.objectType defaults to "Activity" when omitted —
-  // explicit is better for downstream tooling.
+  // xAPI 2.0 §4.1.4: object can be Activity / Agent / Group / StatementRef
+  // / SubStatement. If no objectType + has activity-shape `id`, it's
+  // implicitly an Activity. Sub-statements need their own actor.objectType
+  // normalized too (recursive case — sub-statements forbidden to nest
+  // further per §4.1.4.1, so one level of recursion is enough).
   const object = out.object as Record<string, unknown> | undefined;
-  if (object && typeof object === 'object' && !object.objectType) {
-    object.objectType = 'Activity';
+  if (object && typeof object === 'object') {
+    if (!object.objectType) object.objectType = 'Activity';
+    if (object.objectType === 'SubStatement') {
+      const subActor = object.actor as Record<string, unknown> | undefined;
+      if (subActor && typeof subActor === 'object' && !subActor.objectType) {
+        subActor.objectType = (Array.isArray(subActor.member) || subActor.member) ? 'Group' : 'Agent';
+      }
+      const subObject = object.object as Record<string, unknown> | undefined;
+      if (subObject && typeof subObject === 'object' && !subObject.objectType) {
+        subObject.objectType = 'Activity';
+      }
+    }
   }
 
   return out;
@@ -224,7 +250,19 @@ function isVoidingStatement(stmt: Record<string, unknown>): string | undefined {
 // ── /xapi/statements POST ───────────────────────────────────────────
 
 async function handlePostStatements(req: Request, res: Response, config: XapiLrsConfig): Promise<void> {
-  const raw = req.body;
+  // xAPI 2.0 §4.1.11: requests MAY use `multipart/mixed` to attach signed-
+  // statement JWS payloads, file uploads, etc. The first part is always
+  // `application/json` containing the statement(s). We extract that and
+  // ignore the rest for now (the bridge stores the statement; attachment
+  // bodies are passed-through by reference via the statement's own
+  // attachments[] descriptors).
+  const ct = (req.headers['content-type'] as string | undefined) ?? '';
+  let raw = req.body;
+  if (ct.startsWith('multipart/mixed')) {
+    raw = extractFirstJsonPart(req);
+    if (!raw) { res.status(400).json({ error: 'multipart/mixed body must start with application/json statement part' }); return; }
+  }
+
   const batch: Record<string, unknown>[] = Array.isArray(raw) ? raw : [raw];
   const ids: string[] = [];
   const authority = { homePage: config.selfBaseUrl, name: 'foxxi-lrs' };
@@ -235,34 +273,29 @@ async function handlePostStatements(req: Request, res: Response, config: XapiLrs
       return;
     }
     if (!stmt.actor || !stmt.verb || !stmt.object) {
-      res.status(400).json({ error: 'invalid statement: actor, verb, and object are required (xAPI §4.1)' });
+      res.status(400).json({ error: 'invalid statement: actor, verb, and object are required (xAPI 2.0 §4.1)' });
       return;
     }
     const enriched = ensureStatementFields(stmt, authority);
     const id = enriched.id as string;
 
-    // Statement-id conflict per xAPI §4.1.1: re-POSTing an existing id with
-    // a different body is a 409; identical body is 204 idempotent.
-    const prior = statementStore.get(id);
-    if (prior && JSON.stringify(prior.statement) !== JSON.stringify(enriched)) {
-      res.status(409).json({ error: `statement id ${id} already stored with different content (xAPI §4.1.1)` });
-      return;
-    }
-
-    // Voiding semantics
-    let voidedHere: string | undefined;
+    // Voiding semantics — process *before* writing the voiding statement
+    // so the target is voided in the same transaction.
     const voidedTarget = isVoidingStatement(enriched);
     if (voidedTarget) {
-      const target = statementStore.get(voidedTarget);
-      if (target) {
-        target.voided = true;
-        target.voidingStatementId = id;
-      }
-      voidedHere = voidedTarget;
+      await store.markVoided(voidedTarget, id);
     }
-    void voidedHere;
 
-    statementStore.set(id, { id, statement: enriched, stored: enriched.stored as string, voided: false });
+    // Statement-id conflict per xAPI 2.0 §4.1.1 — delegated to the store.
+    try {
+      await store.put({ id, statement: enriched, stored: enriched.stored as string, voided: false });
+    } catch (err) {
+      if (err instanceof ConflictError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
     ids.push(id);
 
     // Fire-and-forget forwarding to upstream LRSs.
@@ -273,6 +306,32 @@ async function handlePostStatements(req: Request, res: Response, config: XapiLrs
   }
 
   res.status(200).json(ids);
+}
+
+// Minimal multipart/mixed parser — extracts the first body part whose
+// Content-Type is application/json and returns the parsed payload. Full
+// MIME RFC 2046 §5.1.1 boundary handling: --<boundary>\r\nheaders\r\n\r\nbody.
+function extractFirstJsonPart(req: Request): unknown {
+  try {
+    const ct = (req.headers['content-type'] as string | undefined) ?? '';
+    const m = /boundary=(?:"([^"]+)"|([^;]+))/.exec(ct);
+    const boundary = (m?.[1] ?? m?.[2] ?? '').trim();
+    if (!boundary) return null;
+    const raw = typeof req.body === 'string' ? req.body
+      : Buffer.isBuffer(req.body) ? req.body.toString('utf8')
+      : null;
+    if (!raw) return null;
+    const parts = raw.split(`--${boundary}`).filter(p => p && !p.startsWith('--'));
+    for (const part of parts) {
+      const headerEnd = part.indexOf('\r\n\r\n');
+      if (headerEnd === -1) continue;
+      const headers = part.slice(0, headerEnd).toLowerCase();
+      if (!headers.includes('content-type: application/json')) continue;
+      const body = part.slice(headerEnd + 4).trimEnd();
+      return JSON.parse(body);
+    }
+  } catch { /* fall through to null */ }
+  return null;
 }
 
 // ── /xapi/statements PUT (caller-supplied id) ───────────────────────
@@ -295,84 +354,68 @@ async function handlePutStatement(req: Request, res: Response, config: XapiLrsCo
   (stmt as Record<string, unknown>).id = statementId;
   const authority = { homePage: config.selfBaseUrl, name: 'foxxi-lrs' };
   const enriched = ensureStatementFields(stmt, authority);
-  const prior = statementStore.get(statementId);
-  if (prior && JSON.stringify(prior.statement) !== JSON.stringify(enriched)) {
-    res.status(409).json({ error: `statement id ${statementId} already stored with different content` });
-    return;
+  try {
+    await store.put({ id: statementId, statement: enriched, stored: enriched.stored as string, voided: false });
+  } catch (err) {
+    if (err instanceof ConflictError) { res.status(409).json({ error: err.message }); return; }
+    throw err;
   }
-  statementStore.set(statementId, { id: statementId, statement: enriched, stored: enriched.stored as string, voided: false });
   forwardStatement(enriched, config).catch(() => undefined);
   res.status(204).end();
 }
 
 // ── /xapi/statements GET ────────────────────────────────────────────
 
-function handleGetStatements(req: Request, res: Response): void {
+async function handleGetStatements(req: Request, res: Response): Promise<void> {
   const statementId = req.query.statementId as string | undefined;
   const voidedStatementId = req.query.voidedStatementId as string | undefined;
-  const agentFilter = req.query.agent as string | undefined;
+  const agentFilterRaw = req.query.agent as string | undefined;
   const verbFilter = req.query.verb as string | undefined;
   const activityFilter = req.query.activity as string | undefined;
+  const registrationFilter = req.query.registration as string | undefined;
   const since = req.query.since as string | undefined;
   const until = req.query.until as string | undefined;
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const ascending = (req.query.ascending as string | undefined) === 'true';
+  const cursor = req.query.continuationToken as string | undefined;
 
   // Single-statement lookup
   if (statementId) {
-    const rec = statementStore.get(statementId);
-    if (!rec || rec.voided) {
-      res.status(404).json({ error: 'not found or voided' });
-      return;
-    }
+    const rec = await store.get(statementId);
+    if (!rec || rec.voided) { res.status(404).json({ error: 'not found or voided' }); return; }
     res.json(rec.statement);
     return;
   }
   if (voidedStatementId) {
-    const rec = statementStore.get(voidedStatementId);
-    if (!rec || !rec.voided) {
-      res.status(404).json({ error: 'not voided (use ?statementId= for non-voided)' });
-      return;
-    }
+    const rec = await store.get(voidedStatementId);
+    if (!rec || !rec.voided) { res.status(404).json({ error: 'not voided (use ?statementId= for non-voided)' }); return; }
     res.json(rec.statement);
     return;
   }
 
-  // Filtered query
-  let all = Array.from(statementStore.values()).filter(r => !r.voided);
-  if (agentFilter) {
-    try {
-      const a = JSON.parse(agentFilter) as { mbox?: string; account?: { name?: string; homePage?: string }; openid?: string };
-      all = all.filter(r => {
-        const ac = r.statement.actor as typeof a;
-        return JSON.stringify(ac) === JSON.stringify(a)
-          || (a.mbox && ac?.mbox === a.mbox)
-          || (a.openid && ac?.openid === a.openid)
-          || (a.account?.name && ac?.account?.name === a.account.name && ac?.account?.homePage === a.account.homePage);
-      });
-    } catch { /* ignore bad agent filter */ }
+  let agent: Record<string, unknown> | undefined;
+  if (agentFilterRaw) {
+    try { agent = JSON.parse(agentFilterRaw) as Record<string, unknown>; }
+    catch { res.status(400).json({ error: 'agent filter must be JSON-encoded Agent object (xAPI 2.0 §4.2)' }); return; }
   }
-  if (verbFilter) {
-    all = all.filter(r => (r.statement.verb as { id?: string } | undefined)?.id === verbFilter);
-  }
-  if (activityFilter) {
-    all = all.filter(r => (r.statement.object as { id?: string } | undefined)?.id === activityFilter);
-  }
-  if (since) {
-    const t = Date.parse(since);
-    all = all.filter(r => Date.parse(r.stored) > t);
-  }
-  if (until) {
-    const t = Date.parse(until);
-    all = all.filter(r => Date.parse(r.stored) <= t);
-  }
-  all.sort((a, b) => ascending ? a.stored.localeCompare(b.stored) : b.stored.localeCompare(a.stored));
 
-  const page = all.slice(0, limit);
-  const more = all.length > limit ? `?since=${encodeURIComponent(page[page.length - 1]!.stored)}` : '';
+  const result = await store.query({
+    agent,
+    verb: verbFilter,
+    activity: activityFilter,
+    registration: registrationFilter,
+    since,
+    until,
+    ascending,
+    limit,
+    cursor,
+  });
+  const moreUrl = result.more
+    ? `/xapi/statements?continuationToken=${encodeURIComponent(result.more)}`
+    : '';
   res.json({
-    statements: page.map(r => r.statement),
-    more,
+    statements: result.statements.map(r => r.statement),
+    more: moreUrl,
   });
 }
 
@@ -387,6 +430,8 @@ function handleAbout(_req: Request, res: Response, config: XapiLrsConfig): void 
       'https://markjspivey-xwisee.github.io/interego/ns/foxxi#pod': config.podUrl,
       'https://markjspivey-xwisee.github.io/interego/ns/foxxi#statementForwarding': !!config.forwardingTargets.trim(),
       'https://markjspivey-xwisee.github.io/interego/ns/foxxi#substrateBackend': 'context-graphs-1.0 + solid-css',
+      'https://markjspivey-xwisee.github.io/interego/ns/foxxi#lrsBackend': store.backendDescription(),
+      'https://markjspivey-xwisee.github.io/interego/ns/foxxi#xapiProfile': `${config.selfBaseUrl}/xapi/profile`,
     },
   });
 }
@@ -401,7 +446,7 @@ function profileKey(args: { iri: string; profileId: string }): string {
 }
 
 function handleStateOrProfile(
-  store: Map<string, { content: unknown; etag: string; updated: string; contentType: string }>,
+  resourceStore: Map<string, { content: unknown; etag: string; updated: string; contentType: string }>,
   keyFn: (q: Record<string, string>) => string,
   req: Request,
   res: Response,
@@ -411,13 +456,23 @@ function handleStateOrProfile(
 
   if (req.method === 'GET') {
     if (!q.stateId && !q.profileId) {
-      // List
-      const ids = Array.from(store.keys()).filter(k => k.startsWith(key.split('::').slice(0, -1).join('::')));
+      // List the ids of all docs under this scope (no body, per xAPI 2.0 §6.3.1)
+      const prefix = key.split('::').slice(0, -1).join('::');
+      const ids = [...resourceStore.entries()]
+        .filter(([k]) => k.startsWith(prefix))
+        .map(([k]) => k.split('::').pop());
       res.json(ids);
       return;
     }
-    const v = store.get(key);
+    const v = resourceStore.get(key);
     if (!v) { res.status(404).end(); return; }
+    // xAPI 2.0 §6.3.2 — If-None-Match: client can short-circuit if their
+    // cached copy is current. Returning 304 saves the body fetch.
+    const ifNoneMatch = req.headers['if-none-match'] as string | undefined;
+    if (ifNoneMatch && (ifNoneMatch === v.etag || ifNoneMatch === '*')) {
+      res.status(304).setHeader('ETag', v.etag).end();
+      return;
+    }
     res.setHeader('ETag', v.etag);
     res.setHeader('Last-Modified', new Date(v.updated).toUTCString());
     res.setHeader('Content-Type', v.contentType);
@@ -425,8 +480,21 @@ function handleStateOrProfile(
     return;
   }
   if (req.method === 'PUT' || req.method === 'POST') {
+    // xAPI 2.0 §6.3.3 — If-Match: optimistic concurrency. Reject if the
+    // server's current ETag doesn't match what the caller saw.
+    const existing = resourceStore.get(key);
+    const ifMatch = req.headers['if-match'] as string | undefined;
+    const ifNoneMatch = req.headers['if-none-match'] as string | undefined;
+    if (ifMatch && (!existing || existing.etag !== ifMatch)) {
+      res.status(412).json({ error: 'If-Match precondition failed (xAPI 2.0 §6.3.3)' });
+      return;
+    }
+    if (ifNoneMatch === '*' && existing) {
+      res.status(412).json({ error: 'If-None-Match: * precondition failed — document exists' });
+      return;
+    }
     const etag = `"${randomUUID()}"`;
-    store.set(key, {
+    resourceStore.set(key, {
       content: req.body,
       etag,
       updated: new Date().toISOString(),
@@ -438,12 +506,19 @@ function handleStateOrProfile(
   }
   if (req.method === 'DELETE') {
     if (q.stateId || q.profileId) {
-      store.delete(key);
+      // Conditional delete per xAPI 2.0 §6.3.3
+      const existing = resourceStore.get(key);
+      const ifMatch = req.headers['if-match'] as string | undefined;
+      if (ifMatch && (!existing || existing.etag !== ifMatch)) {
+        res.status(412).json({ error: 'If-Match precondition failed (xAPI 2.0 §6.3.3)' });
+        return;
+      }
+      resourceStore.delete(key);
     } else {
       // Bulk delete all keys matching the activity/agent prefix
       const prefix = key.split('::').slice(0, -1).join('::');
-      for (const k of Array.from(store.keys())) {
-        if (k.startsWith(prefix)) store.delete(k);
+      for (const k of Array.from(resourceStore.keys())) {
+        if (k.startsWith(prefix)) resourceStore.delete(k);
       }
     }
     res.status(204).end();
@@ -489,8 +564,40 @@ async function forwardStatement(stmt: Record<string, unknown>, config: XapiLrsCo
 
 import { buildFoxxiProfileDoc } from './xapi-profile.js';
 
-function buildFoxxiXapiProfile(config: XapiLrsConfig): Record<string, unknown> {
+/**
+ * Tenant-level profile override.
+ *
+ * Set FOXXI_XAPI_PROFILE_URL (an HTTPS URL serving a conformant xAPI
+ * Profile JSON-LD doc) and Foxxi will serve THAT profile at /xapi/profile
+ * instead of the built-in Foxxi profile. The override is cached for 5
+ * minutes per process so the bridge isn't hammering the upstream.
+ * Tenants who already have a profile published elsewhere (an internal
+ * registry, a custom partner profile, an industry-standard
+ * verb set they want to declare) can flip the env and ship.
+ */
+let _profileCache: { url: string; doc: Record<string, unknown>; fetchedAt: number } | null = null;
+async function fetchExternalProfile(url: string): Promise<Record<string, unknown> | null> {
+  if (_profileCache && _profileCache.url === url && Date.now() - _profileCache.fetchedAt < 5 * 60 * 1000) {
+    return _profileCache.doc;
+  }
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/ld+json, application/json' } });
+    if (!r.ok) return null;
+    const doc = await r.json() as Record<string, unknown>;
+    _profileCache = { url, doc, fetchedAt: Date.now() };
+    return doc;
+  } catch { return null; }
+}
+
+async function buildFoxxiXapiProfile(config: XapiLrsConfig): Promise<Record<string, unknown>> {
   void config;
+  const override = process.env.FOXXI_XAPI_PROFILE_URL;
+  if (override) {
+    const ext = await fetchExternalProfile(override);
+    if (ext) return ext;
+    // Fall through to built-in if override unreachable — never block
+    // the endpoint over a misconfigured override.
+  }
   return buildFoxxiProfileDoc({ generatedAt: new Date().toISOString() });
 }
 
@@ -537,21 +644,22 @@ export function attachXapiLrsRoutes(app: Express, config: XapiLrsConfig): void {
 
   // xAPI Profile Server — public (no auth) so other tools can discover
   // what vocabulary Foxxi emits.
-  app.get('/xapi/profile', (_req, res) => {
-    res.type('application/ld+json').json(buildFoxxiXapiProfile(config));
-  });
+  app.get('/xapi/profile', (_req, res) => { void (async () => {
+    const doc = await buildFoxxiXapiProfile(config);
+    res.type('application/ld+json').json(doc);
+  })(); });
 
   // The order matters: PUT statementId needs to be checked before POST handler picks up.
   app.post('/xapi/statements', gate, (req, res) => { void handlePostStatements(req, res, config); });
   app.put('/xapi/statements', gate, (req, res) => { void handlePutStatement(req, res, config); });
-  app.get('/xapi/statements', gate, (req, res) => { handleGetStatements(req, res); });
+  app.get('/xapi/statements', gate, (req, res) => { void handleGetStatements(req, res); });
 
   // Activity / agent inspection helpers
-  app.get('/xapi/activities', gate, (req, res) => {
+  app.get('/xapi/activities', gate, (req, res) => { void (async () => {
     const id = req.query.activityId as string | undefined;
     if (!id) { res.status(400).json({ error: 'activityId required' }); return; }
-    // Return the activity definition reconstructed from any statement that referenced it.
-    for (const r of statementStore.values()) {
+    const all = await store.listAll();
+    for (const r of all) {
       const obj = r.statement.object as { id?: string; definition?: unknown } | undefined;
       if (obj?.id === id && obj.definition) {
         res.json({ id, objectType: 'Activity', definition: obj.definition });
@@ -559,17 +667,17 @@ export function attachXapiLrsRoutes(app: Express, config: XapiLrsConfig): void {
       }
     }
     res.json({ id, objectType: 'Activity' });
-  });
-  app.get('/xapi/agents', gate, (req, res) => {
+  })(); });
+  app.get('/xapi/agents', gate, (req, res) => { void (async () => {
     const agentJson = req.query.agent as string | undefined;
     if (!agentJson) { res.status(400).json({ error: 'agent required (JSON-encoded Agent object)' }); return; }
     try {
       const agent = JSON.parse(agentJson);
-      // xAPI Person object — aggregate identifiers seen across statements
       const names = new Set<string>();
       const mboxes = new Set<string>();
       const accounts: Array<{ name: string; homePage: string }> = [];
-      for (const r of statementStore.values()) {
+      const all = await store.listAll();
+      for (const r of all) {
         const ac = r.statement.actor as { name?: string; mbox?: string; account?: { name: string; homePage: string } } | undefined;
         if (!ac) continue;
         const sameAgent = JSON.stringify(ac) === JSON.stringify(agent)
@@ -590,7 +698,7 @@ export function attachXapiLrsRoutes(app: Express, config: XapiLrsConfig): void {
     } catch {
       res.status(400).json({ error: 'invalid agent JSON' });
     }
-  });
+  })(); });
 
   // State + profile resources
   for (const method of ['get', 'put', 'post', 'delete'] as const) {

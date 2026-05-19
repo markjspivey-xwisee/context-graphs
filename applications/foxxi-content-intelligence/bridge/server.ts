@@ -131,6 +131,7 @@ import { attachOneRosterRoutes } from '../src/oneroster.js';
 import { attachOpenApiRoutes } from '../src/openapi-spec.js';
 import { emitAffordanceStatement } from '../src/xapi-instrumentation.js';
 import { attachXapiAdminRoutes } from '../src/xapi-admin.js';
+import { attachOauthTokenRoute } from '../src/xapi-oauth.js';
 import type { IRI } from '../../../src/index.js';
 
 const tenantPodUrl = process.env.FOXXI_TENANT_POD_URL ?? '';
@@ -1291,6 +1292,18 @@ const app = createVerticalBridge({
       selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
       basicAuthPairs: process.env.FOXXI_LRS_BASIC_AUTH_PAIRS ?? '',
       forwardingTargets: process.env.FOXXI_LRS_FORWARDING_TARGETS ?? '',
+    });
+
+    // OAuth 2.0 client_credentials token endpoint — for partner-eng SDKs
+    // and non-MCP clients that prefer canonical OAuth bearer over the
+    // dashboard's wallet-signed session tokens. Tokens signed with the
+    // same ES256 keypair as LTI 1.3 so partners can verify against the
+    // published JWKS at /lti/.well-known/jwks.json.
+    attachOauthTokenRoute(a, {
+      selfBaseUrl: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+      privateKeyPem: process.env.FOXXI_LTI_PRIVATE_KEY_PEM,
+      clientsConfig: process.env.FOXXI_LRS_OAUTH_CLIENTS ?? '',
+      tokenTtlSec: 3600,
     });
 
     // Auth middleware: extract Authorization: Bearer <session-token> and

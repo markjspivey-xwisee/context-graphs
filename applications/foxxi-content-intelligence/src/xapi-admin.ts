@@ -62,8 +62,8 @@ function makeAdminGate(config: AdminConfig) {
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-function handleStatementsAdmin(req: Request, res: Response): void {
-  const all = listStoredStatements();
+async function handleStatementsAdmin(req: Request, res: Response): Promise<void> {
+  const all = await listStoredStatements();
   const verbFilter = req.query.verb as string | undefined;
   const actorFilter = req.query.actor as string | undefined;
   const sinceParam = req.query.since as string | undefined;
@@ -102,8 +102,8 @@ function handleStatementsAdmin(req: Request, res: Response): void {
   });
 }
 
-function handleAggregates(_req: Request, res: Response): void {
-  const all = listStoredStatements();
+async function handleAggregates(_req: Request, res: Response): Promise<void> {
+  const all = await listStoredStatements();
 
   const verbCounts = new Map<string, { display: string; count: number }>();
   const activityCounts = new Map<string, { name?: string; count: number }>();
@@ -157,8 +157,8 @@ function handleAggregates(_req: Request, res: Response): void {
   });
 }
 
-function handleConformance(_req: Request, res: Response, config: AdminConfig): void {
-  const all = listStoredStatements();
+async function handleConformance(_req: Request, res: Response, config: AdminConfig): Promise<void> {
+  const all = await listStoredStatements();
   const knownVerbs = new Set([
     'http://adlnet.gov/expapi/verbs/launched',
     'http://adlnet.gov/expapi/verbs/initialized',
@@ -227,8 +227,8 @@ function handleConfig(_req: Request, res: Response, config: AdminConfig): void {
 
 export function attachXapiAdminRoutes(app: Express, config: AdminConfig): void {
   const gate = makeAdminGate(config);
-  app.get('/xapi/admin/statements', gate, handleStatementsAdmin);
-  app.get('/xapi/admin/aggregates', gate, handleAggregates);
-  app.get('/xapi/admin/conformance', gate, (req, res) => handleConformance(req, res, config));
+  app.get('/xapi/admin/statements', gate, (req, res) => { void handleStatementsAdmin(req, res); });
+  app.get('/xapi/admin/aggregates', gate, (req, res) => { void handleAggregates(req, res); });
+  app.get('/xapi/admin/conformance', gate, (req, res) => { void handleConformance(req, res, config); });
   app.get('/xapi/admin/config', gate, (req, res) => handleConfig(req, res, config));
 }
