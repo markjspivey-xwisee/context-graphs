@@ -4,8 +4,57 @@ import { Card, Pill, Button, Modal, Row } from './common.js';
 import { coverageQuery, type CoverageQueryResult } from '../interego/client.js';
 import { SAMPLE_ADMIN_PAYLOAD } from '../sample/data.js';
 import { LrsAdminPanel } from './LrsAdminPanel.js';
+import { useHypermediaCollection } from '../hypermedia.js';
 import type { FoxxiSession } from '../auth/session.js';
 import type { CatalogEntry, AdminConnection } from '../types.js';
+
+// Hypermedia item shapes — match the server's _links-bearing member shape.
+interface HmCourse {
+  id: string;
+  title: string;
+  category: string;
+  audience_tags: readonly string[];
+  standard?: string;
+  concept_count?: number;
+  slide_count?: number;
+  _links?: { self?: { href: string } };
+}
+interface HmPolicy {
+  id: string;
+  course_id: string;
+  course_title?: string;
+  requirement_type: string;
+  enabled: boolean;
+  _links?: { self?: { href: string }; course?: { href: string }; group?: { href: string } };
+}
+interface HmGroup {
+  id: string;
+  name: string;
+  kind: string;
+  member_count?: number;
+  _links?: { self?: { href: string } };
+}
+interface HmAuditRecord {
+  id: string;
+  timestamp: string;
+  actor: { user_id: string; '@id'?: string };
+  action: string;
+  target_type: string;
+  target_id: string;
+  result: string;
+  reason?: string | null;
+  _links?: { self?: { href: string }; actor?: { href: string } };
+}
+interface HmIntegration {
+  id: string;
+  kind: string;
+  product: string;
+  instance: string;
+  status: string;
+  auth_method: string;
+  last_sync: string;
+  _links?: { self?: { href: string } };
+}
 
 type Tab = 'catalog' | 'policies' | 'coverage' | 'access' | 'integrations' | 'audit' | 'lrs';
 const TAB_VALUES = new Set<Tab>(['catalog', 'policies', 'coverage', 'access', 'integrations', 'audit', 'lrs']);
@@ -58,7 +107,12 @@ export function CatalogTab() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'parsed' | 'stub'>('all');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const all = SAMPLE_ADMIN_PAYLOAD.catalog;
+  // Data source: hypermedia GET /api/foxxi/v1/courses (followed via the
+  // entry-point's `courses` link). The collection's items include the
+  // full underlying CatalogEntry fields plus the opaque uuid + _links.
+  const { items: hmCourses, loading, error } = useHypermediaCollection<HmCourse & CatalogEntry>('courses');
+  // Offline fallback for dev / pre-bridge-up state.
+  const all: ReadonlyArray<CatalogEntry> = hmCourses.length > 0 ? hmCourses as CatalogEntry[] : SAMPLE_ADMIN_PAYLOAD.catalog;
   const real = all.filter(c => c.is_real);
   const stub = all.filter(c => !c.is_real);
   const selectedCourse = selectedCourseId ? all.find(c => c.course_id === selectedCourseId) ?? null : null;
@@ -262,7 +316,12 @@ function CompletionBar({ completed, overdue, pending, total }: { completed: numb
 }
 
 export function PoliciesTab() {
-  const a = SAMPLE_ADMIN_PAYLOAD;
+  // Hypermedia-driven — follow entry.policies link.
+  const { items: hmPolicies } = useHypermediaCollection<HmPolicy & typeof SAMPLE_ADMIN_PAYLOAD.policies[number]>('policies');
+  const policies = hmPolicies.length > 0
+    ? (hmPolicies as unknown as typeof SAMPLE_ADMIN_PAYLOAD.policies)
+    : SAMPLE_ADMIN_PAYLOAD.policies;
+  const a = { ...SAMPLE_ADMIN_PAYLOAD, policies };
   return (
     <Card title="Assignment policies" right={<Pill tone="accent">foxxi.assign_audience + foxxi.publish_authoring_policy</Pill>}>
       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
@@ -414,7 +473,12 @@ export function CoverageTab({ tenantPodUrl }: { tenantPodUrl: string }) {
 }
 
 export function AuditTab() {
-  const a = SAMPLE_ADMIN_PAYLOAD;
+  // Hypermedia: follow entry.audit-records link
+  const { items: hmAudit } = useHypermediaCollection<HmAuditRecord & typeof SAMPLE_ADMIN_PAYLOAD.audit[number]>('audit-records');
+  const audit = hmAudit.length > 0
+    ? (hmAudit as unknown as typeof SAMPLE_ADMIN_PAYLOAD.audit)
+    : SAMPLE_ADMIN_PAYLOAD.audit;
+  const a = { ...SAMPLE_ADMIN_PAYLOAD, audit };
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [resultFilter, setResultFilter] = useState<'all' | 'allowed' | 'denied'>('all');
   const [actorQuery, setActorQuery] = useState('');
@@ -553,7 +617,12 @@ export function AuditTab() {
 // ──────────────────────────────────────────────────────────────────────
 
 export function AccessTab() {
-  const a = SAMPLE_ADMIN_PAYLOAD;
+  // Two hypermedia collections compose this view: profiles + groups.
+  const { items: hmUsers } = useHypermediaCollection<typeof SAMPLE_ADMIN_PAYLOAD.users[number]>('profiles');
+  const { items: hmGroups } = useHypermediaCollection<HmGroup & typeof SAMPLE_ADMIN_PAYLOAD.groups[number]>('groups');
+  const users = hmUsers.length > 0 ? (hmUsers as unknown as typeof SAMPLE_ADMIN_PAYLOAD.users) : SAMPLE_ADMIN_PAYLOAD.users;
+  const groups = hmGroups.length > 0 ? (hmGroups as unknown as typeof SAMPLE_ADMIN_PAYLOAD.groups) : SAMPLE_ADMIN_PAYLOAD.groups;
+  const a = { ...SAMPLE_ADMIN_PAYLOAD, users, groups };
   const [sub, setSub] = useState<'users' | 'groups'>('users');
   const [query, setQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -751,7 +820,12 @@ export function AccessTab() {
 // ──────────────────────────────────────────────────────────────────────
 
 export function IntegrationsTab() {
-  const a = SAMPLE_ADMIN_PAYLOAD;
+  // Hypermedia: follow entry.integrations link
+  const { items: hmConnections } = useHypermediaCollection<HmIntegration & AdminConnection>('integrations');
+  const connections: ReadonlyArray<AdminConnection> = hmConnections.length > 0
+    ? (hmConnections as unknown as ReadonlyArray<AdminConnection>)
+    : SAMPLE_ADMIN_PAYLOAD.connections;
+  const a = { ...SAMPLE_ADMIN_PAYLOAD, connections };
   // Group connections by kind for the section-by-kind layout the originals had.
   const byKind = useMemo(() => {
     const order = ['LMS', 'IDP', 'HRIS', 'LRS', 'Pod Federation', 'Manual'];

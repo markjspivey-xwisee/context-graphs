@@ -159,8 +159,15 @@ const browser3 = await chromium.launch({ headless: true });
 const ctx3 = await browser3.newContext();
 const page3 = await ctx3.newPage();
 const dashConsoleErr = [];
+const hypermediaCallsCase3 = [];
 page3.on('console', m => { if (m.type() === 'error') dashConsoleErr.push(m.text()); });
 page3.on('pageerror', e => dashConsoleErr.push(`pageerror: ${e.message}`));
+// Attach response listener BEFORE the page loads so we capture every
+// /api/foxxi/v1/* fetch from first paint.
+page3.on('response', resp => {
+  const u = resp.url();
+  if (u.includes('/api/foxxi/v1')) hypermediaCallsCase3.push({ url: u.replace(/.*\/api\/foxxi\/v1/, '/api/foxxi/v1'), status: resp.status() });
+});
 await page3.goto(DASHBOARD, { waitUntil: 'networkidle', timeout: 30_000 });
 await page3.evaluate(() => localStorage.clear());
 await page3.reload({ waitUntil: 'networkidle' });
@@ -182,6 +189,12 @@ if (visible > 0) {
   // Wait for enrollments to load + render
   await page3.waitForSelector('text=/assigned courses/i', { timeout: 15_000 }).catch(() => null);
   await page3.waitForTimeout(5000);
+  console.log(`  hypermedia calls observed: ${hypermediaCallsCase3.length}`);
+  for (const c of hypermediaCallsCase3.slice(0, 5)) console.log(`    · ${c.status} ${c.url}`);
+  const hitEntryPoint = hypermediaCallsCase3.some(c => c.url === '/api/foxxi/v1' || c.url === '/api/foxxi/v1/');
+  const hitProfile = hypermediaCallsCase3.some(c => /\/profiles\/[a-f0-9-]{36}$/.test(c.url));
+  console.log(`  fetched entry-point /api/foxxi/v1: ${hitEntryPoint}`);
+  console.log(`  fetched own profile via uuid: ${hitProfile}`);
   // Debug: dump what's actually on the page
   const enrollmentText = await page3.locator('text=/Golf Explained/').count();
   console.log(`  "Golf Explained" mentions on page: ${enrollmentText}`);
@@ -220,6 +233,59 @@ await browser3.close();
 const okDeepLinks = deepLinkPass === deepLinks.length;
 console.log(`\n=== deep-link routes: ${okDeepLinks ? 'PASS' : 'FAIL'} — ${deepLinkPass}/${deepLinks.length} served ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks;
+// ── Case 5 — admin tabs are hypermedia-driven ──
+// Sign in as Jordan (admin), visit each top-nav resource collection,
+// confirm the page fetches the corresponding /api/foxxi/v1/<rel>
+// hypermedia endpoint.
+console.log('\n=== Case 5: every admin tab is hypermedia-driven ===');
+const browser5 = await chromium.launch({ headless: true });
+const ctx5 = await browser5.newContext();
+const page5 = await ctx5.newPage();
+const adminHmCalls = [];
+page5.on('response', resp => {
+  const u = resp.url();
+  if (u.includes('/api/foxxi/v1')) adminHmCalls.push({ url: u.replace(/.*\/api\/foxxi\/v1/, '/api/foxxi/v1').split('?')[0], status: resp.status() });
+});
+await page5.goto(DASHBOARD, { waitUntil: 'networkidle', timeout: 30_000 });
+await page5.evaluate(() => localStorage.clear());
+await page5.reload({ waitUntil: 'networkidle' });
+// Sign in as Jordan — admin role. Switch role tab first.
+const adminRoleBtn = page5.locator('button:has-text("L&D administrator")').first();
+if (await adminRoleBtn.count() > 0) await adminRoleBtn.click();
+await page5.waitForTimeout(500);
+const jordanBtn = page5.locator('button:has-text("Jordan Doe")').first();
+const haveJordan = await jordanBtn.count();
+console.log(`  Jordan sign-in button visible: ${haveJordan > 0}`);
+if (haveJordan > 0) await jordanBtn.click();
+else {
+  // Fallback: just click the admin-side primary "Sign in as Jordan Doe" button
+  const adminBtn = page5.locator('button:has-text("Sign in as Jordan Doe")').first();
+  if (await adminBtn.count() > 0) await adminBtn.click();
+}
+await page5.waitForTimeout(4000);
+const url5 = page5.url();
+console.log(`  post-signin URL: ${url5}`);
+const tabs = [
+  { path: '/courses', expectedRel: '/api/foxxi/v1/courses' },
+  { path: '/policies', expectedRel: '/api/foxxi/v1/policies' },
+  { path: '/groups', expectedRel: '/api/foxxi/v1/groups' },
+  { path: '/audit-records', expectedRel: '/api/foxxi/v1/audit-records' },
+  { path: '/integrations', expectedRel: '/api/foxxi/v1/integrations' },
+];
+let tabPass = 0;
+for (const t of tabs) {
+  const before = adminHmCalls.length;
+  await page5.goto(`${DASHBOARD}${t.path}`, { waitUntil: 'networkidle', timeout: 20_000 }).catch(() => null);
+  await page5.waitForTimeout(2000);
+  const newCalls = adminHmCalls.slice(before);
+  const hit = newCalls.some(c => c.url === t.expectedRel && c.status === 200);
+  if (hit) tabPass++;
+  console.log(`  ${hit ? '✓' : '✗'} ${t.path.padEnd(20)} ${hit ? '→ ' + t.expectedRel : 'expected GET ' + t.expectedRel + ' (saw: ' + newCalls.map(c => c.url).join(', ') + ')'}`);
+}
+await browser5.close();
+const okTabs = tabPass === tabs.length;
+console.log(`\n=== admin-tab hypermedia: ${okTabs ? 'PASS' : 'FAIL'} — ${tabPass}/${tabs.length} ===`);
+
+const ok = okAuthed && okAnon && okDeepLinks && okTabs;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);

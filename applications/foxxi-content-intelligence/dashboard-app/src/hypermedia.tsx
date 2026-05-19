@@ -129,6 +129,55 @@ export async function followLink<T>(resource: { _links?: Record<string, Hypermed
   return fetchHypermedia<T>(link.href, bearer);
 }
 
+/**
+ * Hook to drive a UI from a top-level resource collection. Follows the
+ * entry-point's link relation `rel` (e.g. 'courses', 'policies') and
+ * fetches the collection resource. Returns the hydra:member array
+ * unwrapped, plus pagination + refresh handles.
+ *
+ * Components that use this NEVER hardcode the collection URL — they
+ * pass a link relation name and let the entry-point resolve it.
+ */
+export function useHypermediaCollection<T>(rel: string): {
+  items: T[];
+  total: number;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
+  const { entry, bearer } = useHypermedia();
+  const [items, setItems] = useState<T[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (!entry) return;
+    let cancel = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const url = entry._links[rel]?.href;
+        if (!url) throw new Error(`entry-point has no _link rel="${rel}"`);
+        const collection = await fetchHypermedia<HypermediaCollection<T>>(`${url}?limit=500`, bearer);
+        if (!cancel) {
+          setItems(collection['hydra:member'] ?? []);
+          setTotal(collection['hydra:totalItems'] ?? 0);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancel) setError((err as Error).message);
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [entry, bearer, rel, version]);
+
+  return { items, total, loading, error, refresh: () => setVersion(v => v + 1) };
+}
+
 /** Render an affordance as an actionable button — POST/GET/PUT all OK. */
 export interface AffordanceInvokeArgs {
   affordance: HypermediaAffordance;

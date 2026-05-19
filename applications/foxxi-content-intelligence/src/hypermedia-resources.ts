@@ -304,12 +304,8 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.user.toOpaque(user.user_id);
         return {
           '@id': `${base}/profiles/${id}`,
-          id,
-          name: user.name,
-          job_title: user.job_title,
-          department: user.department,
-          web_id: user.web_id,
-          audience_tags: user.audience_tags,
+          ...user,
+          id, // opaque uuid (wallet-derived)
           _links: { self: { href: `${base}/profiles/${id}` } },
         };
       },
@@ -324,18 +320,34 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     if (!slug) { res.status(404).json({ error: 'profile not found' }); return; }
     const user = admin.users.find(u => u.user_id === slug);
     if (!user) { res.status(404).json({ error: 'profile not found' }); return; }
+    // Resolve which enabled policies' audience groups this learner belongs to.
     const enrollments = admin.policies
       .filter(p => p.enabled && admin.groups.find(g => g.group_id === p.audience_group_id && g.member_ids.includes(slug)))
-      .map(p => ({
-        '@id': `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}`,
-        course_id: p.course_id,
-        course_title: p.course_title,
-        requirement_type: p.requirement_type,
-        _links: {
-          self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` },
-          course: { href: `${base}/courses/${lookup.course.toOpaque(p.course_id)}` },
-        },
-      }));
+      .map(p => {
+        const catEntry = admin.catalog.find(c => c.course_id === p.course_id);
+        const ev = (admin.events ?? []).find(
+          e => (e as { user_id?: string; course_id?: string }).user_id === slug
+            && (e as { user_id?: string; course_id?: string }).course_id === p.course_id,
+        ) as undefined | { assigned_at?: string; due_at?: string; status?: string; completed_at?: string | null };
+        // Same shape the dashboard's EnrolledCourse expects, plus _links.
+        return {
+          '@id': `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}`,
+          policyId: p.policy_id,
+          courseId: p.course_id,
+          courseTitle: p.course_title ?? catEntry?.title ?? p.course_id,
+          category: catEntry?.category ?? '—',
+          requirementType: p.requirement_type,
+          assignedAt: ev?.assigned_at ?? p.created_at,
+          dueAt: ev?.due_at ?? '',
+          status: (ev?.status as 'pending' | 'completed' | 'overdue' | undefined) ?? 'pending',
+          completedAt: ev?.completed_at ?? undefined,
+          _links: {
+            self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` },
+            course: { href: `${base}/courses/${lookup.course.toOpaque(p.course_id)}` },
+            group: { href: `${base}/groups/${lookup.group.toOpaque(p.audience_group_id)}` },
+          },
+        };
+      });
     res.json(itemEnvelope({
       selfUrl: `${base}/profiles/${req.params.opaqueId}`,
       collectionUrl: `${base}/profiles`,
@@ -343,7 +355,13 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         id: req.params.opaqueId,
         ...user,
       },
-      embedded: { enrollments },
+      // Embedded count + a self-link to enrollments help the client know
+      // what's available without re-walking the policy index.
+      embedded: {
+        enrollments,
+        enrollmentsCount: enrollments.length,
+        audienceTags: user.audience_tags,
+      },
       affordances: config.affordances,
       baseUrl: config.selfBaseUrl,
     }));
@@ -363,9 +381,8 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.course.toOpaque(course.course_id);
         return {
           '@id': `${base}/courses/${id}`,
-          id, title: course.title, category: course.category,
-          audience_tags: course.audience_tags, standard: course.standard,
-          concept_count: course.concept_count, slide_count: course.slide_count,
+          ...course, // includes course_id (the slug, useful for legacy data lookups)
+          id,        // opaque uuid — the canonical URL identifier
           _links: { self: { href: `${base}/courses/${id}` } },
         };
       },
@@ -412,8 +429,8 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.policy.toOpaque(policy.policy_id);
         return {
           '@id': `${base}/policies/${id}`,
-          id, course_id: policy.course_id, course_title: policy.course_title,
-          requirement_type: policy.requirement_type, enabled: policy.enabled,
+          ...policy,
+          id, // opaque uuid
           _links: {
             self: { href: `${base}/policies/${id}` },
             course: { href: `${base}/courses/${lookup.course.toOpaque(policy.course_id)}` },
@@ -455,8 +472,9 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.group.toOpaque(group.group_id);
         return {
           '@id': `${base}/groups/${id}`,
-          id, name: group.name, kind: group.kind,
+          ...group,
           member_count: group.member_count ?? group.member_ids.length,
+          id, // opaque uuid
           _links: { self: { href: `${base}/groups/${id}` } },
         };
       },
@@ -499,10 +517,9 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.audit.toOpaque(rec.audit_id);
         return {
           '@id': `${base}/audit-records/${id}`,
-          id, timestamp: rec.timestamp,
+          ...rec,
+          id, // opaque uuid
           actor: { user_id: rec.actor_user_id, '@id': `${base}/profiles/${lookup.user.toOpaque(rec.actor_user_id)}` },
-          action: rec.action, target_type: rec.target_type, target_id: rec.target_id,
-          result: rec.result, reason: rec.reason,
           _links: {
             self: { href: `${base}/audit-records/${id}` },
             actor: { href: `${base}/profiles/${lookup.user.toOpaque(rec.actor_user_id)}` },
@@ -543,8 +560,8 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         const id = lookup.integration.toOpaque(conn.id);
         return {
           '@id': `${base}/integrations/${id}`,
-          id, kind: conn.kind, product: conn.product, instance: conn.instance,
-          status: conn.status, auth_method: conn.auth_method, last_sync: conn.last_sync,
+          ...conn,
+          id, // opaque uuid (overwrites the internal id with the opaque form)
           _links: { self: { href: `${base}/integrations/${id}` } },
         };
       },

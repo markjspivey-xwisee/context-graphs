@@ -1,13 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { courseSlugToOpaque, courseOpaqueToSlug, userIdToUuid } from '../identifiers.js';
+import { useHypermedia, fetchHypermedia, type HypermediaItem } from '../hypermedia.js';
 import { Card, Pill, Button, Stat } from './common.js';
 import { ChatPanel } from './ChatPanel.js';
 import { SlideNavigator } from './SlideNavigator.js';
 import { ConceptNetwork } from './ConceptNetwork.js';
 import { LrsAdminPanel } from './LrsAdminPanel.js';
-import { discoverAssignedCourses, getCourseContent, type DiscoverAssignedCoursesResult } from '../interego/client.js';
+import { getCourseContent } from '../interego/client.js';
 import type { CourseContent, EnrolledCourse } from '../types.js';
+
+// Hypermedia-driven enrollments — the LearnerShell no longer calls an
+// MCP tool by name. It traverses the affordance graph: entry-point →
+// profile-resource → _embedded.enrollments. Per the Amundsen / RESTful
+// Web APIs Ch. 5 pattern, the client follows links the server emits
+// rather than constructing URLs itself.
+interface HypermediaEnrollments {
+  learnerWebId: string;
+  learnerName?: string;
+  audienceTags: string[];
+  enrollments: EnrolledCourse[];
+}
 import type { FoxxiSession } from '../auth/session.js';
 
 export function LearnerShell({ session }: { session: FoxxiSession }) {
@@ -19,24 +32,46 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
   const openCourseId = opaqueFromUrl ? (courseOpaqueToSlug(opaqueFromUrl) ?? opaqueFromUrl) : null;
   const setOpenCourseId = (slug: string | null) =>
     navigate(slug ? `/courses/${courseSlugToOpaque(slug)}` : `/profiles/${userIdToUuid(session.userId)}`);
-  const [enrollments, setEnrollments] = useState<DiscoverAssignedCoursesResult | null>(null);
+  const [enrollments, setEnrollments] = useState<HypermediaEnrollments | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { entry, error: entryError } = useHypermedia();
 
   useEffect(() => {
     let cancelled = false;
+    if (entryError) { setError(`hypermedia entry-point: ${entryError}`); return; }
+    if (!entry) return; // wait for /api/foxxi/v1 to land
     (async () => {
       try {
-        const r = await discoverAssignedCourses({
-          learnerWebId: session.webId,
-          tenantPodUrl: session.tenantPodUrl,
-        });
-        if (!cancelled) setEnrollments(r);
+        // Discover the profiles collection URL from the entry point —
+        // not hardcoded. Append the caller's wallet-derived UUID; the
+        // server resolves it to the underlying user record.
+        const profilesUrl = entry._links.profiles?.href;
+        if (!profilesUrl) throw new Error('entry-point lacks profiles _link');
+        const profileUrl = `${profilesUrl}/${userIdToUuid(session.userId)}`;
+        const profile = await fetchHypermedia<HypermediaItem<unknown> & {
+          name?: string;
+          web_id?: string;
+          _embedded?: {
+            enrollments?: EnrolledCourse[];
+            enrollmentsCount?: number;
+            audienceTags?: string[];
+          };
+        }>(profileUrl, session.bearerToken);
+        if (!cancelled) {
+          setEnrollments({
+            learnerWebId: (profile.web_id ?? session.webId) as string,
+            learnerName: profile.name as string | undefined,
+            audienceTags: profile._embedded?.audienceTags ?? session.audienceTags,
+            enrollments: profile._embedded?.enrollments ?? [],
+          });
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
       }
     })();
     return () => { cancelled = true; };
-  }, [session.webId, session.tenantPodUrl]);
+  }, [entry, entryError, session.userId, session.bearerToken, session.webId, session.audienceTags]);
 
   const courseContent: CourseContent | undefined =
     openCourseId ? getCourseContent(openCourseId) : undefined;

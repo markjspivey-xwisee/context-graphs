@@ -56,14 +56,9 @@ import {
 import { HypermediaProvider, useHypermedia } from './hypermedia.js';
 
 export function App() {
-  // HypermediaProvider initially has no bearer; once the session
-  // exists it's threaded down via a nested provider in AppRoutes so
-  // every resource fetch carries the auth header.
   return (
     <BrowserRouter>
-      <HypermediaProvider bearer={null}>
-        <AppRoutes />
-      </HypermediaProvider>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
@@ -107,6 +102,7 @@ function AppRoutes() {
   const ownProfileUrl = `/profiles/${userIdToUuid(session.userId)}`;
 
   return (
+    <HypermediaProvider bearer={session.bearerToken}>
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <Header session={session} onLogout={onLogout} transport={transport} />
       <TopNav session={session} />
@@ -167,6 +163,7 @@ function AppRoutes() {
       </div>
       <Footer session={session} transport={transport} />
     </div>
+    </HypermediaProvider>
   );
 }
 
