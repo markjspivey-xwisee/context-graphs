@@ -130,6 +130,7 @@ const deepLinks = [
   '/statements/aggregates',
   '/statements/conformance',
   '/lrs-config',
+  '/agent-performance',
   // Legacy paths must redirect (not 404)
   '/learner',
   '/users/u-joshua',
@@ -425,6 +426,79 @@ console.log(`\n=== learner record (IEEE P2997 ELR): ${okElr ? 'PASS' : 'FAIL'} =
 console.log(`=== selective disclosure (BBS+ competency proof): ${okSelectiveDisclosure ? 'PASS' : 'FAIL'} ===`);
 console.log(`=== performance record → performance-verified competency: ${okPerformance ? 'PASS' : 'FAIL'} ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr && okSelectiveDisclosure && okPerformance;
+// ── Case 7 — Agent Performance Consultant ──
+// Seed a demo agent team's trajectories (API), then sign in as admin,
+// open /agent-performance, read the disposition (Cynefin placement, no
+// gap/score), run a safe-to-fail probe, and confirm the rung-2/rung-3
+// causal read renders.
+console.log('\n=== Case 7: Agent Performance Consultant (APT) ===');
+let okAgentPerf = false;
+const apToken = await mintSessionToken({ userId: USER_ID, webId: WEB_ID, ttlMs: 30 * 60 * 1000 });
+const AP_TEAM = ['did:key:z6MkFoxxiResearchAgent', 'did:key:z6MkFoxxiRetrievalAgent', 'did:key:z6MkFoxxiSynthesisAgent'];
+async function bridgeTool(name, args) {
+  const r = await fetch(`${BRIDGE}/mcp`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apToken}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } }),
+  });
+  const j = await r.json();
+  return JSON.parse(j.result.content[0].text);
+}
+// Seed each demo agent with a trajectory carrying counterfactual branches
+// (so the team reads as Complex).
+for (const did of AP_TEAM) {
+  await bridgeTool('foxxi.record_agent_trajectory', {
+    agent_did: did, agent_name: did.split(':').pop(),
+    steps: [
+      { modal_status: 'Asserted', granularity: 'tool-call', verb: 'invoke', object_id: 'urn:tool:x', object_name: 'Use a tool', result: { success: true, quality: 0.9 } },
+      { modal_status: 'Counterfactual', granularity: 'tool-call', verb: 'reject', object_id: 'urn:tool:y', object_name: 'Use an alternative tool' },
+      { modal_status: 'Hypothetical', granularity: 'subtask', verb: 'intend', object_id: 'urn:sub:p', object_name: 'Plan' },
+    ],
+  });
+}
+console.log(`  seeded trajectories for ${AP_TEAM.length} demo agents`);
+const browser7 = await chromium.launch({ headless: true });
+const ctx7 = await browser7.newContext();
+const page7 = await ctx7.newPage();
+let apAssessCalled = false, apProbeCalled = false;
+page7.on('response', resp => {
+  if (/\/foxxi\/assess_agent_disposition/.test(resp.url())) apAssessCalled = true;
+  if (/\/foxxi\/run_performance_probe/.test(resp.url())) apProbeCalled = true;
+});
+await page7.goto(DASHBOARD, { waitUntil: 'networkidle', timeout: 30_000 });
+await page7.evaluate(() => localStorage.clear());
+await page7.reload({ waitUntil: 'networkidle' });
+const adminRole7 = page7.locator('button:has-text("L&D administrator")').first();
+if (await adminRole7.count() > 0) await adminRole7.click();
+await page7.waitForTimeout(400);
+const jordan7 = page7.locator('button:has-text("Jordan Doe")').first();
+if (await jordan7.count() > 0) {
+  await jordan7.click();
+  await page7.waitForTimeout(3000);
+  await page7.goto(`${DASHBOARD}/agent-performance`, { waitUntil: 'networkidle', timeout: 20_000 });
+  const panelPresent = await page7.locator('text=/Agent Performance Consultant/i').count() > 0;
+  const aptBadge = await page7.locator('text=/complexity-aware/i').count() > 0;
+  await page7.locator('button:has-text("Read disposition")').first().click();
+  await page7.waitForSelector('text=/Cynefin placement/i', { timeout: 20_000 }).catch(() => null);
+  await page7.waitForTimeout(2000);
+  const cynefinShown = await page7.locator('text=/Cynefin placement/i').count() > 0;
+  const noScore = await page7.locator('text=/no score, no gap/i').count() > 0;
+  await page7.locator('button:has-text("Run probe")').first().click();
+  await page7.waitForSelector('text=/Causal read/i', { timeout: 20_000 }).catch(() => null);
+  await page7.waitForTimeout(2000);
+  const causalShown = await page7.locator('text=/Causal read/i').count() > 0;
+  const rungShown = await page7.locator('text=/Rung 2/i').count() > 0;
+  console.log(`  consultant panel present: ${panelPresent} · APT badge: ${aptBadge}`);
+  console.log(`  assess_agent_disposition invoked: ${apAssessCalled} · Cynefin placement shown: ${cynefinShown}`);
+  console.log(`  "no score, no gap" framing present: ${noScore}`);
+  console.log(`  run_performance_probe invoked: ${apProbeCalled} · causal read (rung 2/3) shown: ${causalShown && rungShown}`);
+  okAgentPerf = panelPresent && aptBadge && apAssessCalled && cynefinShown && noScore
+    && apProbeCalled && causalShown && rungShown;
+} else {
+  console.log('  ✗ Jordan sign-in button not found');
+}
+await browser7.close();
+console.log(`\n=== Agent Performance Consultant (APT): ${okAgentPerf ? 'PASS' : 'FAIL'} ===`);
+
+const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr && okSelectiveDisclosure && okPerformance && okAgentPerf;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);

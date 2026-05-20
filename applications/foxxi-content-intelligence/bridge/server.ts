@@ -63,12 +63,21 @@ import {
   buildTrajectory, trajectoryShape, projectTrajectoryToXapi,
   type AgentTrajectory, type TrajectoryStepInput,
 } from '../src/agent-trajectory.js';
+import {
+  assessDisposition, buildProbe, computeCausalRead, snapshot,
+  type PerformanceProbe, type ProbeCoherence,
+} from '../src/agent-disposition.js';
 
 /** Agentic-native trajectory store — the source of truth (modal +
  *  poly-granular), keyed by agent DID. xAPI statements are projected
  *  off it into the LRS; the native form here keeps what xAPI drops. */
 const agentTrajectories = new Map<string, AgentTrajectory>();
 const AGENT_TRAJECTORY_MAX = 5_000;
+
+/** Performance-probe store — safe-to-fail do(x) interventions, keyed by
+ *  team key (sorted agent DIDs). A team accumulates a probe portfolio. */
+const performanceProbes = new Map<string, PerformanceProbe[]>();
+const teamKey = (dids: readonly string[]): string => [...dids].sort().join('|');
 import { frameworkToCase, type FoxxiSkillFramework } from '../src/case-exporter.js';
 import { buildPassedSessionTrace } from '../src/cmi5.js';
 import { pushFrameworkToCass } from '../src/cass-connector.js';
@@ -743,6 +752,80 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
         statementsProjected: projection.statements.length,
         retainedNativeOnly: projection.retainedNativeOnly,
       },
+      accessDecision: trace,
+    };
+  },
+
+  'foxxi.assess_agent_disposition': async (args) => {
+    const resolved = await resolveCaller(args);
+    if ('error' in resolved) return { error: resolved.error };
+    const { ctx } = resolved;
+    const agentDids = args.agent_dids as string[] | undefined;
+    if (!Array.isArray(agentDids) || agentDids.length === 0) {
+      return { error: 'agent_dids (non-empty array) is required' };
+    }
+    const trajectories = agentDids
+      .map(d => agentTrajectories.get(d))
+      .filter((t): t is AgentTrajectory => !!t);
+    if (trajectories.length === 0) {
+      return { error: 'no recorded trajectories for any agent in the team — record_agent_trajectory first' };
+    }
+    const disposition = assessDisposition(trajectories);
+    // If the team has a probe portfolio, fold in the rung-2/rung-3 causal read.
+    const probes = performanceProbes.get(teamKey(agentDids)) ?? [];
+    const causalReads = probes.map(p => computeCausalRead(p, trajectories));
+    const trace = emitAccessDecision({ ctx, tool: 'foxxi.assess_agent_disposition', decision: 'allow', appliedPolicies: ['agent-performance-consultant'] });
+    return {
+      disposition,
+      probeCount: probes.length,
+      causalReads,
+      consultantNote: 'Agent Performance Technology: a dispositional read, not a gap analysis. No ideal future state, no score-vs-exemplary. Steer by the vector; nudge constraints with safe-to-fail probes.',
+      accessDecision: trace,
+    };
+  },
+
+  'foxxi.run_performance_probe': async (args) => {
+    const resolved = await resolveCaller(args);
+    if ('error' in resolved) return { error: resolved.error };
+    const { ctx } = resolved;
+    const agentDids = args.agent_dids as string[] | undefined;
+    if (!Array.isArray(agentDids) || agentDids.length === 0) {
+      return { error: 'agent_dids (non-empty array) is required' };
+    }
+    for (const f of ['constraint_target', 'change', 'coherence', 'hypothesized_effect', 'amplify_signal', 'dampen_signal']) {
+      if (!args[f] || typeof args[f] !== 'string') return { error: `${f} (string) is required` };
+    }
+    const coherence = args.coherence as string;
+    if (!['coherent', 'oblique', 'contradictory'].includes(coherence)) {
+      return { error: 'coherence must be one of: coherent | oblique | contradictory' };
+    }
+    const trajectories = agentDids
+      .map(d => agentTrajectories.get(d))
+      .filter((t): t is AgentTrajectory => !!t);
+    if (trajectories.length === 0) {
+      return { error: 'no recorded trajectories for the team — record_agent_trajectory before probing' };
+    }
+    // Snapshot the disposition at do(x) time — the Pearl rung-2 baseline.
+    const preDisposition = snapshot(assessDisposition(trajectories));
+    const probe = buildProbe({
+      team: agentDids,
+      constraintTarget: args.constraint_target as string,
+      change: args.change as string,
+      coherence: coherence as ProbeCoherence,
+      hypothesizedEffect: args.hypothesized_effect as string,
+      amplifySignal: args.amplify_signal as string,
+      dampenSignal: args.dampen_signal as string,
+      recordedBy: ctx.webId,
+    }, preDisposition);
+    const key = teamKey(agentDids);
+    const list = performanceProbes.get(key) ?? [];
+    list.push(probe);
+    performanceProbes.set(key, list);
+    const trace = emitAccessDecision({ ctx, tool: 'foxxi.run_performance_probe', decision: 'allow', appliedPolicies: ['agent-performance-consultant'] });
+    return {
+      recorded: true,
+      probe,
+      note: 'Safe-to-fail probe recorded as a Pearl do(x) intervention; the team disposition was snapshotted as the causal baseline. Re-assess the team to read the rung-2/rung-3 causal effect. A safe-to-fail probe is allowed — expected, even — to fail cheaply.',
       accessDecision: trace,
     };
   },

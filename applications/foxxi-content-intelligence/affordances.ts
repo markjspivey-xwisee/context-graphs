@@ -344,6 +344,38 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
   },
 
   {
+    action: 'urn:cg:action:foxxi:assess-agent-disposition' as IRI,
+    toolName: 'foxxi.assess_agent_disposition',
+    title: 'Assess a team of agents\' disposition (Agent Performance Technology)',
+    description: 'Read a team of agents\' DISPOSITION from their trajectories — deliberately NOT a gap analysis. There is no ideal future state and no score-vs-exemplary; HPT\'s gap model is a Complicated-domain method and a team of agents is a Complex adaptive system. Following Snowden (Cynefin / Vector Theory of Change): returns the modal balance (deliberation / exploration / plan-revision propensities), named dispositions, a Cynefin placement of the team\'s behaviour with the decision stance it calls for, and a VECTOR of drift from the present — not a destination. If a safe-to-fail probe has been run on this team, also returns the causal read (Pearl rung 2 interventional + rung 3 counterfactual).',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/assess_agent_disposition',
+    inputs: [
+      { name: 'agent_dids', type: 'array', itemType: 'string', required: true, description: 'The DIDs of the agents forming the team to assess.' },
+    ],
+    appliesTo: { collections: ['profiles'] },
+  },
+
+  {
+    action: 'urn:cg:action:foxxi:run-performance-probe' as IRI,
+    toolName: 'foxxi.run_performance_probe',
+    title: 'Run a safe-to-fail performance probe on an agent team (Pearl do(x))',
+    description: 'Record a safe-to-fail probe on an agent team — the Agent-Performance-Technology intervention. A probe nudges a CONSTRAINT (an affordance scope, a delegation bound, a connecting constraint), never an outcome (Snowden: manage constraints + constructors, not targets). It is a Pearl rung-2 do(x) intervention: the handler snapshots the team\'s disposition at do(x) time as the causal baseline. The probe declares its safe-to-fail portfolio role (coherent / oblique / contradictory) and its weak signals — what would tell the consultant to amplify vs. dampen it. Re-assess the team afterward (assess_agent_disposition) to get the rung-2 interventional + rung-3 counterfactual causal read.',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/run_performance_probe',
+    inputs: [
+      { name: 'agent_dids', type: 'array', itemType: 'string', required: true, description: 'The agent team the probe is run on.' },
+      { name: 'constraint_target', type: 'string', required: true, description: 'The constraint being nudged — e.g. "delegation-scope", "web-search-affordance", "connecting-constraint:researcher-summariser". Never an outcome.' },
+      { name: 'change', type: 'string', required: true, description: 'Human description of the do(x) nudge (e.g. "broaden the delegation scope so the researcher may sub-delegate retrieval").' },
+      { name: 'coherence', type: 'string', required: true, description: 'Safe-to-fail portfolio role: coherent | oblique | contradictory.' },
+      { name: 'hypothesized_effect', type: 'string', required: true, description: 'What the consultant expects the nudge to do to the disposition (a hypothesis, not a target).' },
+      { name: 'amplify_signal', type: 'string', required: true, description: 'The weak signal that would say: amplify this probe.' },
+      { name: 'dampen_signal', type: 'string', required: true, description: 'The weak signal that would say: dampen / withdraw this probe.' },
+    ],
+    appliesTo: { collections: ['profiles'] },
+  },
+
+  {
     action: 'urn:cg:action:foxxi:export-case-framework' as IRI,
     toolName: 'foxxi.export_case_framework',
     title: '[admin] Export the tenant\'s competency framework as 1EdTech CASE 1.0 JSON-LD',

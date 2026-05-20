@@ -44,6 +44,7 @@ import { Login } from './components/Login.js';
 import { LearnerShell } from './components/LearnerShell.js';
 import { CatalogTab, PoliciesTab, CoverageTab, AccessTab, IntegrationsTab, AuditTab } from './components/AdminShell.js';
 import { LrsAdminPanel } from './components/LrsAdminPanel.js';
+import { AgentPerformancePanel } from './components/AgentPerformancePanel.js';
 import { Header, Card } from './components/common.js';
 import { loadSession, saveSession, clearSession, type FoxxiSession } from './auth/session.js';
 import { getTransport, resetTransportProbe } from './interego/client.js';
@@ -127,6 +128,7 @@ function AppRoutes() {
           {isPriv && <Route path="/statements" element={<StatementsPage session={session} />} />}
           {isPriv && <Route path="/statements/:statementSub" element={<StatementsPage session={session} />} />}
           {isPriv && <Route path="/lrs-config" element={<StatementsPage session={session} />} />}
+          {isPriv && <Route path="/agent-performance" element={<AgentPerformancePage session={session} />} />}
 
           {/* Convenience redirects — `/me` and `/profile` resolve to the
               caller's canonical profile item URL. They're not resources
@@ -206,6 +208,7 @@ function TopNav({ session }: { session: FoxxiSession }) {
       {isPriv && <NavLink to="/coverage" label="Coverage" />}
       {isPriv && <NavLink to="/integrations" label="Integrations" />}
       {isPriv && <NavLink to="/statements" label="xAPI / LRS" />}
+      {isPriv && <NavLink to="/agent-performance" label="Agent performance" />}
     </nav>
   );
 }
@@ -281,6 +284,9 @@ function IntegrationsPage() {
 }
 function StatementsPage({ session }: { session: FoxxiSession }) {
   return <div style={{ maxWidth: 1180, margin: '24px auto', padding: 20 }}><LrsAdminPanel bearer={session.bearerToken} /></div>;
+}
+function AgentPerformancePage({ session }: { session: FoxxiSession }) {
+  return <div style={{ maxWidth: 1180, margin: '24px auto', padding: 20 }}><AgentPerformancePanel session={session} /></div>;
 }
 
 function NotFound() {
