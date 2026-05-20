@@ -31,7 +31,11 @@
  *    against the same LRS.
  */
 
-export const FOXXI_PROFILE_ID = 'https://markjspivey-xwisee.github.io/interego/applications/foxxi-content-intelligence/xapi/profile/v1';
+// The xAPI Profile's identity IRI IS the URL it is served at — the
+// bridge serves the profile document at `<bridge>/xapi/profile`, so the
+// profile's `id` dereferences to itself. Its `templates/*`, `patterns/*`
+// and `v/*` children resolve under it (the bridge serves those too).
+export const FOXXI_PROFILE_ID = 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io/xapi/profile';
 export const FOXXI_NS = 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io/ns/foxxi#';
 
 const ADL = 'http://adlnet.gov/expapi';

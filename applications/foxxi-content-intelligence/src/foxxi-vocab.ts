@@ -122,7 +122,7 @@ export function renderVocabJsonLd(): Record<string, unknown> {
     })),
     _links: {
       self: { href: FOXXI_VOCAB_DOC },
-      xapiProfile: { href: `${FOXXI_VOCAB_DOC}/../../xapi/profile` },
+      xapiProfile: { href: FOXXI_VOCAB_DOC.replace('/ns/foxxi', '/xapi/profile') },
     },
   };
 }

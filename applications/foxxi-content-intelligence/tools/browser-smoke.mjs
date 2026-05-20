@@ -530,13 +530,23 @@ try {
   const ttlRes = await fetch(`${BRIDGE}/ns/foxxi`, { headers: { Accept: 'text/turtle' } });
   const ttl = await ttlRes.text();
   const ttlOk = ttlRes.status === 200 && ttl.includes('foxxi:') && ttl.includes('rdfs:comment');
+  // The xAPI Profile's `id` IS the URL it is served at — it dereferences
+  // to itself; its templates/patterns are their own resources.
+  const profRes = await fetch(`${BRIDGE}/xapi/profile`, { headers: { Accept: 'application/ld+json' } });
+  const prof = await profRes.json();
+  const profSelfConsistent = profRes.status === 200 && prof.id === `${BRIDGE}/xapi/profile`;
+  const tplRes = await fetch(`${BRIDGE}/xapi/profile/templates/launched`, { headers: { Accept: 'application/ld+json' } });
+  const tpl = await tplRes.json();
+  const tplOk = tplRes.status === 200 && tpl.id === `${BRIDGE}/xapi/profile/templates/launched` && !!tpl._links?.profile;
   console.log(`  entry-point advertises foxxi-vocabulary link: ${!!vocabLink}`);
   console.log(`  GET /ns/foxxi → HTTP ${vocabRes.status}, ${terms.length} terms, affordance-invoked present: ${hasAffordanceInvoked}`);
   console.log(`  single verb dereferences as a RESTful resource: ${termOk}`);
   console.log(`  Turtle content negotiation works: ${ttlOk}`);
+  console.log(`  xAPI Profile id dereferences to itself: ${profSelfConsistent}`);
+  console.log(`  profile template dereferences as its own resource: ${tplOk}`);
   console.log(`  conformance check actually dereferenced the vocab in production: ${vocabDereferencedInProd} (Case 7, admin session)`);
   okVocab = !!vocabLink && vocabRes.status === 200 && terms.length > 10 && hasAffordanceInvoked
-    && termOk && ttlOk && vocabDereferencedInProd;
+    && termOk && ttlOk && profSelfConsistent && tplOk && vocabDereferencedInProd;
 } catch (err) {
   console.log(`  ✗ ${err.message}`);
 }

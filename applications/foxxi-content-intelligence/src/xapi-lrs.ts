@@ -643,11 +643,39 @@ export function attachXapiLrsRoutes(app: Express, config: XapiLrsConfig): void {
   app.get('/xapi/about', gate, (req, res) => handleAbout(req, res, config));
 
   // xAPI Profile Server — public (no auth) so other tools can discover
-  // what vocabulary Foxxi emits.
+  // what vocabulary Foxxi emits. The profile's `id` IS this URL, so the
+  // profile document dereferences to itself.
   app.get('/xapi/profile', (_req, res) => { void (async () => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     const doc = await buildFoxxiXapiProfile(config);
     res.type('application/ld+json').json(doc);
   })(); });
+
+  // Profile sub-resources — every statement template, pattern, and
+  // version is its OWN dereferenceable resource (RESTful linked data),
+  // not merely an `@id` buried in the profile document.
+  for (const kind of ['templates', 'patterns', 'v'] as const) {
+    app.get(`/xapi/profile/${kind}/:name`, (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      const doc = buildFoxxiProfileDoc({ generatedAt: new Date().toISOString() });
+      const list = (kind === 'v' ? doc.versions : doc[kind]) as Array<Record<string, unknown>> | undefined;
+      const suffix = `/${kind}/${req.params.name}`;
+      const found = (list ?? []).find(x => typeof x.id === 'string' && (x.id as string).endsWith(suffix));
+      if (!found) {
+        res.status(404).type('application/ld+json')
+          .json({ error: `no ${kind} resource "${req.params.name}" in the Foxxi xAPI Profile` });
+        return;
+      }
+      res.type('application/ld+json').json({
+        '@context': 'https://w3id.org/xapi/profiles/context',
+        ...found,
+        _links: {
+          self: { href: found.id },
+          profile: { href: `${config.selfBaseUrl}/xapi/profile` },
+        },
+      });
+    });
+  }
 
   // The order matters: PUT statementId needs to be checked before POST handler picks up.
   app.post('/xapi/statements', gate, (req, res) => { void handlePostStatements(req, res, config); });
