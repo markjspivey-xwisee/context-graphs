@@ -9,19 +9,23 @@
  * the proper verb, activity-type, context, and result per Foxxi's
  * published xAPI Profile.
  *
- * URL contract: ?bearer=<token>&bridge=<url>&learner_did=<webid>&course_id=golf-explained
+ * URL contract: ?code=<launch-code>&bridge=<url>&learner_did=<webid>&course_id=golf-explained
+ *   (or, for stand-alone testing: ?bearer=<token>&bridge=<url>&…)
  *
  * When the player is opened from the Foxxi dashboard, the dashboard
- * mints a session bearer + passes the learner_did so the bridge can
- * verify caller identity on every statement POST. When opened
- * stand-alone (no bearer), the player still renders the course but
- * emits statements anonymously (the bridge rejects them with 401 — the
- * UI surfaces this in the trace panel).
+ * does NOT put the long-lived session bearer in the URL. It mints a
+ * short-lived single-use `code` (out-of-band auth handoff — see
+ * docs/patterns/out-of-band-auth-exchange.md) and passes that instead.
+ * The player exchanges `code` → bearer on startup. A `bearer` param is
+ * still accepted for stand-alone testing. When opened with neither, the
+ * player still renders the course but emits statements anonymously (the
+ * bridge rejects them with 401 — surfaced in the trace panel).
  */
 
 const url = new URL(location.href);
 const params = {
   bearer: url.searchParams.get('bearer') || '',
+  code: url.searchParams.get('code') || '',
   bridge: url.searchParams.get('bridge') || 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io',
   learnerDid: url.searchParams.get('learner_did') || 'urn:anonymous:player',
   learnerName: url.searchParams.get('learner_name') || 'Anonymous Learner',
@@ -334,7 +338,39 @@ async function jumpTo(idx) {
   renderStage();
 }
 
+/**
+ * Out-of-band auth handoff. A `code` param means the dashboard kept the
+ * long-lived session bearer out of the URL and handed us a short-lived
+ * single-use code instead. POST it to the bridge's exchange endpoint to
+ * obtain the real bearer. No-op when a `bearer` was supplied directly
+ * (stand-alone testing) or when neither is present (anonymous render).
+ */
+async function resolveBearer() {
+  if (params.bearer || !params.code) return;
+  try {
+    const r = await fetch(
+      `${params.bridge}/api/foxxi/v1/launch-codes/${encodeURIComponent(params.code)}`,
+      { method: 'POST' },
+    );
+    if (!r.ok) {
+      logTrace(`launch-code exchange → HTTP ${r.status} (${await r.text().catch(() => '')})`, true);
+      return;
+    }
+    const j = await r.json();
+    if (j && j.bearer) {
+      params.bearer = j.bearer;
+      window.__foxxiPlayerConfig.bearer = j.bearer;
+      logTrace('launch-code exchanged → session bearer acquired');
+    }
+  } catch (err) {
+    logTrace(`launch-code exchange threw: ${err.message}`, true);
+  }
+}
+
 async function init() {
+  // Out-of-band auth: swap the one-time code for the session bearer
+  // before anything that needs auth (chip render, statement emission).
+  await resolveBearer();
   // Render learner chip
   const chip = document.getElementById('learner-chip');
   if (params.bearer) {

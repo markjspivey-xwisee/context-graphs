@@ -45,6 +45,28 @@ export interface AffordanceInput {
   readonly minItems?: number;
 }
 
+/**
+ * Declares the resource states/collections an affordance is applicable
+ * to. This is the data behind the "resource-scoped affordances" pattern
+ * (see docs/patterns/resource-scoped-affordances.md): a HATEOAS resource
+ * SHOULD advertise only the affordances valid for *its* current state,
+ * not the bridge's entire capability catalog.
+ *
+ * An affordance with no `AffordanceScope` is **unscoped** — applicable
+ * everywhere (the backward-compatible default).
+ */
+export interface AffordanceScope {
+  /** Resource collections this affordance applies to — matched against
+   *  the collection name a bridge is rendering ('courses', 'policies',
+   *  'profiles', …) or the sentinel 'entry' for the entry point. Omit or
+   *  include '*' to apply to every collection. */
+  readonly collections?: readonly string[];
+  /** Applicable only when the resource carries one of these
+   *  cg:modalStatus values ('Asserted', 'Hypothetical', …). Omit to
+   *  apply regardless of modal status. */
+  readonly modalStatus?: readonly string[];
+}
+
 /** A capability the vertical exposes. */
 export interface Affordance {
   /** Canonical action IRI (urn:cg:action:<vertical>:<verb>). */
@@ -67,6 +89,61 @@ export interface Affordance {
   readonly returns?: IRI;
   /** Optional MIME type the endpoint emits. */
   readonly mediaType?: string;
+  /** Optional resource-scope. When present, the affordance is only
+   *  advertised on resources whose context matches (see affordancesFor).
+   *  Absent ⇒ unscoped ⇒ advertised everywhere. */
+  readonly appliesTo?: AffordanceScope;
+}
+
+/** The state of the resource a bridge is currently rendering, used to
+ *  decide which affordances it should advertise. */
+export interface ResourceContext {
+  /** Collection name being rendered ('courses', 'policies', 'profiles',
+   *  …) or 'entry' for the entry point. */
+  readonly collection: string;
+  /** The resource's cg:modalStatus, if it carries one. */
+  readonly modalStatus?: string;
+}
+
+/**
+ * Resource-scoped affordances — the reference filter for the pattern in
+ * docs/patterns/resource-scoped-affordances.md.
+ *
+ * Given the resource a bridge is about to serialize, return only the
+ * affordances applicable to it. Unscoped affordances (no `appliesTo`)
+ * always pass. Scoped affordances pass only when every declared
+ * dimension matches the `ResourceContext`.
+ *
+ * The entry point is the one resource that SHOULD advertise the full
+ * catalog — call this with `{ collection: 'entry' }` and leave
+ * `collections` either unset or including 'entry' on catalog-wide
+ * affordances, OR simply skip the filter for the entry point.
+ */
+export function affordancesFor(
+  ctx: ResourceContext,
+  affordances: readonly Affordance[],
+): Affordance[] {
+  return affordances.filter((a) => {
+    const scope = a.appliesTo;
+    if (!scope) return true; // unscoped ⇒ applies everywhere
+    if (
+      scope.collections &&
+      scope.collections.length > 0 &&
+      !scope.collections.includes('*') &&
+      !scope.collections.includes(ctx.collection)
+    ) {
+      return false;
+    }
+    if (
+      scope.modalStatus &&
+      scope.modalStatus.length > 0 &&
+      ctx.modalStatus !== undefined &&
+      !scope.modalStatus.includes(ctx.modalStatus)
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 // ── Derive: MCP tool schema ──────────────────────────────────────────

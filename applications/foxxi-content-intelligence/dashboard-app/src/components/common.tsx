@@ -27,7 +27,7 @@ export function Card(props: { title?: React.ReactNode; right?: React.ReactNode; 
   );
 }
 
-export function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'accent'; children: React.ReactNode }) {
+export function Pill({ tone = 'neutral', title, children }: { tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'accent'; title?: string; children: React.ReactNode }) {
   const palette = {
     neutral: { bg: 'rgba(26,35,50,0.08)', fg: 'var(--text-dim)', border: 'rgba(26,35,50,0.16)' },
     good:    { bg: 'rgba(47,106,58,0.14)', fg: 'var(--good)', border: 'rgba(47,106,58,0.32)' },
@@ -36,13 +36,14 @@ export function Pill({ tone = 'neutral', children }: { tone?: 'neutral' | 'good'
     accent:  { bg: 'rgba(193,80,28,0.14)', fg: 'var(--accent)', border: 'rgba(193,80,28,0.32)' },
   }[tone];
   return (
-    <span style={{
+    <span title={title} style={{
       display: 'inline-block', padding: '2px 8px', borderRadius: 999,
       background: palette.bg, color: palette.fg,
       border: `1px solid ${palette.border}`,
       fontSize: 10.5, fontWeight: 500,
       fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
       textTransform: 'uppercase', letterSpacing: '0.04em',
+      ...(title ? { cursor: 'help' } : {}),
     }}>{children}</span>
   );
 }

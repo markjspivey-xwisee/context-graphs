@@ -24,11 +24,11 @@
  */
 
 import type { Express, Request, Response, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Affordance } from '../../_shared/affordance-mcp/index.js';
+import { affordancesFor, type Affordance } from '../../_shared/affordance-mcp/index.js';
 import { deriveUserWallet } from './auth.js';
 
 interface HypermediaConfig {
@@ -42,13 +42,67 @@ interface HypermediaConfig {
 /** Courses whose payloads ship with a playable SCORM package. */
 const PLAYABLE_COURSE_IDS = new Set<string>(['golf-explained']);
 
-/** Build an RFC 6570-style templated launch URL. The dashboard expands
- *  {bearer}, {learner_did}, {learner_name} from its local session. */
-function launchTemplate(playerBase: string, bridgeBase: string, courseId: string): string {
+/**
+ * One variable of a templated hypermedia link. Modelled on Hydra's
+ * `hydra:IriTemplateMapping` — a `hydra:variable` + `hydra:required` —
+ * plus a contract telling the client *how to source* the value:
+ *   - `fromSession`  — copy a field of the caller's own session.
+ *   - `fromExchange` — the value is secret; do NOT put the session
+ *                      bearer in the URL. Instead POST the bearer to
+ *                      `mintUrl` and substitute the returned one-time
+ *                      code (out-of-band auth handoff — see
+ *                      docs/patterns/out-of-band-auth-exchange.md).
+ * The client iterates this `mapping` and substitutes by name; it never
+ * string-scans the href for `{…}` braces.
+ */
+interface TemplateVariable {
+  /** The `{name}` placeholder in the href (Hydra `hydra:variable`). */
+  variable: string;
+  /** Hydra `hydra:required`. */
+  required: boolean;
+  /** Human description (for affordance-walkers + docs). */
+  description: string;
+  /** Which field of the caller's session supplies this variable. */
+  fromSession?: 'bearerToken' | 'actorDid' | 'actorName';
+  /** Out-of-band exchange: mint a one-time code at this URL rather than
+   *  placing a long-lived secret in the URL. */
+  fromExchange?: { mintUrl: string; method: 'POST' };
+}
+
+/** A HAL link that is an RFC 6570 / Hydra IriTemplate. `templated: true`
+ *  signals expansion is required; `mapping` declares every variable so
+ *  the client substitutes structurally. */
+interface TemplatedLink {
+  href: string;
+  templated: true;
+  title?: string;
+  /** Hydra `hydra:variableRepresentation` — basic (raw) string values. */
+  variableRepresentation: 'hydra:BasicRepresentation';
+  mapping: TemplateVariable[];
+}
+
+/** Build a Hydra-IriTemplate `launch` link for a playable course. The
+ *  href carries `{code}`/`{learner_did}`/`{learner_name}` placeholders.
+ *  `{code}` is sourced via out-of-band exchange — the dashboard mints a
+ *  short-lived one-time code at `<base>/launch-codes` so the long-lived
+ *  session bearer never enters a URL. `learner_did`/`learner_name` are
+ *  non-secret and copied straight from the session. */
+function launchLink(playerBase: string, bridgeBase: string, courseId: string): TemplatedLink {
   const u = new URL(playerBase);
   u.searchParams.set('bridge', bridgeBase);
   u.searchParams.set('course_id', courseId);
-  return `${u.toString()}&bearer={bearer}&learner_did={learner_did}&learner_name={learner_name}`;
+  const mintUrl = `${bridgeBase}/api/foxxi/v1/launch-codes`;
+  return {
+    href: `${u.toString()}&code={code}&learner_did={learner_did}&learner_name={learner_name}`,
+    templated: true,
+    title: 'Launch the SCORM player for this course (xAPI 2.0 emitting)',
+    variableRepresentation: 'hydra:BasicRepresentation',
+    mapping: [
+      { variable: 'code', required: true, fromExchange: { mintUrl, method: 'POST' }, description: 'One-time launch code — exchanged by the player for a session bearer; keeps the long-lived bearer out of the URL' },
+      { variable: 'learner_did', required: true, fromSession: 'actorDid', description: 'Learner DID / WebID — the xAPI actor' },
+      { variable: 'learner_name', required: false, fromSession: 'actorName', description: 'Learner display name — xAPI actor.name' },
+    ],
+  };
 }
 
 // ── Opaque ID derivation (matches dashboard's identifiers.ts) ──────
@@ -187,14 +241,12 @@ function buildLookup(): {
 
 // ── Hypermedia envelope helpers ─────────────────────────────────────
 
-function picksAffordances(all: ReadonlyArray<Affordance>, applicableTo: string): Affordance[] {
-  // For now: filter by tool-name prefix or path-tag. Future: add explicit
-  // `appliesToResource` field on the affordance definition for precise
-  // filtering. The substrate's `cgh:applicableToResource` SHACL shape is
-  // the natural place to declare this.
-  void applicableTo;
-  return [...all]; // placeholder — return all; client filters by toolName
-}
+// Resource-scoped affordances — see docs/patterns/resource-scoped-affordances.md.
+// Each resource advertises only the affordances applicable to it; the
+// shared `affordancesFor` filter reads each affordance's `appliesTo`
+// scope. The entry point is exempt — it is the one resource that SHOULD
+// carry the whole catalogue (clients cache it once and look affordances
+// up by tool name from there).
 
 function bridgeAffordanceToLink(a: Affordance, baseUrl: string): Record<string, unknown> {
   return {
@@ -241,31 +293,44 @@ function collectionEnvelope(args: {
     'hydra:totalItems': args.total ?? args.items.length,
     'hydra:member': args.items.map(args.itemMapper),
     _links: links,
-    _affordances: picksAffordances(args.affordances, args.collectionName).map(a => bridgeAffordanceToLink(a, args.baseUrl)),
+    _affordances: affordancesFor({ collection: args.collectionName }, args.affordances)
+      .map(a => bridgeAffordanceToLink(a, args.baseUrl)),
   };
 }
 
 function itemEnvelope(args: {
   selfUrl: string;
   collectionUrl: string;
+  /** Collection this item belongs to ('courses', 'profiles', …) — drives
+   *  resource-scoped affordance filtering. */
+  collection: string;
   resource: Record<string, unknown>;
   affordances: ReadonlyArray<Affordance>;
   baseUrl: string;
   embedded?: Record<string, unknown>;
+  /** The item's cg:modalStatus, when it carries one. */
+  modalStatus?: string;
 }): Record<string, unknown> {
+  // Merge any resource-supplied _links (e.g. a course's templated
+  // `launch` link) with the envelope's self/collection links — the
+  // resource's links must survive, not be clobbered by the spread order.
+  const { _links: resourceLinks, ...resourceRest } = args.resource as
+    { _links?: Record<string, unknown> } & Record<string, unknown>;
   return {
     '@context': {
       hydra: 'http://www.w3.org/ns/hydra/core#',
       foxxi: 'https://markjspivey-xwisee.github.io/interego/ns/foxxi#',
     },
     '@id': args.selfUrl,
-    ...args.resource,
+    ...resourceRest,
     _links: {
       self: { href: args.selfUrl },
       collection: { href: args.collectionUrl },
+      ...(resourceLinks ?? {}),
     },
     _embedded: args.embedded,
-    _affordances: picksAffordances(args.affordances, '').map(a => bridgeAffordanceToLink(a, args.baseUrl)),
+    _affordances: affordancesFor({ collection: args.collection, modalStatus: args.modalStatus }, args.affordances)
+      .map(a => bridgeAffordanceToLink(a, args.baseUrl)),
   };
 }
 
@@ -304,11 +369,68 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         'statements-aggregates': { href: `${config.selfBaseUrl}/xapi/admin/aggregates` },
         'statements-conformance': { href: `${config.selfBaseUrl}/xapi/admin/conformance` },
         'lrs-config': { href: `${config.selfBaseUrl}/xapi/admin/config` },
+        'launch-codes': { href: `${base}/launch-codes`, title: 'Mint a one-time out-of-band launch code (POST, bearer-authenticated)' },
         affordances: { href: `${config.selfBaseUrl}/affordances` },
         openapi: { href: `${config.selfBaseUrl}/openapi.json` },
       },
       _affordances: config.affordances.map(a => bridgeAffordanceToLink(a, config.selfBaseUrl)),
     });
+  });
+
+  // ── Out-of-band launch-code exchange ─────────────────────────────
+  // Keeps the long-lived session bearer out of player URLs (browser
+  // history, Referer headers, proxy logs). The dashboard POSTs its
+  // bearer here and receives a short-lived single-use code; the code
+  // travels in the launch URL; the player exchanges code → bearer.
+  // See docs/patterns/out-of-band-auth-exchange.md.
+  interface LaunchCodeRec { bearer: string; expiresAt: number }
+  const launchCodes = new Map<string, LaunchCodeRec>();
+  const LAUNCH_CODE_TTL_MS = 120_000; // 2 minutes — long enough to open a tab
+  const LAUNCH_CODE_MAX = 10_000;     // unbounded-growth / DoS cap
+  const sweepLaunchCodes = (): void => {
+    const now = Date.now();
+    for (const [c, rec] of launchCodes) if (rec.expiresAt <= now) launchCodes.delete(c);
+  };
+
+  // Mint — bearer-authenticated. The bearer is stored opaquely; its
+  // validity is enforced downstream when the player actually calls xAPI.
+  app.post('/api/foxxi/v1/launch-codes', (req, res) => {
+    const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '');
+    if (!m) {
+      res.status(401).json({ error: 'launch-code mint requires Authorization: Bearer <session>' });
+      return;
+    }
+    sweepLaunchCodes();
+    if (launchCodes.size >= LAUNCH_CODE_MAX) {
+      res.status(503).json({ error: 'launch-code store at capacity — retry shortly' });
+      return;
+    }
+    const code = randomBytes(24).toString('base64url');
+    launchCodes.set(code, { bearer: m[1]!, expiresAt: Date.now() + LAUNCH_CODE_TTL_MS });
+    res.json({
+      code,
+      exchangeUrl: `${base}/launch-codes/${code}`,
+      method: 'POST',
+      expiresIn: LAUNCH_CODE_TTL_MS / 1000,
+    });
+  });
+
+  // Exchange — the code IS the credential; no Authorization header. The
+  // code is single-use: deleted on first read whether or not it had
+  // expired, so a leaked code is spent the instant it is replayed.
+  app.post('/api/foxxi/v1/launch-codes/:code', (req, res) => {
+    sweepLaunchCodes();
+    const rec = launchCodes.get(req.params.code);
+    launchCodes.delete(req.params.code); // single-use — consume unconditionally
+    if (!rec) {
+      res.status(404).json({ error: 'launch code not found, already used, or expired' });
+      return;
+    }
+    if (rec.expiresAt <= Date.now()) {
+      res.status(410).json({ error: 'launch code expired' });
+      return;
+    }
+    res.json({ bearer: rec.bearer });
   });
 
   // ── Profiles ─────────────────────────────────────────────────────
@@ -350,6 +472,17 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
           e => (e as { user_id?: string; course_id?: string }).user_id === slug
             && (e as { user_id?: string; course_id?: string }).course_id === p.course_id,
         ) as undefined | { assigned_at?: string; due_at?: string; status?: string; completed_at?: string | null };
+        // Modal status (cg:modalStatus) of the enrollment record itself:
+        //   Asserted     — backed by a real lifecycle event in admin.events
+        //                  (the learner was actually assigned / progressed /
+        //                  completed; this is observed fact).
+        //   Hypothetical — no event exists; the enrollment is *inferred*
+        //                  purely from policy-audience-group membership.
+        //                  It predicts "this learner should see this course"
+        //                  but nothing has been recorded yet.
+        // Surfacing this lets the UI distinguish observed assignments from
+        // predicted ones rather than presenting both as equally certain.
+        const modalStatus: 'Asserted' | 'Hypothetical' = ev ? 'Asserted' : 'Hypothetical';
         // Same shape the dashboard's EnrolledCourse expects, plus _links.
         return {
           '@id': `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}`,
@@ -362,16 +495,13 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
           dueAt: ev?.due_at ?? '',
           status: (ev?.status as 'pending' | 'completed' | 'overdue' | undefined) ?? 'pending',
           completedAt: ev?.completed_at ?? undefined,
+          modalStatus,
           _links: {
             self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` },
             course: { href: `${base}/courses/${lookup.course.toOpaque(p.course_id)}` },
             group: { href: `${base}/groups/${lookup.group.toOpaque(p.audience_group_id)}` },
             ...(config.scormPlayerBaseUrl && PLAYABLE_COURSE_IDS.has(p.course_id) ? {
-              launch: {
-                href: launchTemplate(config.scormPlayerBaseUrl, config.selfBaseUrl, p.course_id),
-                templated: true,
-                title: 'Launch the SCORM player for this course (xAPI 2.0 emitting)',
-              },
+              launch: launchLink(config.scormPlayerBaseUrl, config.selfBaseUrl, p.course_id),
             } : {}),
           },
         };
@@ -379,6 +509,7 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     res.json(itemEnvelope({
       selfUrl: `${base}/profiles/${req.params.opaqueId}`,
       collectionUrl: `${base}/profiles`,
+      collection: 'profiles',
       resource: {
         id: req.params.opaqueId,
         ...user,
@@ -433,17 +564,14 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
         audience_group_id: p.audience_group_id,
         _links: { self: { href: `${base}/policies/${lookup.policy.toOpaque(p.policy_id)}` } },
       }));
-    const courseLinks: Record<string, { href: string; templated?: boolean; title?: string }> = {};
+    const courseLinks: Record<string, TemplatedLink | { href: string }> = {};
     if (config.scormPlayerBaseUrl && PLAYABLE_COURSE_IDS.has(slug)) {
-      courseLinks.launch = {
-        href: launchTemplate(config.scormPlayerBaseUrl, config.selfBaseUrl, slug),
-        templated: true,
-        title: 'Launch the SCORM player for this course (xAPI 2.0 emitting)',
-      };
+      courseLinks.launch = launchLink(config.scormPlayerBaseUrl, config.selfBaseUrl, slug);
     }
     res.json(itemEnvelope({
       selfUrl: `${base}/courses/${req.params.opaqueId}`,
       collectionUrl: `${base}/courses`,
+      collection: 'courses',
       resource: { id: req.params.opaqueId, ...course, ...(Object.keys(courseLinks).length ? { _links: courseLinks } : {}) },
       embedded: { policies },
       affordances: config.affordances,
@@ -488,6 +616,7 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     res.json(itemEnvelope({
       selfUrl: `${base}/policies/${req.params.opaqueId}`,
       collectionUrl: `${base}/policies`,
+      collection: 'policies',
       resource: { id: req.params.opaqueId, ...policy },
       affordances: config.affordances,
       baseUrl: config.selfBaseUrl,
@@ -532,6 +661,7 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     res.json(itemEnvelope({
       selfUrl: `${base}/groups/${req.params.opaqueId}`,
       collectionUrl: `${base}/groups`,
+      collection: 'groups',
       resource: { id: req.params.opaqueId, ...group, member_ids: undefined },
       embedded: { members },
       affordances: config.affordances,
@@ -576,6 +706,7 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     res.json(itemEnvelope({
       selfUrl: `${base}/audit-records/${req.params.opaqueId}`,
       collectionUrl: `${base}/audit-records`,
+      collection: 'audit-records',
       resource: { id: req.params.opaqueId, ...rec },
       affordances: config.affordances,
       baseUrl: config.selfBaseUrl,
@@ -615,6 +746,7 @@ export function attachHypermediaRoutes(app: Express, config: HypermediaConfig): 
     res.json(itemEnvelope({
       selfUrl: `${base}/integrations/${req.params.opaqueId}`,
       collectionUrl: `${base}/integrations`,
+      collection: 'integrations',
       resource: { ...conn, id: req.params.opaqueId },
       affordances: config.affordances,
       baseUrl: config.selfBaseUrl,

@@ -144,13 +144,20 @@ export interface EnrolledCourse {
   dueAt: string;
   status: 'pending' | 'completed' | 'overdue';
   completedAt?: string;
+  /** cg:modalStatus of the enrollment record. 'Asserted' = backed by a
+   *  real lifecycle event; 'Hypothetical' = inferred purely from policy
+   *  audience-group membership (predicted, not yet observed). Absent in
+   *  offline-sample mode (treat as 'Asserted'). */
+  modalStatus?: 'Asserted' | 'Hypothetical';
   /** Hypermedia _links emitted by the server (HAL-style). Present when
-   *  the bridge is in use; absent in offline-sample mode. */
+   *  the bridge is in use; absent in offline-sample mode. The `launch`
+   *  link is a Hydra IriTemplate — see HypermediaLink in hypermedia.tsx
+   *  for the `mapping` shape. */
   _links?: {
     self?: { href: string };
     course?: { href: string };
     group?: { href: string };
-    launch?: { href: string; templated?: boolean; title?: string };
+    launch?: import('./hypermedia.js').HypermediaLink;
   };
 }
 

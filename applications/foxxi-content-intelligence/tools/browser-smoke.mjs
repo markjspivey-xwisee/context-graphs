@@ -179,6 +179,12 @@ page3.on('response', resp => {
 await page3.goto(DASHBOARD, { waitUntil: 'networkidle', timeout: 30_000 });
 await page3.evaluate(() => localStorage.clear());
 await page3.reload({ waitUntil: 'networkidle' });
+// Out-of-band auth: the launch URL must carry a one-time `code`, never
+// the long-lived `bearer`. These are filled by Case 3 below.
+let oobHasCode = false;
+let oobHasBearer = true;
+let oobPlayerPosts = 0;
+let oobPlayerFailed = 0;
 // Find Joshua's sign-in button — Login.tsx puts one button per learner option
 const joshuaButton = page3.locator('text=Joshua Liu').locator('..').locator('button:has-text("Sign in")').first();
 const visible = await joshuaButton.count();
@@ -217,9 +223,17 @@ if (visible > 0) {
     await launchBtn.click();
     const playerPage = await newPagePromise;
     if (playerPage) {
-      console.log(`  player tab opened: ${playerPage.url().slice(0, 100)}…`);
-      const playerUrlHasBearer = /\bbearer=[^&]+/.test(playerPage.url());
-      console.log(`  player URL carries bearer query param: ${playerUrlHasBearer}`);
+      // Playwright may report 'about:blank' for the popup until it
+      // navigates — wait for the real player URL to settle.
+      await playerPage.waitForURL(/scorm-player/, { timeout: 15_000 }).catch(() => null);
+      const playerUrl = playerPage.url();
+      console.log(`  player tab opened: ${playerUrl.slice(0, 100)}…`);
+      // Out-of-band auth: the URL must carry a single-use `code`, NOT the
+      // long-lived session bearer (docs/patterns/out-of-band-auth-exchange.md).
+      oobHasCode = /\bcode=[^&]+/.test(playerUrl);
+      oobHasBearer = /\bbearer=[^&]+/.test(playerUrl);
+      console.log(`  player URL carries one-time code: ${oobHasCode}`);
+      console.log(`  player URL carries long-lived bearer: ${oobHasBearer} (expected false)`);
       const playerPosts = [];
       playerPage.on('response', resp => {
         if (resp.url().includes('/xapi/statements')) playerPosts.push({ status: resp.status() });
@@ -227,8 +241,10 @@ if (visible > 0) {
       await playerPage.waitForLoadState('networkidle', { timeout: 30_000 });
       await playerPage.waitForTimeout(3000);
       const failedPlayerPosts = playerPosts.filter(r => r.status >= 400);
+      oobPlayerPosts = playerPosts.length;
+      oobPlayerFailed = failedPlayerPosts.length;
       console.log(`  player /xapi POSTs: ${playerPosts.length} total, ${failedPlayerPosts.length} failed`);
-      console.log(`  expected: at least 3 POSTs (launched + initialized + 1 slide-viewed), 0 failed`);
+      console.log(`  expected: ≥3 POSTs after code→bearer exchange (launched + initialized + slide-viewed), 0 failed`);
     } else {
       console.log(`  ✗ Launch did not open a new tab`);
     }
@@ -242,6 +258,11 @@ await browser3.close();
 
 const okNoMcp = mcpCallsCase3.length === 0;
 console.log(`\n=== dashboard hypermedia purity: ${okNoMcp ? 'PASS' : 'FAIL'} — 0 /mcp POSTs observed ===`);
+
+// Out-of-band auth: launch URL carries a one-time code, never the bearer,
+// and the player still posts xAPI (proving the code→bearer exchange ran).
+const okOob = oobHasCode && !oobHasBearer && oobPlayerPosts >= 3 && oobPlayerFailed === 0;
+console.log(`\n=== out-of-band auth exchange: ${okOob ? 'PASS' : 'FAIL'} — code in URL, bearer absent, ${oobPlayerPosts} xAPI POSTs post-exchange ===`);
 
 const okDeepLinks = deepLinkPass === deepLinks.length;
 console.log(`\n=== deep-link routes: ${okDeepLinks ? 'PASS' : 'FAIL'} — ${deepLinkPass}/${deepLinks.length} served ===`);
@@ -299,6 +320,6 @@ await browser5.close();
 const okTabs = tabPass === tabs.length;
 console.log(`\n=== admin-tab hypermedia: ${okTabs ? 'PASS' : 'FAIL'} — ${tabPass}/${tabs.length} ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp;
+const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);

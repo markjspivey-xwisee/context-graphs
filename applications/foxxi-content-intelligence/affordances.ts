@@ -32,6 +32,8 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'tenant_pod_url', type: 'string', required: true, description: 'Pod URL of the L&D tenant where policy descriptors live.' },
       { name: 'audience_tags', type: 'array', required: false, description: 'Optional caller-supplied audience tags to override the learner\'s default audience membership (e.g., temporary access).' },
     ],
+    // Learner-facing: meaningful on a learner profile resource.
+    appliesTo: { collections: ['profiles'] },
   },
 
   {
@@ -47,6 +49,8 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'lrs_endpoint', type: 'string', required: false, description: 'Optional xAPI LRS endpoint to forward Statements to (composes with the lrs-adapter projector). If omitted, Statements are emitted as descriptors only.' },
       { name: 'lrs_auth_header', type: 'string', required: false, description: 'Authorization header for the LRS when provided.' },
     ],
+    // Acts on a specific course; also surfaced on the learner profile.
+    appliesTo: { collections: ['courses', 'profiles'] },
   },
 
   {
@@ -62,6 +66,7 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'question', type: 'string', required: true, description: 'Natural-language question (e.g., "what is handicap?").' },
       { name: 'course_content', type: 'object', required: true, description: 'The course\'s narration transcripts + extracted concepts. In a real deployment the bridge fetches this from the tenant pod via the published fxs/fxk descriptors; for the in-process invocation supply the shape from the parser\'s dashboard_data + transcripts payloads.' },
     ],
+    appliesTo: { collections: ['courses'] },
   },
 
   {
@@ -80,6 +85,7 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'llm_model', type: 'string', required: false, description: 'Anthropic model id (default claude-sonnet-4-5).' },
       { name: 'llm_api_key', type: 'string', required: false, description: 'BYOK: per-request Anthropic API key. Used transiently for the one LLM call; bridge does not store/log. Takes precedence over the server-side FOXXI_LLM_API_KEY / ANTHROPIC_API_KEY env. Caller is responsible for transport security (TLS to the bridge).' },
     ],
+    appliesTo: { collections: ['courses'] },
   },
 
   {
@@ -95,6 +101,7 @@ export const foxxiAffordances: ReadonlyArray<Affordance> = [
       { name: 'primary', type: 'object', required: true, description: 'Primary course payload (FoxxiAgenticPayload).' },
       { name: 'federation', type: 'array', required: false, description: 'Optional federation peer payloads.' },
     ],
+    appliesTo: { collections: ['courses'] },
   },
 
   {
@@ -146,6 +153,8 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'accepted_standards', type: 'array', required: true, description: 'Array of accepted package standard labels.' },
       { name: 'effective_from', type: 'string', required: false, description: 'ISO 8601 timestamp the policy becomes effective; default: now.' },
     ],
+    // Admin governance over the policy + catalog surfaces.
+    appliesTo: { collections: ['policies', 'courses'] },
   },
 
   {
@@ -163,6 +172,7 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'auth_method', type: 'string', required: true, description: 'Auth method (e.g., "OAuth 2.0 (corporate)", "Basic+API key").' },
       { name: 'sync_frequency', type: 'string', required: false, description: 'Human-readable sync frequency (default: "every 6 hours").' },
     ],
+    appliesTo: { collections: ['integrations'] },
   },
 
   {
@@ -180,6 +190,7 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'trigger', type: 'string', required: true, description: 'One of: on-hire | on-role-change | on-cycle | manual.' },
       { name: 'due_relative_days', type: 'number', required: true, description: 'Days from trigger event after which the assignment is overdue.' },
     ],
+    appliesTo: { collections: ['groups', 'policies'] },
   },
 
   {
@@ -198,6 +209,8 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'distribution_edges', type: 'array', required: false, description: 'Bucket-edge boundaries (decimal-string bigints) for zk-distribution.' },
       { name: 'distribution_max_value', type: 'string', required: false, description: 'Upper bound for the last bucket in zk-distribution.' },
     ],
+    // Catalog-wide concept analysis — meaningful on the courses collection.
+    appliesTo: { collections: ['courses'] },
   },
 
   {
@@ -212,6 +225,7 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'course_iri', type: 'string', required: true, description: 'Course IRI.' },
       { name: 'federation_share_with', type: 'array', required: false, description: 'Optional list of peer-tenant DIDs the concept map is explicitly shared with (default: pod ACL).' },
     ],
+    appliesTo: { collections: ['courses'] },
   },
 
   {

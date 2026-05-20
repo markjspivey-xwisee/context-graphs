@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { courseSlugToOpaque, courseOpaqueToSlug, userIdToUuid } from '../identifiers.js';
-import { useHypermedia, fetchHypermedia, type HypermediaItem } from '../hypermedia.js';
+import { useHypermedia, fetchHypermedia, expandTemplatedLink, type HypermediaItem } from '../hypermedia.js';
 import { Card, Pill, Button, Stat } from './common.js';
 import { ChatPanel } from './ChatPanel.js';
 import { SlideNavigator } from './SlideNavigator.js';
@@ -191,27 +191,27 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
 }
 
 // Sample-mode fallback only — production uses the server-supplied `launch`
-// link template (RFC 6570) discovered on each enrollment via the hypermedia
+// Hydra IriTemplate discovered on each enrollment via the hypermedia
 // profile fetch. The dashboard never constructs player URLs from scratch
 // when the bridge is reachable.
 const SCORM_PLAYER_BASE_FALLBACK = 'https://interego-foxxi-scorm-player.livelysky-8b81abb0.eastus.azurecontainerapps.io';
 const BRIDGE_BASE_FALLBACK = import.meta.env.VITE_FOXXI_BRIDGE_URL ?? 'https://interego-foxxi-bridge.livelysky-8b81abb0.eastus.azurecontainerapps.io';
 
-/** Expand RFC 6570-style {var} placeholders in a server-supplied launch
- *  template with caller-known auth context. */
-function expandLaunchTemplate(template: string, session: { webId: string; name: string; bearerToken: string }): string {
-  return template
-    .replace('{bearer}', encodeURIComponent(session.bearerToken))
-    .replace('{learner_did}', encodeURIComponent(session.webId))
-    .replace('{learner_name}', encodeURIComponent(session.name));
-}
-
-function buildPlayerUrlFromGroup(group: CourseGroup, session: { webId: string; name: string; bearerToken: string }): string {
-  // Prefer the server-emitted templated `launch` link on the first matching
-  // policy (HATEOAS — the dashboard follows the affordance the server gave
-  // it, never reconstructing the player URL by string concatenation).
-  const tmpl = group.policies.find(p => p._links?.launch?.href)?._links?.launch?.href;
-  if (tmpl) return expandLaunchTemplate(tmpl, session);
+async function buildPlayerUrlFromGroup(group: CourseGroup, session: { webId: string; name: string; bearerToken: string }): Promise<string> {
+  // Prefer the server-emitted `launch` Hydra IriTemplate on the first
+  // matching policy (HATEOAS — the dashboard expands the template the
+  // server gave it, iterating its declared variable mapping rather than
+  // reconstructing the player URL by string concatenation). The template
+  // declares `code` as `fromExchange`, so expansion mints a one-time
+  // launch code — the long-lived bearer never enters the URL.
+  const launch = group.policies.find(p => p._links?.launch)?._links?.launch;
+  if (launch) {
+    return expandTemplatedLink(launch, {
+      bearerToken: session.bearerToken,
+      actorDid: session.webId,
+      actorName: session.name,
+    });
+  }
   // Offline-sample fallback: synthesize locally so the dashboard stays
   // demonstrable without the bridge.
   const u = new URL(SCORM_PLAYER_BASE_FALLBACK);
@@ -223,6 +223,32 @@ function buildPlayerUrlFromGroup(group: CourseGroup, session: { webId: string; n
   return u.toString();
 }
 
+/**
+ * Launch a course in a new tab. The player URL is resolved
+ * asynchronously (the launch template mints a one-time code), so the
+ * popup is opened *synchronously first* — inside the click gesture, to
+ * survive popup blockers — and navigated once the URL is ready.
+ */
+async function launchCourse(group: CourseGroup, session: { webId: string; name: string; bearerToken: string }): Promise<void> {
+  const popup = window.open('about:blank', '_blank');
+  if (popup) {
+    popup.document.write('<!doctype html><meta charset="utf-8"><title>Preparing course…</title><body style="font-family:system-ui,sans-serif;padding:2rem;color:#444">Preparing your course…</body>');
+  }
+  try {
+    const url = await buildPlayerUrlFromGroup(group, session);
+    if (popup) popup.location.href = url;
+    else window.open(url, '_blank', 'noopener'); // popup was blocked — best-effort retry
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (popup) {
+      popup.document.body.innerHTML =
+        `<p style="color:#b00">Could not start the course.</p><pre style="white-space:pre-wrap">${msg}</pre>`;
+    }
+    // eslint-disable-next-line no-console
+    console.error('[launch] failed:', msg);
+  }
+}
+
 interface CourseGroup {
   courseId: string;
   courseTitle: string;
@@ -232,6 +258,10 @@ interface CourseGroup {
   headlineRequirement: 'required' | 'recommended' | 'optional';
   /** Worst lifecycle state across all matching policies (overdue > pending > completed). */
   headlineStatus: 'overdue' | 'pending' | 'completed';
+  /** cg:modalStatus of the group: 'Asserted' if any constituent enrollment
+   *  is backed by a real event, 'Hypothetical' if every one is merely
+   *  policy-inferred. */
+  modalStatus: 'Asserted' | 'Hypothetical';
 }
 
 function groupByCourse(enrollments: readonly EnrolledCourse[]): CourseGroup[] {
@@ -251,7 +281,12 @@ function groupByCourse(enrollments: readonly EnrolledCourse[]): CourseGroup[] {
     const headlineStatus = policies
       .map(p => p.status)
       .sort((a, b) => (statusRank[b] ?? 0) - (statusRank[a] ?? 0))[0] as CourseGroup['headlineStatus'];
-    return { courseId, courseTitle: first.courseTitle, category: first.category, policies, headlineRequirement, headlineStatus };
+    // Asserted if any constituent enrollment is event-backed; Hypothetical
+    // only when every one is purely policy-inferred. Missing modalStatus
+    // (offline-sample mode) is treated as Asserted.
+    const modalStatus: CourseGroup['modalStatus'] =
+      policies.some(p => (p.modalStatus ?? 'Asserted') === 'Asserted') ? 'Asserted' : 'Hypothetical';
+    return { courseId, courseTitle: first.courseTitle, category: first.category, policies, headlineRequirement, headlineStatus, modalStatus };
   });
 }
 
@@ -273,10 +308,16 @@ function CourseRow({ group, canOpen, onOpen, session }: { group: CourseGroup; ca
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{group.category}</div>
         </div>
         <Pill tone={headlineTone}>{headlineLabel}{group.policies.length > 1 ? ` + ${group.policies.length - 1}` : ''}</Pill>
+        {group.modalStatus === 'Hypothetical' && (
+          <Pill tone="neutral"
+            title="cg:modalStatus = Hypothetical — this assignment is inferred from your audience-group membership. No enrolment event has been recorded yet, so it is a prediction rather than an observed fact.">
+            inferred
+          </Pill>
+        )}
         {playable && session && (
           <Button
             primary
-            onClick={() => window.open(buildPlayerUrlFromGroup(group, session), '_blank', 'noopener')}
+            onClick={() => { void launchCourse(group, session); }}
             title="Open the course in a new tab. The player emits live xAPI 2.0 statements to Foxxi-as-LRS."
           >
             ▶ Launch
