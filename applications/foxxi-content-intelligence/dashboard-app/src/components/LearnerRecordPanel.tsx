@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Pill, Button, Stat } from './common.js';
+import { Card, Pill, Button, Stat, TextInput } from './common.js';
 import { useAffordance, useHypermedia, invokeAffordance } from '../hypermedia.js';
 import type { FoxxiSession } from '../auth/session.js';
 
@@ -32,6 +32,19 @@ interface ElrCredential {
 }
 interface ElrRawDataLocation { kind: string; location: string; description: string }
 interface ElrOrganization { id: string; role: string }
+/** Result of foxxi.prove_competency — a BBS+ selective-disclosure proof. */
+interface CompetencyProof {
+  verified: boolean;
+  reason?: string;
+  issuerDid: string;
+  competencyName: string;
+  totalClaims: number;
+  revealedClaims: Array<{ path: string; value: string }>;
+  hiddenClaimCount: number;
+  hiddenClaimPaths: string[];
+  error?: string;
+}
+
 interface EnterpriseLearnerRecord {
   id: string;
   conformsTo: string;
@@ -56,6 +69,13 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
   const [loading, setLoading] = useState(false);
   const [version, setVersion] = useState(0);
 
+  // Selective-disclosure state (BBS+ competency proof).
+  const proveAff = useAffordance('foxxi.prove_competency');
+  const [proofTarget, setProofTarget] = useState('');
+  const [proof, setProof] = useState<CompetencyProof | null>(null);
+  const [proving, setProving] = useState(false);
+  const [proofErr, setProofErr] = useState<string | null>(null);
+
   useEffect(() => {
     if (!affordance || !entry) return;
     let cancel = false;
@@ -73,7 +93,13 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
         }) as EnterpriseLearnerRecord & { error?: string };
         if (cancel) return;
         if (r.error) { setError(r.error); }
-        else { setElr(r); }
+        else {
+          setElr(r);
+          // Pre-fill the selective-disclosure target with a sensible
+          // default: first competency, else the first course-level
+          // experience, else a stable fallback.
+          setProofTarget(t => t || defaultProofTarget(r));
+        }
       } catch (err) {
         if (!cancel) setError((err as Error).message);
       } finally {
@@ -82,6 +108,24 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
     })();
     return () => { cancel = true; };
   }, [affordance, entry, bearer, session.webId, session.name, session.tenantPodUrl, version]);
+
+  async function runProof() {
+    if (!proveAff || !proofTarget.trim() || proving) return;
+    setProving(true); setProofErr(null); setProof(null);
+    try {
+      const r = await invokeAffordance({
+        affordance: proveAff,
+        bearer,
+        args: { learner_did: session.webId, competency_name: proofTarget.trim() },
+      }) as CompetencyProof;
+      if (r.error) setProofErr(r.error);
+      else setProof(r);
+    } catch (err) {
+      setProofErr((err as Error).message);
+    } finally {
+      setProving(false);
+    }
+  }
 
   return (
     <Card
@@ -194,6 +238,63 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
             </div>
           </Section>
 
+          {/* Selective disclosure — BBS+ zero-knowledge competency proof */}
+          <Section title="Prove a competency privately (BBS+ zero-knowledge)">
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.55 }}>
+              Prove you hold one competency to a verifier — an employer, another tenant — without
+              surrendering the rest of your record. The bridge (as tenant issuer) signs a multi-claim
+              credential; you disclose only the competency + proficiency; <strong>score, your name,
+              dates, and the credential id stay behind a zero-knowledge proof</strong>. The IEEE P2997
+              privacy story a flat wallet cannot give.
+            </div>
+            {!proveAff && (
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                The bridge does not advertise <code>prove_competency</code> — offline-sample mode.
+              </div>
+            )}
+            {proveAff && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: proof || proofErr ? 12 : 0 }}>
+                <TextInput value={proofTarget} onChange={setProofTarget}
+                  placeholder="competency to prove" onSubmit={runProof} />
+                <Button primary onClick={runProof} disabled={proving || !proofTarget.trim()}>
+                  {proving ? 'Proving…' : 'Prove privately'}
+                </Button>
+              </div>
+            )}
+            {proofErr && <div style={{ color: 'var(--bad)', fontSize: 13 }}>✗ {proofErr}</div>}
+            {proof && (
+              <div style={{
+                padding: 12, background: 'var(--panel-2)',
+                border: '1px solid var(--border)', borderRadius: 6,
+                borderLeft: `3px solid ${proof.verified ? 'var(--good)' : 'var(--bad)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Pill tone={proof.verified ? 'good' : 'bad'}>
+                    {proof.verified ? 'verifier confirmed ✓' : 'verification failed'}
+                  </Pill>
+                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                    {proof.revealedClaims.length} of {proof.totalClaims} claims disclosed —
+                    {' '}{proof.hiddenClaimCount} kept private
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, marginBottom: 6 }}>
+                  <strong style={{ color: 'var(--good)' }}>Disclosed to the verifier:</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                    {proof.revealedClaims.map((c, i) => (
+                      <code key={i} style={{ fontSize: 11 }}>{c.path} = {c.value}</code>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12 }}>
+                  <strong style={{ color: 'var(--text-dim)' }}>Kept private (zero-knowledge):</strong>{' '}
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {proof.hiddenClaimPaths.join(', ')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </Section>
+
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 12 }}>
             Conforms to: <code>{elr.conformsTo}</code> · assembled {elr.assembledAt.slice(0, 19).replace('T', ' ')}
           </div>
@@ -201,6 +302,16 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
       )}
     </Card>
   );
+}
+
+/** Pick a sensible default competency to pre-fill the proof input. */
+function defaultProofTarget(elr: EnterpriseLearnerRecord): string {
+  if (elr.competencies.length > 0) {
+    return elr.competencies[0]!.label.replace(/^Demonstrated:\s*/, '');
+  }
+  const courseExp = elr.experiences.find(e => /launched|completed|passed/.test(e.verb) && e.activityName)
+    ?? elr.experiences.find(e => e.activityName);
+  return courseExp?.activityName ?? 'Golf Explained';
 }
 
 const rowStyle: React.CSSProperties = {

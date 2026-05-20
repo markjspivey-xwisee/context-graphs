@@ -425,6 +425,26 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
   },
 
   {
+    action: 'urn:cg:action:foxxi:prove-competency' as IRI,
+    toolName: 'foxxi.prove_competency',
+    title: 'Prove a competency privately (BBS+ selective disclosure, end-to-end)',
+    description: 'Holder-facing competency proof. Composes the three BBS+ steps — issue (the bridge as tenant issuer signs a multi-claim credential), derive (disclose only a minimal privacy-preserving subset), verify — into ONE operation a learner can trigger for their own record. Proves "I hold this competency at this proficiency, issued by this tenant" to a verifier while keeping score, name, dates, and credential id behind a zero-knowledge proof. This is the IEEE P2997 LER privacy story a flat wallet cannot give. Non-admins may only prove their own competencies.',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/prove_competency',
+    inputs: [
+      { name: 'learner_did', type: 'string', required: true, description: 'Learner whose competency is being proved. Non-admin callers must pass their own DID.' },
+      { name: 'competency_name', type: 'string', required: true, description: 'The competency / course title to prove (becomes Achievement.name on the BBS+ credential).' },
+      { name: 'course_id', type: 'string', required: false, description: 'Optional course identifier; derived from competency_name if omitted.' },
+      { name: 'learner_name', type: 'string', required: false, description: 'Optional learner display name (a hidden claim — never disclosed by default).' },
+      { name: 'score_scaled', type: 'number', required: false, description: 'Optional normalized score 0..1 (a hidden claim — kept private by default). Default 1.0.' },
+      { name: 'proficiency_level', type: 'string', required: false, description: 'Novice | Beginner | Intermediate | Advanced | Expert. Default Intermediate.' },
+      { name: 'reveal_paths', type: 'array', required: false, description: 'Optional claim paths to disclose; defaults to the minimal privacy-preserving set (issuer + achievement.name + achievement.proficiencyLevel).' },
+      { name: 'presentation_context', type: 'string', required: false, description: 'Optional verifier/occasion binding (BBS+ presentation header).' },
+    ],
+    appliesTo: { collections: ['profiles'] },
+  },
+
+  {
     action: 'urn:cg:action:foxxi:launch-au-with-prereq' as IRI,
     toolName: 'foxxi.launch_au_with_prereq_check',
     title: 'Launch a cmi5 AU gated on a verified-credential prerequisite',

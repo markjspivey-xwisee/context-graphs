@@ -57,6 +57,7 @@ import {
 import { exportClr } from '../src/clr.js';
 import { envelopeToClr1 } from '../src/clr-1.js';
 import { assembleEnterpriseLearnerRecord } from '../src/learner-record.js';
+import { proveCompetency } from '../src/competency-proof.js';
 import { frameworkToCase, type FoxxiSkillFramework } from '../src/case-exporter.js';
 import { buildPassedSessionTrace } from '../src/cmi5.js';
 import { pushFrameworkToCass } from '../src/cass-connector.js';
@@ -800,6 +801,34 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
         : undefined,
     };
     return verifyCompletionPresentation({ presentation });
+  },
+
+  'foxxi.prove_competency': async (args) => {
+    const resolved = await resolveCaller(args);
+    if ('error' in resolved) return { error: resolved.error };
+    const { ctx } = resolved;
+    const learnerDid = (args.learner_did as string) || ctx.webId;
+    if (ctx.role !== 'admin' && learnerDid !== ctx.webId) {
+      const trace = emitAccessDecision({ ctx, tool: 'foxxi.prove_competency', decision: 'deny', appliedPolicies: ['learner-self'] });
+      return { error: 'forbidden — non-admins can only prove their own competencies', accessDecision: trace };
+    }
+    if (!issuerKeySeed) {
+      return { error: 'bridge is not configured to issue credentials — FOXXI_ISSUER_KEY_SEED is unset' };
+    }
+    const proof = await proveCompetency({
+      learnerDid,
+      learnerName: args.learner_name as string | undefined,
+      competencyName: args.competency_name as string,
+      courseId: args.course_id as string | undefined,
+      scoreScaled: args.score_scaled as number | undefined,
+      proficiencyLevel: args.proficiency_level as 'Novice' | 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | undefined,
+      tenantProfileName,
+      issuerSeed: issuerKeySeed,
+      revealPaths: args.reveal_paths as string[] | undefined,
+      presentationContext: args.presentation_context as string | undefined,
+    });
+    const trace = emitAccessDecision({ ctx, tool: 'foxxi.prove_competency', decision: 'allow', appliedPolicies: [ctx.role === 'admin' ? 'admin-full-access' : 'learner-self'] });
+    return { ...proof, accessDecision: trace };
   },
 
   'foxxi.launch_au_with_prereq_check': async (args) => {

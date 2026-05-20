@@ -331,10 +331,16 @@ const ctx6 = await browser6.newContext();
 const page6 = await ctx6.newPage();
 let elrAffordanceCalled = false;
 let elrAffordanceStatus = 0;
+let proveAffordanceCalled = false;
+let proveAffordanceStatus = 0;
 page6.on('response', resp => {
   if (/\/foxxi\/assemble_learner_record/.test(resp.url())) {
     elrAffordanceCalled = true;
     elrAffordanceStatus = resp.status();
+  }
+  if (/\/foxxi\/prove_competency/.test(resp.url())) {
+    proveAffordanceCalled = true;
+    proveAffordanceStatus = resp.status();
   }
 });
 const elrConsoleErr = [];
@@ -344,6 +350,7 @@ await page6.evaluate(() => localStorage.clear());
 await page6.reload({ waitUntil: 'networkidle' });
 const joshua6 = page6.locator('text=Joshua Liu').locator('..').locator('button:has-text("Sign in")').first();
 let okElr = false;
+let okSelectiveDisclosure = false;
 if (await joshua6.count() > 0) {
   await joshua6.click();
   // Wait for the Learner Record card to render + its affordance call.
@@ -362,12 +369,32 @@ if (await joshua6.count() > 0) {
   console.log(`  no ELR error shown: ${noElrError}`);
   console.log(`  dashboard console errors: ${elrConsoleErr.length}`);
   okElr = cardPresent && p2997Pill && elrAffordanceCalled && elrAffordanceStatus === 200 && summaryRendered && noElrError;
+
+  // Selective disclosure — click "Prove privately" and confirm the BBS+
+  // zero-knowledge proof verifies (verifier confirmed ✓) end to end.
+  const proveBtn = page6.locator('button:has-text("Prove privately")').first();
+  if (await proveBtn.count() > 0) {
+    await proveBtn.click();
+    await page6.waitForSelector('text=/verifier confirmed/i', { timeout: 25_000 }).catch(() => null);
+    await page6.waitForTimeout(1500);
+    const verifiedShown = await page6.locator('text=/verifier confirmed/i').count() > 0;
+    const disclosedShown = await page6.locator('text=/Disclosed to the verifier/i').count() > 0;
+    const hiddenShown = await page6.locator('text=/Kept private/i').count() > 0;
+    console.log(`  prove_competency affordance invoked: ${proveAffordanceCalled} (HTTP ${proveAffordanceStatus})`);
+    console.log(`  BBS+ proof "verifier confirmed ✓" shown: ${verifiedShown}`);
+    console.log(`  disclosed + hidden claim sections shown: ${disclosedShown && hiddenShown}`);
+    okSelectiveDisclosure = proveAffordanceCalled && proveAffordanceStatus === 200
+      && verifiedShown && disclosedShown && hiddenShown;
+  } else {
+    console.log('  ✗ "Prove privately" button not found');
+  }
 } else {
   console.log('  ✗ Joshua sign-in button not found');
 }
 await browser6.close();
 console.log(`\n=== learner record (IEEE P2997 ELR): ${okElr ? 'PASS' : 'FAIL'} ===`);
+console.log(`=== selective disclosure (BBS+ competency proof): ${okSelectiveDisclosure ? 'PASS' : 'FAIL'} ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr;
+const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr && okSelectiveDisclosure;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);
