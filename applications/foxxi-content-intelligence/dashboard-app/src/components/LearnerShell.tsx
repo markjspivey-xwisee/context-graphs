@@ -7,6 +7,7 @@ import { ChatPanel } from './ChatPanel.js';
 import { SlideNavigator } from './SlideNavigator.js';
 import { ConceptNetwork } from './ConceptNetwork.js';
 import { LrsAdminPanel } from './LrsAdminPanel.js';
+import { LearnerRecordPanel } from './LearnerRecordPanel.js';
 import { getCourseContent } from '../interego/client.js';
 import type { CourseContent, EnrolledCourse } from '../types.js';
 
@@ -114,6 +115,10 @@ export function LearnerShell({ session }: { session: FoxxiSession }) {
           </div>
         )}
       </Card>
+
+      {/* The learner's IEEE P2997 Enterprise Learner Record — experiences,
+          competencies, credentials, provenance — assembled via hypermedia. */}
+      <LearnerRecordPanel session={session} />
 
       {/* Learning engineers get the same LRS-admin view as L&D admins — cohort
           analytics + xAPI conformance + statement browsing is the LE's core

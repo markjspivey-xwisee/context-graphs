@@ -262,6 +262,7 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'criterion_narrative', type: 'string', required: false, description: 'Optional natural-language statement of the completion criterion (becomes Achievement.criteria.narrative).' },
       { name: 'aligned_skills', type: 'array', required: false, description: 'Optional array of competency alignments (each: { targetCode, targetName, targetFramework?, targetFrameworkUrl?, proficiencyLevel? }). Becomes Achievement.alignment[].' },
       { name: 'evidence', type: 'array', required: false, description: 'Optional supporting evidence array (each: { type, id, narrative? }) — e.g. cited slides from a Q&A turn.' },
+      { name: 'derived_from_experiences', type: 'array', required: false, description: 'Optional IRIs of the raw xAPI experience records this completion was derived from. Recorded as prov:wasDerivedFrom on the credential descriptor + fxa:LearningExperience evidence on the VC, so an auditor can walk credential → raw events.' },
     ],
   },
 
@@ -276,6 +277,21 @@ export const foxxiAdminAffordances: ReadonlyArray<Affordance> = [
       { name: 'learner_did', type: 'string', required: true, description: 'Learner\'s WebID/DID — also cross-checked against each credential\'s credentialSubject.id.' },
       { name: 'learner_pod_url', type: 'string', required: true, description: 'Pod root to walk.' },
     ],
+  },
+
+  {
+    action: 'urn:cg:action:foxxi:assemble-learner-record' as IRI,
+    toolName: 'foxxi.assemble_learner_record',
+    title: 'Assemble a learner\'s Enterprise Learner Record (IEEE P2997)',
+    description: 'Compose an IEEE P2997 Enterprise Learner Record — the unified, provenance-pointed aggregate of a learner\'s path. Pulls learning EXPERIENCES from Foxxi-as-LRS xAPI statements, CREDENTIALS from the learner\'s pod wallet (reusing the verified CLR composer), and COMPETENCIES from two provenance-distinct sources: Asserted (alignments on verified credentials) and Hypothetical (inferred from passed/completed experiences not yet credentialed — cg:modalStatus keeps the prediction honest). Every entry carries a raw-data-location pointer per the P2997 data-ownership requirement. Pure read; non-admins may only assemble their own record.',
+    method: 'POST',
+    targetTemplate: '{base}/foxxi/assemble_learner_record',
+    inputs: [
+      { name: 'learner_did', type: 'string', required: true, description: 'Learner\'s WebID/DID — the ELR subject; cross-checked against credential subjects.' },
+      { name: 'learner_pod_url', type: 'string', required: false, description: 'Learner\'s pod root to walk for wallet credentials (defaults to the tenant pod).' },
+      { name: 'learner_name', type: 'string', required: false, description: 'Optional learner display name for the ELR header.' },
+    ],
+    appliesTo: { collections: ['profiles'] },
   },
 
   {

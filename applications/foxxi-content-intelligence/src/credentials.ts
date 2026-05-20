@@ -106,6 +106,12 @@ export interface CourseCompletionSubject {
     id: string;
     narrative?: string;
   }>;
+  /** IRIs of the raw xAPI experience records (statement descriptors /
+   *  statement-query URLs) this completion was derived from. They become
+   *  `prov:wasDerivedFrom` on the credential descriptor AND
+   *  `fxa:LearningExperience` evidence on the VC — so an auditor can walk
+   *  from the credential back to the proctored events that earned it. */
+  derivedFromExperiences?: readonly string[];
   /** Optional issuance/expiry control. */
   validFrom?: string;
   validUntil?: string;
@@ -158,12 +164,18 @@ export function buildCourseCompletionVc(args: IssueCompletionArgs, issuerDid: st
     ...(args.subject.learnerName ? { name: args.subject.learnerName } : {}),
   };
 
-  if (args.subject.evidence && args.subject.evidence.length > 0) {
-    (subject as Record<string, unknown>).evidence = args.subject.evidence.map(e => ({
-      id: e.id,
-      type: [e.type],
-      ...(e.narrative ? { narrative: e.narrative } : {}),
-    }));
+  // Evidence — explicit caller-supplied entries plus one
+  // fxa:LearningExperience per derived-from xAPI experience, so the
+  // earned-by-this-evidence chain is visible inside the VC itself.
+  const evidenceEntries: Array<Record<string, unknown>> = [];
+  for (const e of args.subject.evidence ?? []) {
+    evidenceEntries.push({ id: e.id, type: [e.type], ...(e.narrative ? { narrative: e.narrative } : {}) });
+  }
+  for (const x of args.subject.derivedFromExperiences ?? []) {
+    evidenceEntries.push({ id: x, type: ['fxa:LearningExperience'], narrative: 'Raw xAPI experience this completion was derived from.' });
+  }
+  if (evidenceEntries.length > 0) {
+    (subject as Record<string, unknown>).evidence = evidenceEntries;
   }
 
   return {
@@ -208,6 +220,7 @@ export async function issueCourseCompletionCredential(
     graphIri,
     issuerDid: issuer.did,
     learnerDid: args.subject.learnerDid,
+    derivedFrom: (args.subject.derivedFromExperiences ?? []).map(x => x as IRI),
   });
   const graphContent = wrapCredentialAsGraph(graphIri, signed);
 
@@ -225,6 +238,8 @@ function credentialDescriptorFor(args: {
   graphIri: IRI;
   issuerDid: string;
   learnerDid: string;
+  /** xAPI experience IRIs this credential was derived from. */
+  derivedFrom?: readonly IRI[];
 }): ContextDescriptorData {
   const now = new Date().toISOString();
   return {
@@ -233,7 +248,15 @@ function credentialDescriptorFor(args: {
     conformsTo: [CREDENTIAL_TYPES.CourseCompletionCredential],
     facets: [
       { type: 'Temporal', validFrom: now },
-      { type: 'Provenance', wasAttributedTo: args.issuerDid as IRI },
+      {
+        type: 'Provenance',
+        wasAttributedTo: args.issuerDid as IRI,
+        // prov:wasDerivedFrom the raw xAPI experiences — an auditor walks
+        // from the credential back to the events that earned it.
+        ...(args.derivedFrom && args.derivedFrom.length > 0
+          ? { wasDerivedFrom: args.derivedFrom }
+          : {}),
+      },
       { type: 'Agent', assertingAgent: args.issuerDid as IRI },
       { type: 'Semiotic', modalStatus: 'Asserted' },
     ],

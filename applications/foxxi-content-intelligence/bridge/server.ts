@@ -56,6 +56,7 @@ import {
 } from '../src/credentials.js';
 import { exportClr } from '../src/clr.js';
 import { envelopeToClr1 } from '../src/clr-1.js';
+import { assembleEnterpriseLearnerRecord } from '../src/learner-record.js';
 import { frameworkToCase, type FoxxiSkillFramework } from '../src/case-exporter.js';
 import { buildPassedSessionTrace } from '../src/cmi5.js';
 import { pushFrameworkToCass } from '../src/cass-connector.js';
@@ -516,6 +517,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
       criterionNarrative: args.criterion_narrative as string | undefined,
       alignedSkills: args.aligned_skills as CourseCompletionSubject['alignedSkills'],
       evidence: args.evidence as CourseCompletionSubject['evidence'],
+      derivedFromExperiences: args.derived_from_experiences as readonly string[] | undefined,
     };
     const result = await issueCourseCompletionCredential({
       subject,
@@ -551,6 +553,35 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
     });
     const trace = emitAccessDecision({ ctx, tool: 'foxxi.export_clr', decision: 'allow', appliedPolicies: [ctx.role === 'admin' ? 'admin-full-access' : 'learner-self'] });
     return { ...envelope, accessDecision: trace };
+  },
+
+  'foxxi.assemble_learner_record': async (args) => {
+    const resolved = await resolveCaller(args);
+    if ('error' in resolved) return { error: resolved.error };
+    const { ctx } = resolved;
+    const requestedLearnerDid = (args.learner_did as string) || ctx.webId;
+    if (ctx.role !== 'admin' && requestedLearnerDid !== ctx.webId) {
+      const trace = emitAccessDecision({ ctx, tool: 'foxxi.assemble_learner_record', decision: 'deny', appliedPolicies: ['learner-self'] });
+      return { error: 'forbidden — non-admins can only assemble their own learner record', accessDecision: trace };
+    }
+    // Pull the learner's xAPI experiences from Foxxi-as-LRS.
+    const allStatements = await listStoredStatements();
+    const learnerStatements = allStatements.filter(rec => {
+      const a = rec.statement.actor as { account?: { name?: string; homePage?: string }; mbox?: string } | undefined;
+      return a?.account?.name === requestedLearnerDid
+        || a?.account?.homePage === requestedLearnerDid
+        || a?.mbox === requestedLearnerDid;
+    });
+    const elr = await assembleEnterpriseLearnerRecord({
+      learnerDid: requestedLearnerDid,
+      learnerName: args.learner_name as string | undefined,
+      learnerPodUrl: (args.learner_pod_url as string) || tenantPodUrl,
+      tenantDid: tenantProfileDid,
+      lrsEndpoint: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
+      statements: learnerStatements,
+    });
+    const trace = emitAccessDecision({ ctx, tool: 'foxxi.assemble_learner_record', decision: 'allow', appliedPolicies: [ctx.role === 'admin' ? 'admin-full-access' : 'learner-self'] });
+    return { ...elr, accessDecision: trace };
   },
 
   'foxxi.emit_cmi5_session': async (args) => {
