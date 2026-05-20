@@ -19,6 +19,7 @@
  *   FOXXI_AUDIENCE=both      → expose both (default)
  */
 
+import { randomUUID } from 'node:crypto';
 import { createVerticalBridge } from '../../_shared/vertical-bridge/index.js';
 import { foxxiAffordances, foxxiAdminAffordances } from '../affordances.js';
 import {
@@ -56,7 +57,7 @@ import {
 } from '../src/credentials.js';
 import { exportClr } from '../src/clr.js';
 import { envelopeToClr1 } from '../src/clr-1.js';
-import { assembleEnterpriseLearnerRecord } from '../src/learner-record.js';
+import { assembleEnterpriseLearnerRecord, PERFORMED_VERB, PERF_EXT } from '../src/learner-record.js';
 import { proveCompetency } from '../src/competency-proof.js';
 import { frameworkToCase, type FoxxiSkillFramework } from '../src/case-exporter.js';
 import { buildPassedSessionTrace } from '../src/cmi5.js';
@@ -127,7 +128,7 @@ import {
   type CallerContext,
 } from '../src/policy.js';
 import { deriveAdminKeyPair } from '../src/tenant-publisher.js';
-import { attachXapiLrsRoutes, listStoredStatements } from '../src/xapi-lrs.js';
+import { attachXapiLrsRoutes, listStoredStatements, storeStatementInternal } from '../src/xapi-lrs.js';
 import { attachLti13Routes } from '../src/lti13.js';
 import { attachOneRosterRoutes } from '../src/oneroster.js';
 import { attachOpenApiRoutes } from '../src/openapi-spec.js';
@@ -561,11 +562,15 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
     if ('error' in resolved) return { error: resolved.error };
     const { ctx } = resolved;
     const requestedLearnerDid = (args.learner_did as string) || ctx.webId;
-    if (ctx.role !== 'admin' && requestedLearnerDid !== ctx.webId) {
+    const subjectKind: 'human' | 'agent' = (args.actor_kind as string) === 'agent' ? 'agent' : 'human';
+    // Human records are private (self/admin only). Agent capability
+    // records are discoverable — like the public agent registry — so any
+    // authenticated caller may assemble one.
+    if (subjectKind === 'human' && ctx.role !== 'admin' && requestedLearnerDid !== ctx.webId) {
       const trace = emitAccessDecision({ ctx, tool: 'foxxi.assemble_learner_record', decision: 'deny', appliedPolicies: ['learner-self'] });
-      return { error: 'forbidden — non-admins can only assemble their own learner record', accessDecision: trace };
+      return { error: 'forbidden — non-admins can only assemble their own human learner record', accessDecision: trace };
     }
-    // Pull the learner's xAPI experiences from Foxxi-as-LRS.
+    // Pull the subject's xAPI experiences + performance records from Foxxi-as-LRS.
     const allStatements = await listStoredStatements();
     const learnerStatements = allStatements.filter(rec => {
       const a = rec.statement.actor as { account?: { name?: string; homePage?: string }; mbox?: string } | undefined;
@@ -577,12 +582,69 @@ const handlers: Record<string, (args: Record<string, unknown>) => Promise<unknow
       learnerDid: requestedLearnerDid,
       learnerName: args.learner_name as string | undefined,
       learnerPodUrl: (args.learner_pod_url as string) || tenantPodUrl,
+      subjectKind,
       tenantDid: tenantProfileDid,
       lrsEndpoint: process.env.BRIDGE_DEPLOYMENT_URL ?? 'http://localhost:6080',
       statements: learnerStatements,
     });
-    const trace = emitAccessDecision({ ctx, tool: 'foxxi.assemble_learner_record', decision: 'allow', appliedPolicies: [ctx.role === 'admin' ? 'admin-full-access' : 'learner-self'] });
+    const trace = emitAccessDecision({ ctx, tool: 'foxxi.assemble_learner_record', decision: 'allow', appliedPolicies: [subjectKind === 'agent' ? 'agent-capability-public' : ctx.role === 'admin' ? 'admin-full-access' : 'learner-self'] });
     return { ...elr, accessDecision: trace };
+  },
+
+  'foxxi.record_performance': async (args) => {
+    const resolved = await resolveCaller(args);
+    if ('error' in resolved) return { error: resolved.error };
+    const { ctx } = resolved;
+    const performerDid = (args.actor_did as string) || ctx.webId;
+    const taskName = args.task_name as string;
+    if (!taskName || !taskName.trim()) return { error: 'task_name is required' };
+    if (typeof args.success !== 'boolean') return { error: 'success (boolean) is required' };
+    const taskId = (args.task_id as string)
+      || `urn:foxxi:task:${taskName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 48)}`;
+    const actorKind: 'human' | 'agent' = (args.actor_kind as string) === 'agent' ? 'agent' : 'human';
+    const quality = typeof args.quality === 'number' ? args.quality : undefined;
+    // The performer is the xAPI actor; the authenticated caller is the
+    // attesting observer (provenance). Any authenticated caller may
+    // record a performance event — the observer is on the record.
+    const statement: Record<string, unknown> = {
+      id: randomUUID(),
+      version: '2.0.0',
+      actor: { objectType: 'Agent', account: { homePage: authoritativeSource, name: performerDid } },
+      verb: { id: PERFORMED_VERB, display: { en: 'performed' } },
+      object: {
+        objectType: 'Activity',
+        id: taskId,
+        definition: {
+          name: { en: taskName },
+          type: 'https://vocab.foxximediums.com/activity#ProductionTask',
+        },
+      },
+      result: {
+        success: args.success,
+        ...(quality !== undefined ? { score: { scaled: quality } } : {}),
+        ...(args.duration_iso ? { duration: args.duration_iso as string } : {}),
+      },
+      context: {
+        extensions: {
+          [PERF_EXT.observedBy]: ctx.webId,
+          [PERF_EXT.contextKind]: 'production',
+          [PERF_EXT.actorKind]: actorKind,
+          ...(typeof args.cost_usd === 'number' ? { [PERF_EXT.costUsd]: args.cost_usd } : {}),
+        },
+      },
+      timestamp: new Date().toISOString(),
+    };
+    const statementId = storeStatementInternal(statement);
+    return {
+      recorded: true,
+      statementId,
+      performer: performerDid,
+      observer: ctx.webId,
+      taskId,
+      taskName,
+      actorKind,
+      success: args.success as boolean,
+    };
   },
 
   'foxxi.emit_cmi5_session': async (args) => {

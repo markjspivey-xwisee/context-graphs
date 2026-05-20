@@ -22,9 +22,20 @@ interface ElrExperience {
   activityId: string; activityName?: string; timestamp: string;
   modalStatus: 'Asserted'; rawDataLocation: string;
 }
+interface ElrPerformanceRecord {
+  id: string; taskId: string; taskName: string;
+  success: boolean; quality?: number; durationIso?: string; costUsd?: number;
+  timestamp: string; modalStatus: 'Asserted'; observedBy?: string; rawDataLocation: string;
+}
 interface ElrCompetency {
   id: string; label: string; modalStatus: 'Asserted' | 'Hypothetical';
+  basis: 'performance' | 'credential' | 'inferred';
   framework?: string; proficiencyLevel?: string; evidence: string[];
+  evidenceSummary: {
+    trainingCompletions: number; performanceExecutions: number;
+    performanceSuccessRate?: number; performanceAvgQuality?: number;
+  };
+  supersedes?: string;
 }
 interface ElrCredential {
   id: string; achievementName?: string; issuer: string;
@@ -48,16 +59,20 @@ interface CompetencyProof {
 interface EnterpriseLearnerRecord {
   id: string;
   conformsTo: string;
+  subjectKind: 'human' | 'agent';
   learner: { did: string; name?: string };
   assembledAt: string;
   organizationPath: ElrOrganization[];
   experiences: ElrExperience[];
+  performanceRecords: ElrPerformanceRecord[];
   competencies: ElrCompetency[];
   credentials: ElrCredential[];
   provenance: { rawDataLocations: ElrRawDataLocation[] };
   summary: {
-    experienceCount: number; credentialCount: number; verifiedCredentialCount: number;
+    experienceCount: number; performanceCount: number; performanceSuccessRate?: number;
+    credentialCount: number; verifiedCredentialCount: number;
     competencyCount: number; assertedCompetencies: number; inferredCompetencies: number;
+    performanceVerifiedCompetencies: number;
   };
 }
 
@@ -75,6 +90,12 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
   const [proof, setProof] = useState<CompetencyProof | null>(null);
   const [proving, setProving] = useState(false);
   const [proofErr, setProofErr] = useState<string | null>(null);
+
+  // Performance-recording state.
+  const recordAff = useAffordance('foxxi.record_performance');
+  const [perfTask, setPerfTask] = useState('');
+  const [perfRecording, setPerfRecording] = useState(false);
+  const [perfMsg, setPerfMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!affordance || !entry) return;
@@ -127,6 +148,30 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
     }
   }
 
+  async function recordPerf(success: boolean) {
+    if (!recordAff || !perfTask.trim() || perfRecording) return;
+    setPerfRecording(true); setPerfMsg(null);
+    try {
+      const r = await invokeAffordance({
+        affordance: recordAff,
+        bearer,
+        args: {
+          actor_did: session.webId,
+          task_name: perfTask.trim(),
+          success,
+          quality: success ? 0.9 : 0.35,
+          actor_kind: 'human',
+        },
+      }) as { recorded?: boolean; error?: string };
+      if (r.error) { setPerfMsg(`✗ ${r.error}`); }
+      else { setPerfMsg(`✓ recorded — re-assembling your record…`); setVersion(v => v + 1); }
+    } catch (err) {
+      setPerfMsg(`✗ ${(err as Error).message}`);
+    } finally {
+      setPerfRecording(false);
+    }
+  }
+
   return (
     <Card
       title="Your Enterprise Learner Record"
@@ -138,11 +183,11 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
       }
     >
       <div style={{ marginBottom: 14, color: 'var(--text-dim)', fontSize: 12, lineHeight: 1.55 }}>
-        Your record, unified across sources and <strong>provenance-pointed</strong>: learning experiences from
-        Foxxi-as-LRS, credentials from your pod wallet, and competencies tagged{' '}
-        <strong>Asserted</strong> (backed by a verified credential) or <strong>inferred</strong> (predicted
-        from experience alone — not yet credentialed). Per IEEE P2997 every entry indicates where its raw
-        record is stored.
+        Your record, unified across sources and <strong>provenance-pointed</strong>: learning experiences +
+        on-the-job performance from Foxxi-as-LRS, credentials from your pod wallet, and competencies ranked by
+        evidence — <strong>performance-verified</strong> (proven by production work), <strong>credentialed</strong>,
+        or <strong>inferred</strong> (predicted from a training experience alone). Per IEEE P2997 every entry
+        indicates where its raw record is stored. The same machinery assembles an AI agent's capability record.
       </div>
 
       {error && <div style={{ color: 'var(--bad)', fontSize: 13, marginBottom: 12 }}>✗ {error}</div>}
@@ -157,11 +202,16 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
       {elr && (
         <div>
           {/* Summary strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
             <Stat label="Experiences" value={elr.summary.experienceCount} />
-            <Stat label="Credentials" value={`${elr.summary.verifiedCredentialCount}/${elr.summary.credentialCount}`} tone="accent" />
-            <Stat label="Asserted competencies" value={elr.summary.assertedCompetencies} tone="accent" />
-            <Stat label="Inferred competencies" value={elr.summary.inferredCompetencies} />
+            <Stat label="Performance records"
+              value={elr.summary.performanceSuccessRate !== undefined
+                ? `${elr.summary.performanceCount} · ${Math.round(elr.summary.performanceSuccessRate * 100)}%`
+                : elr.summary.performanceCount}
+              tone="accent" />
+            <Stat label="Credentials" value={`${elr.summary.verifiedCredentialCount}/${elr.summary.credentialCount}`} />
+            <Stat label="Verified competencies" value={elr.summary.assertedCompetencies} tone="accent" />
+            <Stat label="Inferred" value={elr.summary.inferredCompetencies} />
           </div>
 
           {/* Organisation path */}
@@ -175,22 +225,62 @@ export function LearnerRecordPanel({ session }: { session: FoxxiSession }) {
             </div>
           </Section>
 
-          {/* Competencies */}
+          {/* Competencies — ranked by evidence basis */}
           <Section title={`Competencies (${elr.competencies.length})`}>
-            {elr.competencies.length === 0 && <Empty>No competencies yet — pass or complete a course to earn one.</Empty>}
+            {elr.competencies.length === 0 && <Empty>No competencies yet — complete a course or record production performance to earn one.</Empty>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {elr.competencies.map((c, i) => (
-                <div key={i} style={rowStyle}>
-                  <span style={{ flex: 1, fontSize: 13 }}>{c.label}</span>
-                  {c.framework && <Pill tone="neutral">{shorten(c.framework)}</Pill>}
-                  <Pill
-                    tone={c.modalStatus === 'Asserted' ? 'good' : 'neutral'}
-                    title={c.modalStatus === 'Asserted'
-                      ? 'cg:modalStatus = Asserted — backed by a verified credential.'
-                      : 'cg:modalStatus = Hypothetical — inferred from a passed/completed experience; not yet credentialed.'}
-                  >
-                    {c.modalStatus === 'Asserted' ? 'credentialed' : 'inferred'}
-                  </Pill>
+              {elr.competencies.map((c, i) => {
+                const es = c.evidenceSummary;
+                return (
+                  <div key={i} style={{ ...rowStyle, flexWrap: 'wrap' }}>
+                    <span style={{ flex: 1, fontSize: 13, minWidth: 180 }}>{c.label}</span>
+                    {c.framework && <Pill tone="neutral">{shorten(c.framework)}</Pill>}
+                    <Pill tone={basisTone(c.basis)} title={basisTitle(c.basis)}>{basisLabel(c.basis)}</Pill>
+                    {es.performanceExecutions > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                        {es.performanceExecutions} exec
+                        {es.performanceSuccessRate !== undefined ? ` · ${Math.round(es.performanceSuccessRate * 100)}% ok` : ''}
+                        {es.performanceAvgQuality !== undefined ? ` · q${es.performanceAvgQuality.toFixed(2)}` : ''}
+                      </span>
+                    )}
+                    {c.supersedes && (
+                      <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                        cg:supersedes — {c.supersedes}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* Performance records — on-the-job production work (P2997 employment history) */}
+          <Section title={`Performance records (${elr.performanceRecords.length})`}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.5 }}>
+              On-the-job production work — distinct from training. Successful performance{' '}
+              <strong>supersedes</strong> a training-only competency inference (the data-informed loop).
+            </div>
+            {recordAff && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <TextInput value={perfTask} onChange={setPerfTask}
+                  placeholder="task performed (e.g. Resolve a tier-2 ticket)" onSubmit={() => recordPerf(true)} />
+                <Button onClick={() => recordPerf(true)} disabled={perfRecording || !perfTask.trim()}>
+                  {perfRecording ? 'Recording…' : 'Record success'}
+                </Button>
+                <Button onClick={() => recordPerf(false)} disabled={perfRecording || !perfTask.trim()}>
+                  Record failure
+                </Button>
+                {perfMsg && <span style={{ fontSize: 12, color: perfMsg.startsWith('✓') ? 'var(--good)' : 'var(--bad)' }}>{perfMsg}</span>}
+              </div>
+            )}
+            {elr.performanceRecords.length === 0 && <Empty>No performance records yet — record a unit of production work above.</Empty>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
+              {elr.performanceRecords.slice(0, 50).map((p, i) => (
+                <div key={i} style={{ ...rowStyle, fontSize: 12 }}>
+                  <Pill tone={p.success ? 'good' : 'bad'}>{p.success ? 'success' : 'failure'}</Pill>
+                  <span style={{ flex: 1 }}>{p.taskName}</span>
+                  {p.quality !== undefined && <span style={{ color: 'var(--text-dim)' }}>q{p.quality.toFixed(2)}</span>}
+                  <span style={{ color: 'var(--text-dim)' }}>{p.timestamp.slice(0, 19).replace('T', ' ')}</span>
                 </div>
               ))}
             </div>
@@ -336,4 +426,16 @@ function Empty({ children }: { children: React.ReactNode }) {
 function shorten(s: string): string {
   if (s.length <= 42) return s;
   return s.slice(0, 22) + '…' + s.slice(-16);
+}
+
+function basisLabel(b: 'performance' | 'credential' | 'inferred'): string {
+  return b === 'performance' ? 'performance-verified' : b === 'credential' ? 'credentialed' : 'inferred';
+}
+function basisTone(b: 'performance' | 'credential' | 'inferred'): 'good' | 'neutral' {
+  return b === 'inferred' ? 'neutral' : 'good';
+}
+function basisTitle(b: 'performance' | 'credential' | 'inferred'): string {
+  if (b === 'performance') return 'cg:modalStatus = Asserted — proven by successful production performance; supersedes weaker training-only evidence.';
+  if (b === 'credential') return 'cg:modalStatus = Asserted — backed by a verified credential.';
+  return 'cg:modalStatus = Hypothetical — inferred from a passed/completed experience; not yet verified by credential or performance.';
 }

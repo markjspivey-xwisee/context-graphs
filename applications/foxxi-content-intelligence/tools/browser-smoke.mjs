@@ -333,6 +333,8 @@ let elrAffordanceCalled = false;
 let elrAffordanceStatus = 0;
 let proveAffordanceCalled = false;
 let proveAffordanceStatus = 0;
+let perfAffordanceCalled = false;
+let perfAffordanceStatus = 0;
 page6.on('response', resp => {
   if (/\/foxxi\/assemble_learner_record/.test(resp.url())) {
     elrAffordanceCalled = true;
@@ -341,6 +343,10 @@ page6.on('response', resp => {
   if (/\/foxxi\/prove_competency/.test(resp.url())) {
     proveAffordanceCalled = true;
     proveAffordanceStatus = resp.status();
+  }
+  if (/\/foxxi\/record_performance/.test(resp.url())) {
+    perfAffordanceCalled = true;
+    perfAffordanceStatus = resp.status();
   }
 });
 const elrConsoleErr = [];
@@ -351,6 +357,7 @@ await page6.reload({ waitUntil: 'networkidle' });
 const joshua6 = page6.locator('text=Joshua Liu').locator('..').locator('button:has-text("Sign in")').first();
 let okElr = false;
 let okSelectiveDisclosure = false;
+let okPerformance = false;
 if (await joshua6.count() > 0) {
   await joshua6.click();
   // Wait for the Learner Record card to render + its affordance call.
@@ -361,7 +368,8 @@ if (await joshua6.count() > 0) {
   const noElrError = !(await page6.locator('text=/✗ /').count() > 0);
   // The summary strip renders these labels only when the ELR resolved.
   const summaryRendered = await page6.locator('text=/Experiences/i').count() > 0
-    && await page6.locator('text=/Asserted competencies/i').count() > 0;
+    && await page6.locator('text=/Verified competencies/i').count() > 0
+    && await page6.locator('text=/Performance records/i').count() > 0;
   console.log(`  Learner Record card present: ${cardPresent}`);
   console.log(`  IEEE P2997 badge present: ${p2997Pill}`);
   console.log(`  assemble_learner_record affordance invoked: ${elrAffordanceCalled} (HTTP ${elrAffordanceStatus})`);
@@ -388,13 +396,35 @@ if (await joshua6.count() > 0) {
   } else {
     console.log('  ✗ "Prove privately" button not found');
   }
+
+  // Performance — record a production-work event and confirm it lands in
+  // the ELR as a performance record + yields a performance-verified
+  // competency (the supersedes-weighted, on-the-job leg of P2997).
+  const perfInput = page6.locator('input[placeholder*="task performed"]').first();
+  const perfTaskName = `Smoke task ${Date.now()}`;
+  if (await perfInput.count() > 0) {
+    await perfInput.fill(perfTaskName);
+    const recordBtn = page6.locator('button:has-text("Record success")').first();
+    await recordBtn.click();
+    await page6.waitForSelector(`text=${perfTaskName}`, { timeout: 20_000 }).catch(() => null);
+    await page6.waitForTimeout(3000);
+    const perfRowShown = await page6.locator(`text=${perfTaskName}`).count() > 0;
+    const perfVerifiedPill = await page6.locator('text=performance-verified').count() > 0;
+    console.log(`  record_performance affordance invoked: ${perfAffordanceCalled} (HTTP ${perfAffordanceStatus})`);
+    console.log(`  performance record row shown in ELR: ${perfRowShown}`);
+    console.log(`  performance-verified competency shown: ${perfVerifiedPill}`);
+    okPerformance = perfAffordanceCalled && perfAffordanceStatus === 200 && perfRowShown && perfVerifiedPill;
+  } else {
+    console.log('  ✗ performance task input not found');
+  }
 } else {
   console.log('  ✗ Joshua sign-in button not found');
 }
 await browser6.close();
 console.log(`\n=== learner record (IEEE P2997 ELR): ${okElr ? 'PASS' : 'FAIL'} ===`);
 console.log(`=== selective disclosure (BBS+ competency proof): ${okSelectiveDisclosure ? 'PASS' : 'FAIL'} ===`);
+console.log(`=== performance record → performance-verified competency: ${okPerformance ? 'PASS' : 'FAIL'} ===`);
 
-const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr && okSelectiveDisclosure;
+const ok = okAuthed && okAnon && okDeepLinks && okTabs && okNoMcp && okOob && okElr && okSelectiveDisclosure && okPerformance;
 console.log(`\n=== overall: ${ok ? 'PASS' : 'FAIL'} ===`);
 process.exit(ok ? 0 : 1);
